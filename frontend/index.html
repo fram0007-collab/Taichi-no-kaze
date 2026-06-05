@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>DIS-RUPTURE | Predictive Early Warning Dashboard</title>
+    
+    <!-- Google Fonts for Premium Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Native Leaflet Map Styling (Required for react-leaflet rendering) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  </head>
+  <body class="bg-brand-dark text-slate-100 antialiased overflow-x-hidden">
+    <div id="root"></div>
+    <!-- Runtime API URL config — written by docker-entrypoint.sh at container startup.
+         Sets window.__API_URL__ so the LAN IP can be injected without rebuilding the image.
+         In local dev this file won't exist; the app falls back to import.meta.env.VITE_API_URL. -->
+    <script src="/config.js" onerror="console.info('[config] No runtime config.js found, using build-time VITE_API_URL.')"></script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

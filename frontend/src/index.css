@@ -1,0 +1,228 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Custom Scrollbar Styles for Premium Aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B0F19;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1E293B;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Glassmorphism Styling Utility */
+.glass-panel {
+  background: rgba(21, 29, 48, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card {
+  background: rgba(30, 41, 59, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* Leaflet Container Visual Fixes */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background-color: #0b0f19 !important;
+}
+
+/* Dark Theme Overrides for Leaflet Control Elements */
+.leaflet-bar {
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.leaflet-bar a {
+  background-color: #151d30 !important;
+  color: #e2e8f0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.leaflet-bar a:hover {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+/* Leaflet Popup Styling */
+.leaflet-popup-content-wrapper {
+  background: rgba(21, 29, 48, 0.9) !important;
+  backdrop-filter: blur(12px);
+  color: #e2e8f0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+}
+
+.leaflet-popup-tip {
+  background: rgba(21, 29, 48, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Premium Leaflet Tooltip Dark Mode Default Styling */
+.leaflet-tooltip {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+  border-radius: 8px !important;
+}
+
+/* Tooltip border pointer adjustments for dark mode */
+.leaflet-tooltip-left::before {
+  border-left-color: rgba(15, 23, 42, 0.95) !important;
+}
+.leaflet-tooltip-right::before {
+  border-right-color: rgba(15, 23, 42, 0.95) !important;
+}
+.leaflet-tooltip-top::before {
+  border-top-color: rgba(15, 23, 42, 0.95) !important;
+}
+.leaflet-tooltip-bottom::before {
+  border-bottom-color: rgba(15, 23, 42, 0.95) !important;
+}
+
+/* Mobile Bottom Sheet Smooth Animations */
+.bottom-sheet-transition {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Premium Light Mode Overrides */
+.light-mode {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+.light-mode header,
+.light-mode .bg-brand-elevated {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+
+.light-mode .bg-brand-dark {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+.light-mode .glass-panel {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: #E2E8F0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important;
+}
+
+.light-mode .glass-card {
+  background: rgba(241, 245, 249, 0.7) !important;
+  border-color: #E2E8F0 !important;
+}
+
+.light-mode .text-slate-100,
+.light-mode .text-slate-200,
+.light-mode .text-slate-300,
+.light-mode .text-slate-400,
+.light-mode h1,
+.light-mode h2,
+.light-mode h3 {
+  color: #1E293B !important;
+}
+
+.light-mode .text-slate-400 {
+  color: #64748B !important;
+}
+
+.light-mode .border-slate-800,
+.light-mode .border-slate-900,
+.light-mode .border-slate-800\/80 {
+  border-color: #E2E8F0 !important;
+}
+
+.light-mode .bg-slate-900,
+.light-mode .bg-slate-950,
+.light-mode .bg-slate-900\/40,
+.light-mode .bg-slate-950\/40 {
+  background-color: #F1F5F9 !important;
+  color: #1E293B !important;
+}
+
+/* Light mode for Leaflet overlays */
+.light-mode .leaflet-container {
+  background-color: #F8FAFC !important;
+}
+
+.light-mode .leaflet-bar {
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-mode .leaflet-bar a {
+  background-color: #FFFFFF !important;
+  color: #334155 !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.light-mode .leaflet-bar a:hover {
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+}
+
+.light-mode .leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #1E293B !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-mode .leaflet-popup-tip {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+}
+
+.light-mode .leaflet-tooltip {
+  background-color: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #0F172A !important;
+}
+
+.light-mode .leaflet-tooltip .text-slate-100,
+.light-mode .leaflet-tooltip .text-slate-300 {
+  color: #0F172A !important;
+}
+
+.light-mode ::-webkit-scrollbar-track {
+  background: #F8FAFC;
+}
+
+.light-mode ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+}
+
+.light-mode ::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
