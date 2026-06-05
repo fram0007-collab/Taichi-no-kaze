@@ -27,8 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, func, text, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import get_db, TTLCache, get_sql_ops_metrics, AsyncSessionLocal
-from backend.models import (
+from database import get_db, TTLCache, get_sql_ops_metrics, AsyncSessionLocal
+from models import (
     Zone, ZoneStatus, TrafficSnapshot, WeatherSnapshot,
     CrowdSnapshot, EarthquakeEvent, RiskAlert, PoiMaster,
     JabodetabekWaterway,
