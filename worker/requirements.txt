@@ -1,4 +1,4 @@
-sqlalchemy==2.0.30
+sqlalchemy==2.0.41
 psycopg2-binary==2.9.9   # sync driver for APScheduler worker
 apscheduler==3.10.4
 python-dotenv==1.0.1
