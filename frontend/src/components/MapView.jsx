@@ -497,6 +497,7 @@ export default function MapView({
               />
             </label>
           ))}
+        </div>
 
         <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Map Overlays</div>
         <div className="flex flex-col space-y-2">
