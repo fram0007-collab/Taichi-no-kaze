@@ -462,7 +462,7 @@ export default function MapView({
     <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-premium border border-slate-800">
       
       {/* Floating Layer Toggle Panel */}
-      <div className="absolute top-4 right-4 z-[999]">
+      <div className="absolute top-6 right-6 z-[999] pointer-events-auto">
 
   <button
     onClick={() => setShowLayerPanel(!showLayerPanel)}
@@ -471,13 +471,21 @@ export default function MapView({
     ⚙️ Layers
   </button>
 
-  {showLayerPanel && (
-
-    <div className="glass-panel mt-2 p-4 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-2.5 min-w-[175px]">
-        <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 mb-1">
-          <Layers className="w-4 h-4 text-indigo-400" />
-          <span className="text-xs uppercase font-extrabold tracking-wider">Map Layer Filters</span>
-        </div>
+  <div
+    className={`glass-panel mt-2 p-3 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-2 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0 pointer-events-none'}`}
+    aria-hidden={!showLayerPanel}
+  >
+    <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
+      <div className="flex items-center space-x-2">
+        <Layers className="w-4 h-4 text-indigo-400" />
+        <span className="text-xs uppercase font-extrabold tracking-wider">Map Layer Filters</span>
+      </div>
+      <button
+        onClick={() => setShowLayerPanel(false)}
+        className="text-slate-400 hover:text-slate-100 bg-transparent p-1 rounded hover:bg-slate-800/30">
+        ✕
+      </button>
+    </div>
         <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Threat Zones</div>
         <div className="flex flex-col space-y-1.5">
           {[
@@ -500,7 +508,7 @@ export default function MapView({
         </div>
 
         <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Map Overlays</div>
-        <div className="flex flex-col space-y-2">
+        <div className="flex flex-col space-y-2 pb-2">
           {[
             { id: 'waterways', label: 'Waterways & Canals 🗺️', color: 'text-sky-400' },
             { id: 'earthquakes', label: 'Earthquake Rings 🌋', color: 'text-red-400' },
@@ -521,9 +529,7 @@ export default function MapView({
             </label>
           ))}
         </div>
-      </div>
-  )}
-
+      
         {/* Sliders for Waterway Buffers (Desktop view controls) */}
         {activeLayers.waterways && (
           <div className="border-t border-slate-800/80 pt-2.5 mt-1.5 space-y-2.5">
@@ -588,8 +594,10 @@ export default function MapView({
             </div>
           </div>
         )}
+        
 
       </div>
+    </div>
 
       <MapContainer 
         center={JABODETABEK_CENTER} 
@@ -1114,7 +1122,7 @@ export default function MapView({
             </div>
           </Popup>
         )}
-        {predictions.length === 0 && (
+        {predictions.length === 0 && allZones.length === 0 && (
           <div className="absolute bottom-6 left-6 z-[1000]">
             <div className="glass-panel rounded-xl px-4 py-3 border border-emerald-500/20 bg-emerald-500/10 backdrop-blur-md">
               <div className="flex items-center gap-2">
