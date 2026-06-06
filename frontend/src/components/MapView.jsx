@@ -310,6 +310,7 @@ export default function MapView({
   const [globalPois, setGlobalPois] = useState([]);
   const hasActiveDisruptions = predictions.length > 0;
   const [waterways, setWaterways] = useState([]);
+  const [allZones, setAllZones] = useState([]);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState({
     mall: false,
@@ -318,7 +319,12 @@ export default function MapView({
     small_business: false,
     waterways: false,
     earthquakes: false,
-    safe_zones: true
+    safe_zones: true,
+    threat_traffic: true,
+    threat_weather: true,
+    threat_crowd: true,
+    threat_waterway: true,
+    threat_earthquake: true
   });
 
   // Automatically enable the Earthquakes layer if an earthquake is selected
@@ -427,6 +433,24 @@ export default function MapView({
       });
   }, [predictions]); // Refetch when predictions sweep updates (ensures sync)
 
+  // Fetch ALL zone statuses (not just alerts) to show every zone on the map
+  useEffect(() => {
+    const fetchAllZones = async () => {
+      try {
+        const res = await fetch(`${getApiUrl()}/zone-status/all`);
+        if (res.ok) {
+          const data = await res.json();
+          setAllZones(data);
+        }
+      } catch (e) {
+        console.warn('[MapView] Could not fetch zone statuses:', e);
+      }
+    };
+    fetchAllZones();
+    const id = setInterval(fetchAllZones, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const toggleLayer = (layerId) => {
     setActiveLayers(prev => ({ ...prev, [layerId]: !prev[layerId] }));
   };
@@ -454,10 +478,31 @@ export default function MapView({
           <Layers className="w-4 h-4 text-indigo-400" />
           <span className="text-xs uppercase font-extrabold tracking-wider">Map Layer Filters</span>
         </div>
+        <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Threat Zones</div>
+        <div className="flex flex-col space-y-1.5">
+          {[
+            { id: 'threat_traffic', label: 'Traffic 🚗', color: 'text-orange-400' },
+            { id: 'threat_weather', label: 'Weather 🌧️', color: 'text-blue-400' },
+            { id: 'threat_waterway', label: 'Flood / River 🌊', color: 'text-cyan-400' },
+            { id: 'threat_crowd', label: 'Crowd 👥', color: 'text-yellow-400' },
+            { id: 'threat_earthquake', label: 'Earthquake 🌋', color: 'text-red-400' }
+          ].map(layer => (
+            <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-2.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
+              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-500'} group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
+              <input
+                type="checkbox"
+                checked={activeLayers[layer.id]}
+                onChange={() => toggleLayer(layer.id)}
+                className="w-4 h-4 rounded border-slate-800 text-indigo-600 focus:ring-indigo-500 bg-slate-950/70 cursor-pointer"
+              />
+            </label>
+          ))}
+
+        <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Map Overlays</div>
         <div className="flex flex-col space-y-2">
           {[
-            { id: 'waterways', label: 'Waterways & Canals 🌊', color: 'text-sky-400' },
-            { id: 'earthquakes', label: 'Earthquakes 🌋', color: 'text-red-400' },
+            { id: 'waterways', label: 'Waterways & Canals 🗺️', color: 'text-sky-400' },
+            { id: 'earthquakes', label: 'Earthquake Rings 🌋', color: 'text-red-400' },
             { id: 'mall', label: 'Shopping Malls 🛍️', color: 'text-rose-400' },
             { id: 'station', label: 'Train Stations 🚆', color: 'text-blue-400' },
             { id: 'unique_building', label: 'Gov Buildings 🏛️', color: 'text-purple-400' },
@@ -702,6 +747,122 @@ export default function MapView({
                   </div>
                   <div className="text-[11px] text-slate-300">
                     Confidence: <span className="font-semibold text-slate-100">{pred.probability_percentage}%</span>
+                  </div>
+                  {distanceStr && (
+                    <div className="text-[10px] text-indigo-300 font-bold border-t border-slate-700/40 pt-1 mt-1">
+                      📍 {distanceStr} away from you
+                    </div>
+                  )}
+                </div>
+              </Tooltip>
+            </Circle>
+          );
+        })}
+
+        {/* Render threat zone circles */}
+        {allZones.map(zs => {
+          const zone = zs.zone;
+          if (!zone || !zone.geometry) return null;
+
+          const dimScores = {
+            traffic: zs.traffic_score || 0,
+            weather: zs.weather_score || 0,
+            crowd: zs.crowd_score || 0,
+            earthquake: zs.earthquake_score || 0,
+            waterway: zs.waterway_score || 0,
+          };
+
+          const threatLayerMap = {
+            traffic: 'threat_traffic',
+            weather: 'threat_weather',
+            crowd: 'threat_crowd',
+            earthquake: 'threat_earthquake',
+            waterway: 'threat_waterway',
+          };
+
+          let dominantActiveThreat = null;
+          let dominantActiveScore = 0;
+          for (const [dim, score] of Object.entries(dimScores)) {
+            const layerId = threatLayerMap[dim];
+            if (activeLayers[layerId] && score > dominantActiveScore) {
+              dominantActiveScore = score;
+              dominantActiveThreat = dim;
+            }
+          }
+
+          if (!dominantActiveThreat) return null;
+
+          let riskKey = 'Low';
+          if (dominantActiveScore >= 65) riskKey = 'High';
+          else if (dominantActiveScore >= 35) riskKey = 'Medium';
+          const riskStyle = getStyleForRisk(riskKey);
+
+          const coords = invertCoords(zone.geometry);
+          if (coords.length === 0) return null;
+          const { center, radius } = getCircleParams(coords);
+
+          const matchedPred = predictions.find(p => p.zone?.zone_id === zone.zone_id || p.zone?.id === zone.zone_id);
+          const isSelected = selectedZone && (selectedZone.zone?.id === zone.zone_id || selectedZone.zone?.zone_id === zone.zone_id);
+
+          let isOutOfRadius = false;
+          let distanceStr = '';
+          if (nearMeFilterActive && userLocation) {
+            const distance = calculateDistanceKm(userLocation.lat, userLocation.lon, center[0], center[1]);
+            if (distance > nearMeRadius) {
+              isOutOfRadius = true;
+            } else {
+              distanceStr = `${distance.toFixed(1)} km`;
+            }
+          }
+
+          let pathOptions = riskStyle;
+          if (isOutOfRadius) {
+            pathOptions = {
+              ...riskStyle,
+              fillOpacity: 0.01,
+              opacity: 0.04,
+              weight: 0.5,
+              className: 'transition-all duration-300 pointer-events-none'
+            };
+          } else if (isSelected) {
+            pathOptions = { ...riskStyle, weight: 4, fillOpacity: 0.4, opacity: 0.8, dashArray: '6, 6' };
+          }
+
+          return (
+            <Circle
+              key={zone.zone_id}
+              center={center}
+              radius={radius}
+              pathOptions={pathOptions}
+              interactive={!isOutOfRadius}
+              eventHandlers={{
+                click: () => matchedPred ? onSelectZone(matchedPred) : onSelectZone({ zone: { ...zone, id: zone.zone_id }, risk_level: riskKey, disruption_type: zs.dominant_risk || 'Threat', probability_percentage: zs.overall_risk_score || 0 })
+              }}
+            >
+              <Tooltip sticky>
+                <div className="font-sans p-1 text-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-sm">{zone.name}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      riskKey === 'Critical' ? 'bg-red-500/20 text-red-400' :
+                      riskKey === 'High' ? 'bg-orange-500/20 text-orange-400' :
+                      riskKey === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                      'bg-emerald-500/20 text-emerald-400'
+                    }`}>
+                      {riskKey}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-300 mt-1">
+                    Active threat: <span className="font-semibold text-slate-100 capitalize">{dominantActiveThreat}</span>
+                    <span className="ml-1 text-slate-400">({dominantActiveScore.toFixed(1)}/100)</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1 space-y-0.5">
+                    {Object.entries(dimScores).map(([dim, score]) => score >= 25 ? (
+                      <div key={dim} className="flex justify-between gap-3">
+                        <span className="capitalize">{dim}</span>
+                        <span className={score >= 65 ? 'text-red-400 font-bold' : score >= 35 ? 'text-yellow-400' : 'text-emerald-400'}>{score.toFixed(1)}</span>
+                      </div>
+                    ) : null)}
                   </div>
                   {distanceStr && (
                     <div className="text-[10px] text-indigo-300 font-bold border-t border-slate-700/40 pt-1 mt-1">
