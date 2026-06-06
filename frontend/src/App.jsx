@@ -807,7 +807,7 @@ export default function App() {
           </div>
 
           {/* Right panel: Timeline feeds, historical charts & trend lines */}
-          <div className="hidden w-[30%] min-w-[360px] h-full shrink-0">
+          <div className={`${selectedPrediction ? 'flex' : 'hidden'} w-[30%] min-w-[360px] h-full shrink-0`}>
             <Sidebar 
               predictions={filteredPredictions}
               selectedPrediction={selectedPrediction}
