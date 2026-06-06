@@ -763,7 +763,7 @@ export default function App() {
           {/* Left panel: Map + KPIs */}
           <div className="flex-1 flex flex-col p-6 space-y-6 min-w-0">
             {/* Dynamic KPIs */}
-            <MetricsGrid predictions={filteredPredictions} />
+            {<MetricsGrid predictions={filteredPredictions} />}
 
             {/* Simulated Banner Warning */}
             {isFallback && (
