@@ -701,7 +701,7 @@ async def _compute_db_stats(db: AsyncSession) -> dict:
 
 @app.get("/admin/status")
 async def get_admin_status(db: AsyncSession = Depends(get_db)):
-    from backend.database import get_sql_ops_metrics
+    from database import get_sql_ops_metrics
 
     t0 = time.time()
     try:
