@@ -439,7 +439,6 @@ export default function MapView({
   }, [predictions]); // Refetch when predictions sweep updates (ensures sync)
 
   // Fetch ALL zone statuses (not just alerts) to show every zone on the map
-  const [allZones, setAllZones] = useState([]);
   useEffect(() => {
     const fetchAllZones = async () => {
       try {
