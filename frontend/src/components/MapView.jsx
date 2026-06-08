@@ -180,7 +180,7 @@ const getWaterwayStyle = (category, alertLevel) => {
 function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, activeLayers }) {
   const map = useMap();
   const [zoom, setZoom] = useState(map.getZoom());
-
+  
   useEffect(() => {
     const handleZoom = () => setZoom(map.getZoom());
     map.on('zoomend', handleZoom);
@@ -188,7 +188,7 @@ function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, act
   }, [map]);
 
   if (!activeLayers.waterways) return null;
-
+ 
   // Calculate meters per pixel at average Jakarta latitude (-6.21)
   const lat = -6.21;
   const metersPerPixel = (40075016.686 * Math.cos(lat * Math.PI / 180)) / Math.pow(2, zoom + 8);
@@ -201,7 +201,12 @@ function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, act
 
         // Calculate dynamic buffer in meters for this specific waterway based on its fill level
         // Exponential scaling to simulate rapid expansion of flood zones as capacity peaks
-        // E.g., at 50% capacity -> 75m buffer; at 90% capacity -> 243m buffer; at 100% capacity -> 300m buffer
+        // E.g., at 50% capacity -> 75m buffer; at 90% capacity -> 243m buffer; at 100% capacity
+        const positions =
+          typeof waterway.coordinates === "string"
+            ? JSON.parse(waterway.coordinates)
+            : waterway.coordinates;
+        const leafletPositions = positions.map(([lon, lat]) => [lat, lon]);
         const dynamicBufferMeters = waterwayBuffer * Math.pow(waterway.capacity_percentage / 100, 2);
 
         // Compute pixel weight representing the dynamic buffer distance (diameter = 2 * radius in meters)
@@ -214,7 +219,7 @@ function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, act
         return (
           <Polyline
             key={`buffer-${waterway.name}-${idx}`}
-            positions={waterway.coordinates}
+            positions={leafletPositions}
             pathOptions={{
               color: '#ef4444',
               weight: bufferWeight,
@@ -434,6 +439,7 @@ export default function MapView({
   }, [predictions]); // Refetch when predictions sweep updates (ensures sync)
 
   // Fetch ALL zone statuses (not just alerts) to show every zone on the map
+  const [allZones, setAllZones] = useState([]);
   useEffect(() => {
     const fetchAllZones = async () => {
       try {
@@ -735,7 +741,14 @@ export default function MapView({
               pathOptions={pathOptions}
               interactive={!isOutOfRadius}
               eventHandlers={{
-                click: () => onSelectZone(pred)
+                click: () => matchedPred
+                              ? onSelectZone(matchedPred)
+                              : onSelectZone({
+                                  zone: { ...zone, id: zone.zone_id },
+                                  risk_level: riskKey,
+                                  disruption_type: zs.dominant_risk || 'Threat',
+                                  probability_percentage: zs.overall_risk_score || 0
+                                })
               }}
             >
               <Tooltip sticky>
@@ -769,7 +782,7 @@ export default function MapView({
         })}
 
         {/* Render threat zone circles */}
-        {allZones.map(zs => {
+        {allZones.filter(zs => !predictions.some(p =>p.zone?.zone_id === zs.zone_id ||p.zone?.id === zs.zone_id)).map(zs => {
           const zone = zs.zone;
           if (!zone || !zone.geometry) return null;
 
@@ -944,10 +957,16 @@ export default function MapView({
         />
 
         {/* Render dynamic Waterways layers (Rivers, Canals, creeks) */}
-        {activeLayers.waterways && waterways.map((waterway, idx) => (
+        {activeLayers.waterways && waterways.map((waterway, idx) => {
+          const positions =
+           typeof waterway.coordinates === "string"
+            ? JSON.parse(waterway.coordinates)
+            : waterway.coordinates;
+          const leafletPositions = positions.map(([lon, lat]) => [lat, lon]);
+          return (
           <Polyline
             key={`${waterway.name}-${idx}`}
-            positions={waterway.coordinates}
+            positions={leafletPositions}
             pathOptions={getWaterwayStyle(waterway.category, waterway.alert_level)}
           >
             <Popup>
@@ -999,7 +1018,8 @@ export default function MapView({
               </div>
             </Popup>
           </Polyline>
-        ))}
+          );
+        })}
 
         {/* Render POIs inside selected zone (Only if they aren't already globally displayed) */}
         {!selectedZone?.zone?.pois?.some(poi => activeLayers[poi.category]) && selectedZone?.zone?.pois?.map((poi, idx) => (
