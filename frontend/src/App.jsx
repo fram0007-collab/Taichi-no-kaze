@@ -763,7 +763,7 @@ export default function App() {
           {/* Left panel: Map + KPIs */}
           <div className="flex-1 flex flex-col p-6 space-y-6 min-w-0">
             {/* Dynamic KPIs */}
-            <MetricsGrid predictions={filteredPredictions} />
+            {false && <MetricsGrid predictions={filteredPredictions} />}
 
             {/* Simulated Banner Warning */}
             {isFallback && (
@@ -807,7 +807,7 @@ export default function App() {
           </div>
 
           {/* Right panel: Timeline feeds, historical charts & trend lines */}
-          <div className="w-[30%] min-w-[360px] h-full shrink-0">
+          <div className={`${selectedPrediction ? 'flex' : 'hidden'} w-[30%] min-w-[360px] h-full shrink-0`}>
             <Sidebar 
               predictions={filteredPredictions}
               selectedPrediction={selectedPrediction}

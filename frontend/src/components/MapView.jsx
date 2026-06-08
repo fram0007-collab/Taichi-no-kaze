@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Polygon, Tooltip, useMap, useMapEvents, Marker, Popup, Polyline, Circle } from 'react-leaflet';
+import React, { useEffect, useState, useMemo } from 'react';
+import { MapContainer, TileLayer, Tooltip, useMap, useMapEvents, Marker, Popup, Polyline, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { Layers } from 'lucide-react';
 import { getApiUrl } from '../utils/getApiUrl';
@@ -116,7 +116,30 @@ const createPoiIcon = (category, isSuppressed = false) => {
     popupAnchor: [0, -32]
   });
 };
+const createSafeZoneIcon = (type) => {
+  let emoji = "🛟";
 
+  if (type === "Evacuation Point") {
+    emoji = "🏕️";
+  } else if (type === "High Ground") {
+    emoji = "⛰️";
+  }
+
+  return L.divIcon({
+    html: `
+      <div class="flex items-center justify-center
+                  w-10 h-10 rounded-full
+                  bg-emerald-500
+                  border-4 border-white
+                  shadow-lg text-lg">
+        ${emoji}
+      </div>
+    `,
+    className: "safe-zone-marker",
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+  });
+};
 // Helper to determine styling of Jakarta's waterways based on alert and category
 const getWaterwayStyle = (category, alertLevel) => {
   let color = '#2563eb'; // Default Normal Safe Blue
@@ -175,35 +198,30 @@ function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, act
       {waterways.map((waterway, idx) => {
         const isThreat = waterway.capacity_percentage >= waterwayThreshold;
         if (!isThreat) return null;
-        
-        const positions =
-          typeof waterway.coordinates === "string"
-            ? JSON.parse(waterway.coordinates)
-            : waterway.coordinates;
 
-        const leafletPositions = positions.map(([lon, lat]) => [lat, lon]);
-        const dynamicBufferMeters =
-          waterwayBuffer * Math.pow(waterway.capacity_percentage / 100, 2);
-          
-        const bufferWeight = Math.max(
-          20,
-          (dynamicBufferMeters * 2) / metersPerPixel
-        );
-        
-        const opacity =
-          0.12 + (waterway.capacity_percentage / 100) * 0.22;
-          
+        // Calculate dynamic buffer in meters for this specific waterway based on its fill level
+        // Exponential scaling to simulate rapid expansion of flood zones as capacity peaks
+        // E.g., at 50% capacity -> 75m buffer; at 90% capacity -> 243m buffer; at 100% capacity -> 300m buffer
+        const dynamicBufferMeters = waterwayBuffer * Math.pow(waterway.capacity_percentage / 100, 2);
+
+        // Compute pixel weight representing the dynamic buffer distance (diameter = 2 * radius in meters)
+        // We enforce a minimum weight of 20px so that it is always visibly wider than the 5px waterway line itself.
+        const bufferWeight = Math.max(20, (dynamicBufferMeters * 2) / metersPerPixel);
+
+        // Scales opacity based on risk: higher capacity = denser threat glow
+        const opacity = 0.12 + (waterway.capacity_percentage / 100) * 0.22;
+
         return (
           <Polyline
             key={`buffer-${waterway.name}-${idx}`}
-            positions={leafletPositions}
+            positions={waterway.coordinates}
             pathOptions={{
-              color: "#ef4444",
+              color: '#ef4444',
               weight: bufferWeight,
               opacity,
-              lineCap: "round",
-              lineJoin: "round",
-              className: "animate-pulse"
+              lineCap: 'round',
+              lineJoin: 'round',
+              className: 'animate-pulse'
             }}
             interactive={false}
           />
@@ -250,7 +268,26 @@ function MapClickListener({ onClearSelectedEarthquake }) {
   });
   return null;
 }
-
+const SAFE_ZONES = [
+  {
+    id: 1,
+    name: "Gelora Bung Karno",
+    type: "Evacuation Point",
+    capacity: 5000,
+    lat: -6.218,
+    lon: 106.802,
+    details: "Medical support available"
+  },
+  {
+    id: 2,
+    name: "Monas High Ground",
+    type: "High Ground",
+    capacity: 3000,
+    lat: -6.175,
+    lon: 106.827,
+    details: "Elevated evacuation area"
+  }
+];
 
 export default function MapView({ 
   predictions = [], 
@@ -271,7 +308,10 @@ export default function MapView({
   setNearMeRadius
 }) {
   const [globalPois, setGlobalPois] = useState([]);
+  const hasActiveDisruptions = predictions.length > 0;
   const [waterways, setWaterways] = useState([]);
+  const [allZones, setAllZones] = useState([]);
+  const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState({
     mall: false,
     station: false,
@@ -279,12 +319,12 @@ export default function MapView({
     small_business: false,
     waterways: false,
     earthquakes: false,
-    // Threat filters — all ON by default so zones are always visible
+    safe_zones: true,
     threat_traffic: true,
     threat_weather: true,
     threat_crowd: true,
     threat_waterway: true,
-    threat_earthquake: true,
+    threat_earthquake: true
   });
 
   // Automatically enable the Earthquakes layer if an earthquake is selected
@@ -294,6 +334,16 @@ export default function MapView({
     }
   }, [selectedEarthquake]);
 
+  const hasDisruptionInRadius = useMemo(() => {
+    if (!userLocation || !predictions || predictions.length === 0) return false;
+    return predictions.some(pred => {
+      const coords = invertCoords(pred.zone.geometry);
+      if (coords.length === 0) return false;
+      const { center } = getCircleParams(coords);
+      const distance = calculateDistanceKm(userLocation.lat, userLocation.lon, center[0], center[1]);
+      return distance <= nearMeRadius;
+    });
+  }, [userLocation, predictions, nearMeRadius]);
 
   const API_URL = getApiUrl();
 
@@ -307,53 +357,56 @@ export default function MapView({
       .then(data => setGlobalPois(data))
       .catch(() => {
         console.warn("[MapView] Loading offline high-fidelity local POI stubs.");
-        setGlobalPois([
-          // --- Jakarta Core ---
-          { name: "Grand Indonesia Mall", category: "mall", lat: -6.195, lon: 106.820, is_suppressed: false },
-          { name: "Plaza Indonesia", category: "mall", lat: -6.193, lon: 106.821, is_suppressed: false },
-          { name: "Pacific Place Mall", category: "mall", lat: -6.224, lon: 106.810, is_suppressed: false },
-          { name: "Kuningan City Mall", category: "mall", lat: -6.225, lon: 106.830, is_suppressed: false },
-          { name: "Lippo Mall Kemang", category: "mall", lat: -6.273, lon: 106.815, is_suppressed: false },
-          { name: "Mal Ciputra Jakarta", category: "mall", lat: -6.167, lon: 106.786, is_suppressed: false },
-          { name: "Central Park Mall", category: "mall", lat: -6.177, lon: 106.790, is_suppressed: false },
-          
-          { name: "Sudirman MRT Station", category: "station", lat: -6.202, lon: 106.822, is_suppressed: false },
-          { name: "BNI City LRT Station", category: "station", lat: -6.202, lon: 106.819, is_suppressed: false },
-          { name: "Kuningan LRT Station", category: "station", lat: -6.220, lon: 106.829, is_suppressed: false },
-          { name: "Grogol KRL Station", category: "station", lat: -6.161, lon: 106.789, is_suppressed: false },
+        setGlobalPois(prev => {
+          if (prev && prev.length > 0) return prev;
+          return [
+            // --- Jakarta Core ---
+            { name: "Grand Indonesia Mall", category: "mall", lat: -6.195, lon: 106.820, is_suppressed: false },
+            { name: "Plaza Indonesia", category: "mall", lat: -6.193, lon: 106.821, is_suppressed: false },
+            { name: "Pacific Place Mall", category: "mall", lat: -6.224, lon: 106.810, is_suppressed: false },
+            { name: "Kuningan City Mall", category: "mall", lat: -6.225, lon: 106.830, is_suppressed: false },
+            { name: "Lippo Mall Kemang", category: "mall", lat: -6.273, lon: 106.815, is_suppressed: false },
+            { name: "Mal Ciputra Jakarta", category: "mall", lat: -6.167, lon: 106.786, is_suppressed: false },
+            { name: "Central Park Mall", category: "mall", lat: -6.177, lon: 106.790, is_suppressed: false },
+            
+            { name: "Sudirman MRT Station", category: "station", lat: -6.202, lon: 106.822, is_suppressed: false },
+            { name: "BNI City LRT Station", category: "station", lat: -6.202, lon: 106.819, is_suppressed: false },
+            { name: "Kuningan LRT Station", category: "station", lat: -6.220, lon: 106.829, is_suppressed: false },
+            { name: "Grogol KRL Station", category: "station", lat: -6.161, lon: 106.789, is_suppressed: false },
 
-          { name: "Jakarta City Hall", category: "unique_building", lat: -6.181, lon: 106.827, is_suppressed: false },
-          { name: "DPR Parliament Building", category: "unique_building", lat: -6.210, lon: 106.800, is_suppressed: false },
-          { name: "BPBD DKI Jakarta Office", category: "unique_building", lat: -6.175, lon: 106.820, is_suppressed: false },
+            { name: "Jakarta City Hall", category: "unique_building", lat: -6.181, lon: 106.827, is_suppressed: false },
+            { name: "DPR Parliament Building", category: "unique_building", lat: -6.210, lon: 106.800, is_suppressed: false },
+            { name: "BPBD DKI Jakarta Office", category: "unique_building", lat: -6.175, lon: 106.820, is_suppressed: false },
 
-          { name: "UMKM Kuliner Sabang", category: "small_business", lat: -6.187, lon: 106.824, is_suppressed: false },
-          { name: "Kemang Food Festival", category: "small_business", lat: -6.2725, lon: 106.8153, is_suppressed: true },
-          { name: "Grogol UMKM Street Food", category: "small_business", lat: -6.166, lon: 106.788, is_suppressed: false },
+            { name: "UMKM Kuliner Sabang", category: "small_business", lat: -6.187, lon: 106.824, is_suppressed: false },
+            { name: "Kemang Food Festival", category: "small_business", lat: -6.2725, lon: 106.8153, is_suppressed: true },
+            { name: "Grogol UMKM Street Food", category: "small_business", lat: -6.166, lon: 106.788, is_suppressed: false },
 
-          // --- Bogor ---
-          { name: "Botani Square Mall", category: "mall", lat: -6.601, lon: 106.806, is_suppressed: false },
-          { name: "Bogor Railway Station", category: "station", lat: -6.594, lon: 106.789, is_suppressed: false },
-          { name: "Bogor Presidential Palace", category: "unique_building", lat: -6.597, lon: 106.797, is_suppressed: false },
-          { name: "UMKM Suryakencana Street Food", category: "small_business", lat: -6.604, lon: 106.800, is_suppressed: false },
+            // --- Bogor ---
+            { name: "Botani Square Mall", category: "mall", lat: -6.601, lon: 106.806, is_suppressed: false },
+            { name: "Bogor Railway Station", category: "station", lat: -6.594, lon: 106.789, is_suppressed: false },
+            { name: "Bogor Presidential Palace", category: "unique_building", lat: -6.597, lon: 106.797, is_suppressed: false },
+            { name: "UMKM Suryakencana Street Food", category: "small_business", lat: -6.604, lon: 106.800, is_suppressed: false },
 
-          // --- Depok ---
-          { name: "Margo City Mall", category: "mall", lat: -6.372, lon: 106.834, is_suppressed: false },
-          { name: "Depok Baru Station", category: "station", lat: -6.391, lon: 106.818, is_suppressed: false },
-          { name: "Universitas Indonesia Rectorate", category: "unique_building", lat: -6.361, lon: 106.827, is_suppressed: false },
-          { name: "UMKM Margonda Culinary", category: "small_business", lat: -6.376, lon: 106.832, is_suppressed: false },
+            // --- Depok ---
+            { name: "Margo City Mall", category: "mall", lat: -6.372, lon: 106.834, is_suppressed: false },
+            { name: "Depok Baru Station", category: "station", lat: -6.391, lon: 106.818, is_suppressed: false },
+            { name: "Universitas Indonesia Rectorate", category: "unique_building", lat: -6.361, lon: 106.827, is_suppressed: false },
+            { name: "UMKM Margonda Culinary", category: "small_business", lat: -6.376, lon: 106.832, is_suppressed: false },
 
-          // --- Tangerang ---
-          { name: "Summarecon Mall Serpong", category: "mall", lat: -6.241, lon: 106.628, is_suppressed: false },
-          { name: "Tangerang Railway Station", category: "station", lat: -6.176, lon: 106.633, is_suppressed: false },
-          { name: "Tangerang City Hall", category: "unique_building", lat: -6.174, lon: 106.640, is_suppressed: false },
-          { name: "UMKM Pasar Lama Tangerang", category: "small_business", lat: -6.179, lon: 106.632, is_suppressed: false },
+            // --- Tangerang ---
+            { name: "Summarecon Mall Serpong", category: "mall", lat: -6.241, lon: 106.628, is_suppressed: false },
+            { name: "Tangerang Railway Station", category: "station", lat: -6.176, lon: 106.633, is_suppressed: false },
+            { name: "Tangerang City Hall", category: "unique_building", lat: -6.174, lon: 106.640, is_suppressed: false },
+            { name: "UMKM Pasar Lama Tangerang", category: "small_business", lat: -6.179, lon: 106.632, is_suppressed: false },
 
-          // --- Bekasi ---
-          { name: "Summarecon Mall Bekasi", category: "mall", lat: -6.223, lon: 106.999, is_suppressed: false },
-          { name: "Bekasi Railway Station", category: "station", lat: -6.235, lon: 106.999, is_suppressed: false },
-          { name: "Bekasi City Hall", category: "unique_building", lat: -6.230, lon: 106.994, is_suppressed: false },
-          { name: "UMKM Galaxy Food City", category: "small_business", lat: -6.269, lon: 106.974, is_suppressed: false },
-        ]);
+            // --- Bekasi ---
+            { name: "Summarecon Mall Bekasi", category: "mall", lat: -6.223, lon: 106.999, is_suppressed: false },
+            { name: "Bekasi Railway Station", category: "station", lat: -6.235, lon: 106.999, is_suppressed: false },
+            { name: "Bekasi City Hall", category: "unique_building", lat: -6.230, lon: 106.994, is_suppressed: false },
+            { name: "UMKM Galaxy Food City", category: "small_business", lat: -6.269, lon: 106.974, is_suppressed: false },
+          ];
+        });
       });
   }, []);
 
@@ -367,18 +420,20 @@ export default function MapView({
       .then(data => setWaterways(data))
       .catch(() => {
         console.warn("[MapView] Loading offline Jakarta waterways stubs.");
-        setWaterways([
-          { name: "Ciliwung River", category: "river", coordinates: [[-6.600, 106.800], [-6.450, 106.810], [-6.300, 106.840], [-6.250, 106.835], [-6.220, 106.828], [-6.205, 106.825], [-6.180, 106.827], [-6.150, 106.820]], current_level: 630.0, max_capacity: 1000.0, capacity_percentage: 63.0, alert_level: "Normal" },
-          { name: "Cisadane River", category: "river", coordinates: [[-6.350, 106.600], [-6.300, 106.610], [-6.241, 106.628], [-6.179, 106.632], [-6.100, 106.630]], current_level: 480.0, max_capacity: 900.0, capacity_percentage: 53.3, alert_level: "Normal" },
-          { name: "Kali Bekasi", category: "river", coordinates: [[-6.320, 106.995], [-6.269, 106.974], [-6.230, 106.994], [-6.180, 107.000], [-6.120, 107.010]], current_level: 310.0, max_capacity: 700.0, capacity_percentage: 44.3, alert_level: "Normal" },
-          { name: "West Flood Canal (BKB)", category: "canal", coordinates: [[-6.220, 106.798], [-6.210, 106.802], [-6.198, 106.815], [-6.185, 106.798], [-6.160, 106.788]], current_level: 535.5, max_capacity: 800.0, capacity_percentage: 66.9, alert_level: "Normal" },
-          { name: "Kali Grogol", category: "kali", coordinates: [[-6.240, 106.785], [-6.200, 106.782], [-6.180, 106.786], [-6.155, 106.780]], current_level: 315.0, max_capacity: 500.0, capacity_percentage: 63.0, alert_level: "Siaga 4" }
-        ]);
+        setWaterways(prev => {
+          if (prev && prev.length > 0) return prev;
+          return [
+            { name: "Ciliwung River", category: "river", coordinates: [[-6.600, 106.800], [-6.450, 106.810], [-6.300, 106.840], [-6.250, 106.835], [-6.220, 106.828], [-6.205, 106.825], [-6.180, 106.827], [-6.150, 106.820]], current_level: 630.0, max_capacity: 1000.0, capacity_percentage: 63.0, alert_level: "Normal" },
+            { name: "Cisadane River", category: "river", coordinates: [[-6.350, 106.600], [-6.300, 106.610], [-6.241, 106.628], [-6.179, 106.632], [-6.100, 106.630]], current_level: 480.0, max_capacity: 900.0, capacity_percentage: 53.3, alert_level: "Normal" },
+            { name: "Kali Bekasi", category: "river", coordinates: [[-6.320, 106.995], [-6.269, 106.974], [-6.230, 106.994], [-6.180, 107.000], [-6.120, 107.010]], current_level: 310.0, max_capacity: 700.0, capacity_percentage: 44.3, alert_level: "Normal" },
+            { name: "West Flood Canal (BKB)", category: "canal", coordinates: [[-6.220, 106.798], [-6.210, 106.802], [-6.198, 106.815], [-6.185, 106.798], [-6.160, 106.788]], current_level: 535.5, max_capacity: 800.0, capacity_percentage: 66.9, alert_level: "Normal" },
+            { name: "Kali Grogol", category: "kali", coordinates: [[-6.240, 106.785], [-6.200, 106.782], [-6.180, 106.786], [-6.155, 106.780]], current_level: 315.0, max_capacity: 500.0, capacity_percentage: 63.0, alert_level: "Siaga 4" }
+          ];
+        });
       });
   }, [predictions]); // Refetch when predictions sweep updates (ensures sync)
 
   // Fetch ALL zone statuses (not just alerts) to show every zone on the map
-  const [allZones, setAllZones] = useState([]);
   useEffect(() => {
     const fetchAllZones = async () => {
       try {
@@ -407,36 +462,53 @@ export default function MapView({
     <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-premium border border-slate-800">
       
       {/* Floating Layer Toggle Panel */}
-      <div className="absolute top-4 right-4 z-[999] glass-panel p-4 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-2.5 min-w-[175px]">
-        <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 mb-1">
-          <Layers className="w-4 h-4 text-indigo-400" />
-          <span className="text-xs uppercase font-extrabold tracking-wider">Map Layer Filters</span>
-        </div>
-        {/* Threat zone filters */}
+      <div className="absolute top-6 right-6 z-[999] pointer-events-auto">
+
+  <button
+    onClick={() => setShowLayerPanel(!showLayerPanel)}
+    className="glass-panel px-4 py-3 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 font-bold"
+  >
+    ⚙️ Layers
+  </button>
+
+  <div
+    className={`glass-panel mt-2 p-3 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-2 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0 pointer-events-none'}`}
+    aria-hidden={!showLayerPanel}
+  >
+    <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
+      <div className="flex items-center space-x-2">
+        <Layers className="w-4 h-4 text-indigo-400" />
+        <span className="text-xs uppercase font-extrabold tracking-wider">Map Layer Filters</span>
+      </div>
+      <button
+        onClick={() => setShowLayerPanel(false)}
+        className="text-slate-400 hover:text-slate-100 bg-transparent p-1 rounded hover:bg-slate-800/30">
+        ✕
+      </button>
+    </div>
         <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Threat Zones</div>
         <div className="flex flex-col space-y-1.5">
           {[
-            { id: 'threat_traffic',    label: 'Traffic 🚗',      color: 'text-orange-400' },
-            { id: 'threat_weather',    label: 'Weather 🌧️',      color: 'text-blue-400' },
-            { id: 'threat_waterway',   label: 'Flood / River 🌊', color: 'text-cyan-400' },
-            { id: 'threat_crowd',      label: 'Crowd 👥',         color: 'text-yellow-400' },
-            { id: 'threat_earthquake', label: 'Earthquake 🌋',    color: 'text-red-400' },
+            { id: 'threat_traffic', label: 'Traffic 🚗', color: 'text-orange-400' },
+            { id: 'threat_weather', label: 'Weather 🌧️', color: 'text-blue-400' },
+            { id: 'threat_waterway', label: 'Flood / River 🌊', color: 'text-cyan-400' },
+            { id: 'threat_crowd', label: 'Crowd 👥', color: 'text-yellow-400' },
+            { id: 'threat_earthquake', label: 'Earthquake 🌋', color: 'text-red-400' }
           ].map(layer => (
-            <label key={layer.id} className="flex items-center space-x-2 cursor-pointer group">
-              <div
-                onClick={() => setActiveLayers(prev => ({ ...prev, [layer.id]: !prev[layer.id] }))}
-                className={`w-8 h-4 rounded-full transition-all duration-200 flex items-center px-0.5 cursor-pointer ${activeLayers[layer.id] ? 'bg-indigo-500' : 'bg-slate-700'}`}
-              >
-                <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 ${activeLayers[layer.id] ? 'translate-x-4' : 'translate-x-0'}`} />
-              </div>
-              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-500'}`}>{layer.label}</span>
+            <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-2.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
+              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-500'} group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
+              <input
+                type="checkbox"
+                checked={activeLayers[layer.id]}
+                onChange={() => toggleLayer(layer.id)}
+                className="w-4 h-4 rounded border-slate-800 text-indigo-600 focus:ring-indigo-500 bg-slate-950/70 cursor-pointer"
+              />
             </label>
           ))}
         </div>
 
-        {/* Map overlay filters */}
         <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Map Overlays</div>
-        <div className="flex flex-col space-y-2">
+        <div className="flex flex-col space-y-2 pb-2">
           {[
             { id: 'waterways', label: 'Waterways & Canals 🗺️', color: 'text-sky-400' },
             { id: 'earthquakes', label: 'Earthquake Rings 🌋', color: 'text-red-400' },
@@ -444,6 +516,7 @@ export default function MapView({
             { id: 'station', label: 'Train Stations 🚆', color: 'text-blue-400' },
             { id: 'unique_building', label: 'Gov Buildings 🏛️', color: 'text-purple-400' },
             { id: 'small_business', label: 'UMKM Foods 🍱', color: 'text-amber-400' },
+            { id: 'safe_zones', label: 'Safe Zones 🛟', color: 'text-emerald-400' },
           ].map(layer => (
             <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-2.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
               <span className={`text-[11px] font-semibold ${layer.color} group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
@@ -456,7 +529,7 @@ export default function MapView({
             </label>
           ))}
         </div>
-
+      
         {/* Sliders for Waterway Buffers (Desktop view controls) */}
         {activeLayers.waterways && (
           <div className="border-t border-slate-800/80 pt-2.5 mt-1.5 space-y-2.5">
@@ -521,8 +594,10 @@ export default function MapView({
             </div>
           </div>
         )}
+        
 
       </div>
+    </div>
 
       <MapContainer 
         center={JABODETABEK_CENTER} 
@@ -599,8 +674,8 @@ export default function MapView({
               radius={nearMeRadius * 1000}
               interactive={false}
               pathOptions={{ 
-                color: '#3b82f6', 
-                fillColor: '#3b82f6', 
+                color: hasDisruptionInRadius ? '#f97316' : '#3b82f6', 
+                fillColor: hasDisruptionInRadius ? '#f97316' : '#3b82f6', 
                 fillOpacity: nearMeFilterActive ? 0.08 : 0.03,
                 weight: nearMeFilterActive ? 1.5 : 0.8,
                 dashArray: nearMeFilterActive ? '5, 5' : null
@@ -608,61 +683,23 @@ export default function MapView({
             >
               <Tooltip sticky>
                 <div className="font-sans p-1 text-slate-100 font-semibold text-xs">
-                  🔵 Search Radius geofence ({nearMeRadius} km)
+                  {hasDisruptionInRadius ? '🟠 Warning: Disruptions inside Search Radius' : '🔵 Search Radius geofence'} ({nearMeRadius} km)
                 </div>
               </Tooltip>
             </Circle>
           </>
         )}
         
-        {/* Render threat zone circles — filtered by active threat toggles */}
-        {allZones.map(zs => {
-          const zone = zs.zone;
-          if (!zone) return null;
-
-          // Per-threat filter: determine which threat dimensions are visible
-          // A zone is shown if ANY of its scoring threats is active AND above LOW
-          const dimScores = {
-            traffic:    zs.traffic_score    || 0,
-            weather:    zs.weather_score    || 0,
-            crowd:      zs.crowd_score      || 0,
-            earthquake: zs.earthquake_score || 0,
-            waterway:   zs.waterway_score   || 0,
-          };
-          const threatLayerMap = {
-            traffic:    'threat_traffic',
-            weather:    'threat_weather',
-            crowd:      'threat_crowd',
-            earthquake: 'threat_earthquake',
-            waterway:   'threat_waterway',
-          };
-
-          // Find highest scoring ACTIVE threat to drive colour
-          let dominantActiveThreat = null;
-          let dominantActiveScore  = 0;
-          for (const [dim, score] of Object.entries(dimScores)) {
-            const layerId = threatLayerMap[dim];
-            if (activeLayers[layerId] && score > dominantActiveScore) {
-              dominantActiveScore  = score;
-              dominantActiveThreat = dim;
-            }
-          }
-
-          // Hide zone if no active threat layer has any score
-          if (!dominantActiveThreat) return null;
-
-          // Severity colour based on the dominant ACTIVE threat score
-          let riskKey = 'Low';
-          if (dominantActiveScore >= 65)      riskKey = 'High';
-          else if (dominantActiveScore >= 35) riskKey = 'Medium';
-          const riskStyle = getStyleForRisk(riskKey);
-
+        {/* Render geofenced zones */}
+        {predictions.length > 0 && predictions.map(pred => {
+          const zone = pred.zone;
           const coords = invertCoords(zone.geometry);
+          const isSelected = selectedZone && selectedZone.zone.id === zone.id;
+          
           if (coords.length === 0) return null;
+          
           const { center, radius } = getCircleParams(coords);
-
-          const matchedPred = predictions.find(p => p.zone?.zone_id === zone.zone_id || p.zone?.id === zone.zone_id);
-          const isSelected = selectedZone && (selectedZone.zone?.id === zone.zone_id || selectedZone.zone?.zone_id === zone.zone_id);
+          const riskStyle = getStyleForRisk(pred.risk_level);
           
           // Compute if inside proximity filter
           let isOutOfRadius = false;
@@ -692,13 +729,123 @@ export default function MapView({
 
           return (
             <Circle
+              key={zone.id}
+              center={center}
+              radius={radius}
+              pathOptions={pathOptions}
+              interactive={!isOutOfRadius}
+              eventHandlers={{
+                click: () => onSelectZone(pred)
+              }}
+            >
+              <Tooltip sticky>
+                <div className="font-sans p-1 text-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-sm">{zone.name}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      pred.risk_level === 'Critical' ? 'bg-red-500/20 text-red-400' :
+                      pred.risk_level === 'High' ? 'bg-orange-500/20 text-orange-400' :
+                      pred.risk_level === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                      'bg-emerald-500/20 text-emerald-400'
+                    }`}>
+                      {pred.risk_level}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-300 mt-1">
+                    Threat: <span className="font-semibold text-slate-100">{pred.disruption_type}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-300">
+                    Confidence: <span className="font-semibold text-slate-100">{pred.probability_percentage}%</span>
+                  </div>
+                  {distanceStr && (
+                    <div className="text-[10px] text-indigo-300 font-bold border-t border-slate-700/40 pt-1 mt-1">
+                      📍 {distanceStr} away from you
+                    </div>
+                  )}
+                </div>
+              </Tooltip>
+            </Circle>
+          );
+        })}
+
+        {/* Render threat zone circles */}
+        {allZones.map(zs => {
+          const zone = zs.zone;
+          if (!zone || !zone.geometry) return null;
+
+          const dimScores = {
+            traffic: zs.traffic_score || 0,
+            weather: zs.weather_score || 0,
+            crowd: zs.crowd_score || 0,
+            earthquake: zs.earthquake_score || 0,
+            waterway: zs.waterway_score || 0,
+          };
+
+          const threatLayerMap = {
+            traffic: 'threat_traffic',
+            weather: 'threat_weather',
+            crowd: 'threat_crowd',
+            earthquake: 'threat_earthquake',
+            waterway: 'threat_waterway',
+          };
+
+          let dominantActiveThreat = null;
+          let dominantActiveScore = 0;
+          for (const [dim, score] of Object.entries(dimScores)) {
+            const layerId = threatLayerMap[dim];
+            if (activeLayers[layerId] && score > dominantActiveScore) {
+              dominantActiveScore = score;
+              dominantActiveThreat = dim;
+            }
+          }
+
+          if (!dominantActiveThreat) return null;
+
+          let riskKey = 'Low';
+          if (dominantActiveScore >= 65) riskKey = 'High';
+          else if (dominantActiveScore >= 35) riskKey = 'Medium';
+          const riskStyle = getStyleForRisk(riskKey);
+
+          const coords = invertCoords(zone.geometry);
+          if (coords.length === 0) return null;
+          const { center, radius } = getCircleParams(coords);
+
+          const matchedPred = predictions.find(p => p.zone?.zone_id === zone.zone_id || p.zone?.id === zone.zone_id);
+          const isSelected = selectedZone && (selectedZone.zone?.id === zone.zone_id || selectedZone.zone?.zone_id === zone.zone_id);
+
+          let isOutOfRadius = false;
+          let distanceStr = '';
+          if (nearMeFilterActive && userLocation) {
+            const distance = calculateDistanceKm(userLocation.lat, userLocation.lon, center[0], center[1]);
+            if (distance > nearMeRadius) {
+              isOutOfRadius = true;
+            } else {
+              distanceStr = `${distance.toFixed(1)} km`;
+            }
+          }
+
+          let pathOptions = riskStyle;
+          if (isOutOfRadius) {
+            pathOptions = {
+              ...riskStyle,
+              fillOpacity: 0.01,
+              opacity: 0.04,
+              weight: 0.5,
+              className: 'transition-all duration-300 pointer-events-none'
+            };
+          } else if (isSelected) {
+            pathOptions = { ...riskStyle, weight: 4, fillOpacity: 0.4, opacity: 0.8, dashArray: '6, 6' };
+          }
+
+          return (
+            <Circle
               key={zone.zone_id}
               center={center}
               radius={radius}
               pathOptions={pathOptions}
               interactive={!isOutOfRadius}
               eventHandlers={{
-                click: () => matchedPred ? onSelectZone(matchedPred) : onSelectZone({zone: {...zone, id: zone.zone_id}, risk_level: riskKey, disruption_type: zs.dominant_risk, probability_percentage: zs.overall_risk_score})
+                click: () => matchedPred ? onSelectZone(matchedPred) : onSelectZone({ zone: { ...zone, id: zone.zone_id }, risk_level: riskKey, disruption_type: zs.dominant_risk || 'Threat', probability_percentage: zs.overall_risk_score || 0 })
               }}
             >
               <Tooltip sticky>
@@ -779,7 +926,7 @@ export default function MapView({
                     </div>
                     <div className="flex justify-between border-t border-slate-200 dark:border-slate-800 pt-1 mt-1 text-[10px] text-slate-400">
                       <span>Occurred:</span>
-                      <span>{new Date(eq.datetime).toLocaleString()}</span>
+                      <span>{new Date(eq.datetime).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}</span>
                     </div>
                   </div>
                 </div>
@@ -789,34 +936,20 @@ export default function MapView({
         })}
 
         {/* Render dynamic Waterways safety buffer layer beneath the actual waterways */}
-        {/* <WaterwayBufferLayer
+        <WaterwayBufferLayer
           waterways={waterways}
           waterwayThreshold={waterwayThreshold}
           waterwayBuffer={waterwayBuffer}
           activeLayers={activeLayers}
-        /> */}
+        />
 
         {/* Render dynamic Waterways layers (Rivers, Canals, creeks) */}
-        {activeLayers.waterways && waterways.map((waterway, idx) => {
-          
-          if (!waterway.coordinates) return null;
-          const positions =
-            typeof waterway.coordinates === "string"
-            ? JSON.parse(waterway.coordinates)
-            : waterway.coordinates;
-            
-          const leafletPositions = positions.map(
-            ([lon, lat]) => [lat, lon]
-          );
-          
-          return (
-            <Polyline
-              key={`river-${waterway.hyriv_id}`}
-              positions={leafletPositions}
-              pathOptions={getWaterwayStyle(
-                waterway.category,
-                waterway.alert_level)}
-            >
+        {activeLayers.waterways && waterways.map((waterway, idx) => (
+          <Polyline
+            key={`${waterway.name}-${idx}`}
+            positions={waterway.coordinates}
+            pathOptions={getWaterwayStyle(waterway.category, waterway.alert_level)}
+          >
             <Popup>
               <div className="font-sans p-2.5 text-slate-900 dark:text-slate-100 min-w-[200px]">
                 <div className="flex items-center justify-between mb-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
@@ -866,7 +999,7 @@ export default function MapView({
               </div>
             </Popup>
           </Polyline>
-        )})}
+        ))}
 
         {/* Render POIs inside selected zone (Only if they aren't already globally displayed) */}
         {!selectedZone?.zone?.pois?.some(poi => activeLayers[poi.category]) && selectedZone?.zone?.pois?.map((poi, idx) => (
@@ -891,6 +1024,36 @@ export default function MapView({
               </div>
             </Popup>
           </Marker>
+        ))}
+        {/* Render Safe Zones */}
+        {hasActiveDisruptions && 
+         activeLayers.safe_zones &&
+         SAFE_ZONES.map(zone => (
+            <Marker
+              key={zone.id}
+              position={[zone.lat, zone.lon]}
+              icon={createSafeZoneIcon(zone.type)}
+            >
+              <Popup>
+                <div className="min-w-[220px] p-2">
+                  <div className="font-bold text-lg">
+                    {zone.name}
+                  </div>
+
+                  <div className="text-emerald-500 font-semibold">
+                    {zone.type}
+                  </div>
+
+                  <div className="mt-2 text-sm">
+                    Capacity: {zone.capacity}
+                  </div>
+
+                  <div className="text-sm mt-1">
+                    {zone.details}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
         ))}
 
         {/* Render Global POIs based on checkbox toggles */}
@@ -958,6 +1121,25 @@ export default function MapView({
               </div>
             </div>
           </Popup>
+        )}
+        {predictions.length === 0 && allZones.length === 0 && (
+          <div className="absolute bottom-6 left-6 z-[1000]">
+            <div className="glass-panel rounded-xl px-4 py-3 border border-emerald-500/20 bg-emerald-500/10 backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">✅</span>
+
+                <div>
+                  <div className="font-bold text-emerald-400">
+                    All Clear
+                  </div>
+
+                  <div className="text-xs text-slate-300">
+                    No active disruptions detected in Jabodetabek
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </MapContainer>
     </div>
