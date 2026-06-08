@@ -220,7 +220,10 @@ export default function App() {
   // 2. Clear selected prediction if it's no longer in the updated active list
   useEffect(() => {
     if (selectedPrediction && predictions.length > 0) {
-      const stillActive = predictions.find(p => p.zone.id === selectedPrediction.zone.id);
+      const selectedId =
+             selectedPrediction.zone?.zone_id ||
+             selectedPrediction.zone?.id;
+      const stillActive = predictions.find(p => p.zone?.zone_id === selectedId || p.zone?.id === selectedId);
       if (!stillActive) {
         setSelectedPrediction(null);
         setTimelineData(null);
