@@ -454,7 +454,7 @@ export default function MapView({
   const poisToRender = globalPois.filter(poi => activeLayers[poi.category]);
 
   return (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-premium border border-slate-800">
+    <div className="relative w-full h-full overflow-hidden">
       
       {/* Floating Layer Toggle Panel */}
       <div className="absolute top-6 right-6 z-[999] pointer-events-auto">
@@ -730,14 +730,7 @@ export default function MapView({
               pathOptions={pathOptions}
               interactive={!isOutOfRadius}
               eventHandlers={{
-                click: () => matchedPred
-                              ? onSelectZone(matchedPred)
-                              : onSelectZone({
-                                  zone: { ...zone, id: zone.zone_id },
-                                  risk_level: riskKey,
-                                  disruption_type: zs.dominant_risk || 'Threat',
-                                  probability_percentage: zs.overall_risk_score || 0
-                                })
+                click: () => onSelectZone(pred)
               }}
             >
               <Tooltip sticky>
@@ -1037,11 +1030,15 @@ export default function MapView({
         {/* Render Safe Zones */}
         {hasActiveDisruptions && 
          activeLayers.safe_zones &&
-         safeZones.map(zone => (
+         safeZones.map(zone => {
+           const type = zone.type || (zone.category === 'evacuation_point' ? 'Evacuation Point' : zone.category === 'high_ground' ? 'High Ground' : 'Safe Zone');
+           const capacity = zone.capacity || (zone.category === 'evacuation_point' ? 500 : 250);
+           const details = zone.details || (zone.category === 'evacuation_point' ? 'Equipped with emergency medical kits, power back-up, and shelter supplies.' : 'Designated high ground assembly area above flood levels.');
+           return (
             <Marker
-              key={zone.id}
+              key={zone.id || zone.poi_id}
               position={[zone.latitude, zone.longitude]}
-              icon={createSafeZoneIcon(zone.type)}
+              icon={createSafeZoneIcon(type)}
             >
               <Popup>
                 <div className="min-w-[220px] p-2">
@@ -1050,20 +1047,21 @@ export default function MapView({
                   </div>
 
                   <div className="text-emerald-500 font-semibold">
-                    {zone.type}
+                    {type}
                   </div>
 
                   <div className="mt-2 text-sm">
-                    Capacity: {zone.capacity}
+                    Capacity: {capacity}
                   </div>
 
                   <div className="text-sm mt-1">
-                    {zone.details}
+                    {details}
                   </div>
                 </div>
               </Popup>
             </Marker>
-        ))}
+           );
+         })}
 
         {/* Render Global POIs based on checkbox toggles */}
         {poisToRender.map((poi, idx) => (

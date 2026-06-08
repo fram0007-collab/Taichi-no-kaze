@@ -634,9 +634,13 @@ async def get_safe_zones(
 
     data = [
         {
+            "id": p.poi_id,
             "poi_id": p.poi_id,
             "name": p.name,
             "category": p.category,
+            "type": "Evacuation Point" if p.category == "evacuation_point" else "High Ground" if p.category == "high_ground" else "Safe Zone",
+            "capacity": 500 if p.category == "evacuation_point" else 250,
+            "details": "Equipped with emergency medical kits, power back-up, and shelter supplies." if p.category == "evacuation_point" else "Designated high ground assembly area above flood levels.",
             "latitude": p.latitude,
             "longitude": p.longitude,
             "zone_id": p.zone_id,

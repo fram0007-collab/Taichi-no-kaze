@@ -217,13 +217,10 @@ export default function App() {
     return () => window.removeEventListener('resize', checkViewport);
   }, []);
 
-  // 2. Clear selected prediction if it's no longer in the updated active list
+  // 2. Clear selected prediction if it was an active warning and is no longer in the updated active list
   useEffect(() => {
-    if (selectedPrediction && predictions.length > 0) {
-      const selectedId =
-             selectedPrediction.zone?.zone_id ||
-             selectedPrediction.zone?.id;
-      const stillActive = predictions.find(p => p.zone?.zone_id === selectedId || p.zone?.id === selectedId);
+    if (selectedPrediction && selectedPrediction.id && predictions.length > 0) {
+      const stillActive = predictions.some(p => p.id === selectedPrediction.id);
       if (!stillActive) {
         setSelectedPrediction(null);
         setTimelineData(null);
@@ -764,13 +761,13 @@ export default function App() {
         // Desktop Layout: Split view layout
         <main className="flex-1 flex min-h-0 w-full">
           {/* Left panel: Map + KPIs */}
-          <div className="flex-1 flex flex-col p-6 space-y-6 min-w-0">
+          <div className="flex-1 flex flex-col min-w-0 relative">
             {/* Dynamic KPIs */}
             {false && <MetricsGrid predictions={filteredPredictions} />}
 
-            {/* Simulated Banner Warning */}
+            {/* Simulated Banner Warning (Floating overlay) */}
             {isFallback && (
-              <div className="glass-panel px-4 py-2.5 rounded-xl border border-amber-500/15 text-amber-400 text-xs flex items-center justify-between shrink-0">
+              <div className="absolute top-6 left-6 right-32 z-[1000] glass-panel px-4 py-2.5 rounded-xl border border-amber-500/15 text-amber-400 text-xs flex items-center justify-between shadow-2xl">
                 <div className="flex items-center space-x-2">
                   <AlertTriangle className="w-4 h-4 animate-pulse text-amber-400" />
                   <span>
@@ -787,7 +784,7 @@ export default function App() {
             )}
 
             {/* Expanded Leaflet Map */}
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 w-full h-full">
               <MapView 
                 predictions={predictions} 
                 selectedZone={selectedPrediction}
@@ -810,7 +807,7 @@ export default function App() {
           </div>
 
           {/* Right panel: Timeline feeds, historical charts & trend lines */}
-          <div className={`${selectedPrediction ? 'flex' : 'hidden'} w-[30%] min-w-[360px] h-full shrink-0`}>
+          <div className="flex w-[30%] min-w-[360px] h-full shrink-0">
             <Sidebar 
               predictions={filteredPredictions}
               selectedPrediction={selectedPrediction}
