@@ -13,10 +13,13 @@ export function getApiUrl() {
   if (window.__API_URL__) {
     return window.__API_URL__;
   }
+  // If accessed via a LAN IP or hostname (not localhost), dynamically route to that host's port 8000
+  const hostname = window.location.hostname;
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    return `http://${hostname}:8000`;
+  }
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  // Dynamically resolve port 8000 on the current host IP/domain to ensure seamless LAN routing
-  const hostname = window.location.hostname;
   return `http://${hostname}:8000`;
 }

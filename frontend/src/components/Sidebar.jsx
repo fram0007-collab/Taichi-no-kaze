@@ -93,7 +93,7 @@ export default function Sidebar({
   const nowLabel = timelineData?.timeline?.[0] ? formatTime(timelineData.timeline[0].timestamp) : null;
 
   return (
-    <div className="flex flex-col h-full bg-brand-elevated border-l border-slate-800 p-6 space-y-6 overflow-y-auto">
+    <div className="w-full flex flex-col h-full bg-brand-elevated border-l border-slate-800 p-6 space-y-6 overflow-y-auto">
       {/* Active Notifications Block */}
       <div>
         <div className="flex items-center space-x-2 text-slate-100 font-bold text-lg mb-2">
