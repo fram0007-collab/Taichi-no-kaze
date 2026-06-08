@@ -13,13 +13,32 @@ export function getApiUrl() {
   if (window.__API_URL__) {
     return window.__API_URL__;
   }
-  // If accessed via a LAN IP or hostname (not localhost), dynamically route to that host's port 8000
+
   const hostname = window.location.hostname;
-  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+
+  // Detect if accessing from localhost or local private networks (LAN)
+  const isLocalHost = 
+    hostname === 'localhost' || 
+    hostname === '127.0.0.1' ||
+    /^192\.168\./.test(hostname) ||
+    /^10\./.test(hostname) ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
+    hostname.endsWith('.local') ||
+    !hostname.includes('.');
+
+  // If VITE_API_URL is configured and points to a remote/non-localhost address, prioritize it
+  if (import.meta.env.VITE_API_URL) {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (!apiUrl.includes('localhost') && !apiUrl.includes('127.0.0.1')) {
+      return apiUrl;
+    }
+  }
+
+  // For local development and LAN mobile testing, route dynamically to the accessing host on port 8000
+  if (isLocalHost) {
     return `http://${hostname}:8000`;
   }
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
-  }
-  return `http://${hostname}:8000`;
+
+  // Fallback to VITE_API_URL or the hostname on port 8000
+  return import.meta.env.VITE_API_URL || `http://${hostname}:8000`;
 }
