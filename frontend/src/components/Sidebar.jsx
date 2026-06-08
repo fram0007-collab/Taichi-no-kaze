@@ -268,16 +268,16 @@ export default function Sidebar({
               <MapPin className="w-4 h-4" />
               <span className="text-xs uppercase tracking-wider">Selected Zone Analysis</span>
             </div>
-            <h1 className="text-2xl font-bold text-slate-100">{selectedPrediction.zone.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-100">{selectedPrediction?.zone?.name ?? 'Unknown Zone'}</h1>
             
             <div className="grid grid-cols-2 gap-3 mt-4">
               <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2 text-center">
                 <p className="text-[10px] text-slate-400">Baseline Speed</p>
-                <p className="text-lg font-bold text-slate-200">{selectedPrediction.zone.traffic_speed_baseline} <span className="text-xs font-normal">km/h</span></p>
+                <p className="text-lg font-bold text-slate-200">{selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'} <span className="text-xs font-normal">km/h</span></p>
               </div>
               <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2 text-center">
                 <p className="text-[10px] text-slate-400">Max Capacity</p>
-                <p className="text-lg font-bold text-slate-200">{selectedPrediction.zone.max_passenger_capacity.toLocaleString()}</p>
+                <p className="text-lg font-bold text-slate-200">{selectedPrediction?.zone?.max_passenger_capacity ? selectedPrediction.zone.max_passenger_capacity.toLocaleString() : 'N/A'}</p>
               </div>
             </div>
           </div>
@@ -415,10 +415,10 @@ export default function Sidebar({
                   <div className="flex-1 min-h-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart 
-                        data={timelineData.timeline.map(d => ({
+                        data={(timelineData?.timeline || []).map(d => ({
                           time: formatTime(d.timestamp),
                           speed: d.expected_speed,
-                          baseline: selectedPrediction.zone.traffic_speed_baseline
+                          baseline: selectedPrediction?.zone?.traffic_speed_baseline ?? 0
                         }))}
                         margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
                       >
