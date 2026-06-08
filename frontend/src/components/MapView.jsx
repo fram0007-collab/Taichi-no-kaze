@@ -273,26 +273,6 @@ function MapClickListener({ onClearSelectedEarthquake }) {
   });
   return null;
 }
-const SAFE_ZONES = [
-  {
-    id: 1,
-    name: "Gelora Bung Karno",
-    type: "Evacuation Point",
-    capacity: 5000,
-    lat: -6.218,
-    lon: 106.802,
-    details: "Medical support available"
-  },
-  {
-    id: 2,
-    name: "Monas High Ground",
-    type: "High Ground",
-    capacity: 3000,
-    lat: -6.175,
-    lon: 106.827,
-    details: "Elevated evacuation area"
-  }
-];
 
 export default function MapView({ 
   predictions = [], 
@@ -460,7 +440,17 @@ export default function MapView({
   const toggleLayer = (layerId) => {
     setActiveLayers(prev => ({ ...prev, [layerId]: !prev[layerId] }));
   };
-
+  const [safeZones, setSafeZones] = useState([]);
+  useEffect(() => {fetch(`${API_URL}/safe-zones`)
+    .then(res => {
+      if (!res.ok) throw new Error("Failed to load safe zones");
+      return res.json();
+    })
+    .then(data => setSafeZones(data))
+    .catch(err => {
+      console.error("Safe zones fetch failed:", err);
+    });
+    }, [API_URL]);
   // Determine POIs to display globally
   const poisToRender = globalPois.filter(poi => activeLayers[poi.category]);
 
@@ -1048,10 +1038,10 @@ export default function MapView({
         {/* Render Safe Zones */}
         {hasActiveDisruptions && 
          activeLayers.safe_zones &&
-         SAFE_ZONES.map(zone => (
+         safeZones.map(zone => (
             <Marker
               key={zone.id}
-              position={[zone.lat, zone.lon]}
+              position={[zone.latitude, zone.longitude]}
               icon={createSafeZoneIcon(zone.type)}
             >
               <Popup>
