@@ -58,18 +58,18 @@ function getStyleForRisk(risk) {
         fillColor: '#FF7A00',
         color: '#FF7A00',
         weight: 3.0,
-        opacity: 0.45,
-        fillOpacity: 0.20,
-        className: 'hover:fill-opacity-35 hover:opacity-65 transition-all duration-300'
+        opacity: 0.35,
+        fillOpacity: 0.12,
+        className: 'hover:fill-opacity-25 hover:opacity-50 transition-all duration-300'
       };
     case 'Medium':
       return {
         fillColor: '#FFD600',
         color: '#FFD600',
         weight: 2.5,
-        opacity: 0.35,
-        fillOpacity: 0.15,
-        className: 'hover:fill-opacity-25 hover:opacity-50 transition-all duration-300'
+        opacity: 0.25,
+        fillOpacity: 0.08,
+        className: 'hover:fill-opacity-18 hover:opacity-40 transition-all duration-300'
       };
     case 'Low':
     default:

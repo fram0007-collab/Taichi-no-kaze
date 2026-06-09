@@ -19,4 +19,7 @@ ENV/
 Thumbs.db
 
 # Local admin dashboard
-local_admin_dashboard.html
+local_admin_dashboard.html
+
+# Discussion notes/reports
+discussions/
