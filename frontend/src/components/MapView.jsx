@@ -106,6 +106,13 @@ const createPoiIcon = (category, isSuppressed = false) => {
   const borderStyle = isSuppressed ? 'border-dashed border' : 'border-2';
   const scaleStyle = isSuppressed ? 'opacity-65 scale-90' : 'shadow-glow';
 
+  let crowdBadge = '';
+  if (!isSuppressed && crowdScore > 0) {
+    const crowdColor = crowdScore >= 65 ? '#ef4444' : crowdScore >= 35 ? '#f97316' : '#22c55e';
+    const crowdLabel = crowdScore >= 65 ? '🔴' : crowdScore >= 35 ? '🟡' : '🟢';
+    crowdBadge = `<div style="position:absolute;top:-6px;right:-6px;background:${crowdColor};border-radius:9999px;width:14px;height:14px;display:flex;align-items:center;justify-content:center;font-size:8px;border:1px solid white;font-weight:bold;color:white;">${Math.round(crowdScore)}</div>`;
+  }
+
   return L.divIcon({
     html: `<div class="flex items-center justify-center w-8 h-8 rounded-full ${colorClass} text-white ${scaleStyle} ${borderStyle} ${bounceClass} cursor-pointer text-sm transform hover:scale-110 transition-all duration-200">
       <span>${emoji}</span>
@@ -766,6 +773,21 @@ export default function MapView({
           const isSelected = selectedZone && selectedZone.zone.id === zone.id;
           
           if (coords.length === 0) return null;
+          const disruptionLayerMap = {
+            'traffic': 'threat_traffic',
+            'weather': 'threat_weather',
+            'crowd': 'threat_crowd',
+            'earthquake': 'threat_earthquake',
+            'waterway': 'threat_waterway',
+            'flood': 'threat_waterway',
+          };
+          const disruptionKey = (pred.disruption_type || '').toLowerCase();
+          const mappedLayer = disruptionLayerMap[disruptionKey];
+          // Hide this circle if its threat type layer is toggled off
+          // If type is unknown, show it only if at least one threat layer is active
+          const anyThreatActive = Object.keys(disruptionLayerMap).some(k => activeLayers[disruptionLayerMap[k]]);
+          if (mappedLayer && !activeLayers[mappedLayer]) return null;
+          if (!mappedLayer && !anyThreatActive) return null;
           
           const { center, radius } = getCircleParams(coords);
           const riskStyle = getStyleForRisk(pred.risk_level);
