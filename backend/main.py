@@ -622,37 +622,54 @@ async def get_zones_by_spatial_proximity(
 # ── Safe Zones ────────────────────────────────────────────────────────────────
 @app.get("/safe-zones")
 async def get_safe_zones(
-    lat: float = Query(None, description="Filter by proximity (optional)"),
-    lon: float = Query(None, description="Filter by proximity (optional)"),
+    lat: float = Query(None, description="Sort by proximity (optional)"),
+    lon: float = Query(None, description="Sort by proximity (optional)"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Returns all POIs marked as safe zones, optionally sorted by proximity."""
-    result = await db.execute(
-        select(PoiMaster).where(PoiMaster.is_safe_zone == True)
-    )
-    pois = result.scalars().all()
+    """
+    Returns zones currently at LOW overall risk — areas safe to head toward.
+    A zone qualifies as safe when:
+      - overall_risk_score < 35  AND
+      - no individual dimension (traffic/weather/crowd/earthquake/waterway) >= 35
+    Capacity fields removed — no credible source for those figures.
+    """
+    if not ZoneCache.get_all():
+        await ZoneCache.sync(db)
 
-    data = [
-        {
-            "id": p.poi_id,
-            "poi_id": p.poi_id,
-            "name": p.name,
-            "category": p.category,
-            "type": "Evacuation Point" if p.category == "evacuation_point" else "High Ground" if p.category == "high_ground" else "Safe Zone",
-            "capacity": 500 if p.category == "evacuation_point" else 250,
-            "details": "Equipped with emergency medical kits, power back-up, and shelter supplies." if p.category == "evacuation_point" else "Designated high ground assembly area above flood levels.",
-            "latitude": p.latitude,
-            "longitude": p.longitude,
-            "zone_id": p.zone_id,
-        }
-        for p in pois
-        if p.latitude and p.longitude
-    ]
+    result = await db.execute(select(ZoneStatus))
+    statuses = result.scalars().all()
+
+    data = []
+    for s in statuses:
+        overall    = float(s.overall_risk_score or 0)
+        traffic    = float(s.traffic_score    or 0)
+        weather    = float(s.weather_score    or 0)
+        crowd      = float(s.crowd_score      or 0)
+        earthquake = float(s.earthquake_score or 0)
+        waterway   = float(s.waterway_score   or 0) if hasattr(s, "waterway_score") and s.waterway_score is not None else 0.0
+        max_dim    = max(traffic, weather, crowd, earthquake, waterway)
+
+        if overall >= 35 or max_dim >= 35:
+            continue  # zone has active risk — not safe
+
+        zone_data = ZoneCache.get(s.zone_id)
+        if not zone_data:
+            continue
+
+        data.append({
+            "zone_id": s.zone_id,
+            "name": zone_data["name"],
+            "latitude": zone_data["latitude"],
+            "longitude": zone_data["longitude"],
+            "radius_m": zone_data["radius_m"],
+            "overall_risk_score": round(overall, 1),
+            "dominant_risk": s.dominant_risk or "none",
+            "recommended_action": s.recommended_action or "Area currently clear.",
+            "last_updated": s.last_updated.isoformat() if s.last_updated else None,
+        })
 
     if lat is not None and lon is not None:
-        data.sort(
-            key=lambda p: haversine_m(lat, lon, p["latitude"], p["longitude"])
-        )
+        data.sort(key=lambda z: haversine_m(lat, lon, z["latitude"], z["longitude"]))
 
     return data
 
@@ -767,7 +784,12 @@ async def get_db_stats(db: AsyncSession = Depends(get_db)):
 # Frontend expects: { name, category, lat, lon, is_suppressed }
 @app.get("/pois")
 async def get_pois(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(PoiMaster))
+    INTERNAL_CATEGORIES = {"evacuation_point", "high_ground"}
+    result = await db.execute(
+        select(PoiMaster).where(
+            PoiMaster.category.notin_(list(INTERNAL_CATEGORIES))
+        )
+    )
     pois = result.scalars().all()
     return [
         {
