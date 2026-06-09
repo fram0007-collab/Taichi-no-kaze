@@ -4,17 +4,17 @@ import L from 'leaflet';
 import { Layers } from 'lucide-react';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
-
+ 
 // Leaflet center for Jabodetabek regional focus
 const JABODETABEK_CENTER = [-6.25, 106.85];
-
+ 
 // Inverts coordinates from GeoJSON [lon, lat] format to Leaflet [lat, lon] format
 function invertCoords(geometry) {
   if (!geometry || !geometry.coordinates) return [];
   const rings = geometry.coordinates;
   return rings[0].map(coord => [coord[1], coord[0]]);
 }
-
+ 
 // Computes center [lat, lon] and radius in meters from coordinates
 function getCircleParams(coords) {
   if (!coords || coords.length === 0) return { center: [0, 0], radius: 0 };
@@ -40,7 +40,7 @@ function getCircleParams(coords) {
     radius: maxDist * 0.8
   };
 }
-
+ 
 // Custom style mapper for geofenced zones based on their risk level
 function getStyleForRisk(risk) {
   switch (risk) {
@@ -83,9 +83,9 @@ function getStyleForRisk(risk) {
       };
   }
 }
-
+ 
 // Helper to construct highly stylized modern marker icons for different categories
-const createPoiIcon = (category, isSuppressed = false) => {
+const createPoiIcon = (category, isSuppressed = false, crowdScore = 0) => {
   let colorClass = 'bg-emerald-500 border-emerald-300';
   let emoji = '🏪';
   if (category === 'mall') {
@@ -105,17 +105,17 @@ const createPoiIcon = (category, isSuppressed = false) => {
   const bounceClass = isSuppressed ? '' : 'animate-bounce';
   const borderStyle = isSuppressed ? 'border-dashed border' : 'border-2';
   const scaleStyle = isSuppressed ? 'opacity-65 scale-90' : 'shadow-glow';
-
-  let crowdBadge = '';
-  if (!isSuppressed && crowdScore > 0) {
-    const crowdColor = crowdScore >= 65 ? '#ef4444' : crowdScore >= 35 ? '#f97316' : '#22c55e';
-    const crowdLabel = crowdScore >= 65 ? '🔴' : crowdScore >= 35 ? '🟡' : '🟢';
-    crowdBadge = `<div style="position:absolute;top:-6px;right:-6px;background:${crowdColor};border-radius:9999px;width:14px;height:14px;display:flex;align-items:center;justify-content:center;font-size:8px;border:1px solid white;font-weight:bold;color:white;">${Math.round(crowdScore)}</div>`;
-  }
-
+ 
+  const crowdBadge = (!isSuppressed && crowdScore > 0)
+    ? `<div style="position:absolute;top:-5px;right:-5px;background:${crowdScore >= 65 ? '#ef4444' : crowdScore >= 35 ? '#f97316' : '#22c55e'};border-radius:9999px;width:14px;height:14px;display:flex;align-items:center;justify-content:center;font-size:8px;border:1px solid white;font-weight:bold;color:white;">${Math.round(crowdScore)}</div>`
+    : '';
+ 
   return L.divIcon({
-    html: `<div class="flex items-center justify-center w-8 h-8 rounded-full ${colorClass} text-white ${scaleStyle} ${borderStyle} ${bounceClass} cursor-pointer text-sm transform hover:scale-110 transition-all duration-200">
-      <span>${emoji}</span>
+    html: `<div style="position:relative;display:inline-block;">
+      <div class="flex items-center justify-center w-8 h-8 rounded-full ${colorClass} text-white ${scaleStyle} ${borderStyle} ${bounceClass} cursor-pointer text-sm transform hover:scale-110 transition-all duration-200">
+        <span>${emoji}</span>
+      </div>
+      ${crowdBadge}
     </div>`,
     className: 'custom-poi-marker',
     iconSize: [32, 32],
@@ -125,13 +125,13 @@ const createPoiIcon = (category, isSuppressed = false) => {
 };
 const createSafeZoneIcon = (type) => {
   let emoji = "🛟";
-
+ 
   if (type === "Evacuation Point") {
     emoji = "🏕️";
   } else if (type === "High Ground") {
     emoji = "⛰️";
   }
-
+ 
   return L.divIcon({
     html: `
       <div class="flex items-center justify-center
@@ -153,7 +153,7 @@ const getWaterwayStyle = (category, alertLevel) => {
   let weight = 4;
   let dashArray = null;
   let pulseClass = '';
-
+ 
   if (alertLevel === 'Siaga 1' || alertLevel === 'Siaga 2') {
     color = '#dc2626'; // Critical Red
     pulseClass = 'animate-pulse';
@@ -166,7 +166,7 @@ const getWaterwayStyle = (category, alertLevel) => {
     color = '#d97706'; // Caution Amber
     weight = 4;
   }
-
+ 
   // Adjust style based on category
   if (category === 'canal') {
     dashArray = '8, 8'; // Dashed BKB canal
@@ -174,7 +174,7 @@ const getWaterwayStyle = (category, alertLevel) => {
   } else if (category === 'kali') {
     weight -= 1.5; // Thinner local creek
   }
-
+ 
   return {
     color,
     weight,
@@ -182,7 +182,7 @@ const getWaterwayStyle = (category, alertLevel) => {
     className: `transition-all duration-300 hover:opacity-90 ${pulseClass}`
   };
 };
-
+ 
 // Custom hook or component to render shape-following buffer zones dynamically on zoom
 function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, activeLayers }) {
   const map = useMap();
@@ -193,19 +193,19 @@ function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, act
     map.on('zoomend', handleZoom);
     return () => { map.off('zoomend', handleZoom); };
   }, [map]);
-
+ 
   if (!activeLayers.waterways) return null;
  
   // Calculate meters per pixel at average Jakarta latitude (-6.21)
   const lat = -6.21;
   const metersPerPixel = (40075016.686 * Math.cos(lat * Math.PI / 180)) / Math.pow(2, zoom + 8);
-
+ 
   return (
     <>
       {waterways.map((waterway, idx) => {
         const isThreat = waterway.capacity_percentage >= waterwayThreshold;
         if (!isThreat) return null;
-
+ 
         // Calculate dynamic buffer in meters for this specific waterway based on its fill level
         // Exponential scaling to simulate rapid expansion of flood zones as capacity peaks
         // E.g., at 50% capacity -> 75m buffer; at 90% capacity -> 243m buffer; at 100% capacity
@@ -216,14 +216,14 @@ function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, act
         const leafletPositions = positions.map(([lon, lat]) => [lat, lon]);
         const cappedCapacity = Math.min(100, waterway.capacity_percentage);
         const dynamicBufferMeters = waterwayBuffer * Math.pow(cappedCapacity / 100, 2);
-
+ 
         // Compute pixel weight representing the dynamic buffer distance (diameter = 2 * radius in meters)
         // We enforce a minimum weight of 20px so that it is always visibly wider than the 5px waterway line itself.
         const bufferWeight = Math.max(20, (dynamicBufferMeters * 2) / metersPerPixel);
-
+ 
         // Scales opacity based on risk: higher capacity = denser threat glow
         const opacity = 0.12 + (waterway.capacity_percentage / 100) * 0.22;
-
+ 
         return (
           <Polyline
             key={`buffer-${waterway.name}-${idx}`}
@@ -243,7 +243,7 @@ function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, act
     </>
   );
 }
-
+ 
 // Controller component to dynamically pan/zoom the map view to the selected zone or earthquake
 function MapController({ selectedZone, selectedEarthquake }) {
   const map = useMap();
@@ -266,10 +266,10 @@ function MapController({ selectedZone, selectedEarthquake }) {
       map.setView([selectedEarthquake.latitude, selectedEarthquake.longitude], 12, { animate: true, duration: 1.2 });
     }
   }, [selectedZone, selectedEarthquake, map]);
-
+ 
   return null;
 }
-
+ 
 function MapClickListener({ onClearSelectedEarthquake }) {
   useMapEvents({
     click(e) {
@@ -281,7 +281,7 @@ function MapClickListener({ onClearSelectedEarthquake }) {
   });
   return null;
 }
-
+ 
 export default function MapView({ 
   predictions = [], 
   selectedZone, 
@@ -319,14 +319,14 @@ export default function MapView({
     threat_waterway: true,
     threat_earthquake: true
   });
-
+ 
   // Automatically enable the Earthquakes layer if an earthquake is selected
   useEffect(() => {
     if (selectedEarthquake) {
       setActiveLayers(prev => ({ ...prev, earthquakes: true }));
     }
   }, [selectedEarthquake]);
-
+ 
   const hasDisruptionInRadius = useMemo(() => {
     if (!userLocation || !predictions || predictions.length === 0) return false;
     return predictions.some(pred => {
@@ -337,9 +337,9 @@ export default function MapView({
       return distance <= nearMeRadius;
     });
   }, [userLocation, predictions, nearMeRadius]);
-
+ 
   const API_URL = getApiUrl();
-
+ 
   // Fetch POIs catalog globally
   useEffect(() => {
     fetch(`${API_URL}/pois`)
@@ -366,33 +366,33 @@ export default function MapView({
             { name: "BNI City LRT Station", category: "station", lat: -6.202, lon: 106.819, is_suppressed: false },
             { name: "Kuningan LRT Station", category: "station", lat: -6.220, lon: 106.829, is_suppressed: false },
             { name: "Grogol KRL Station", category: "station", lat: -6.161, lon: 106.789, is_suppressed: false },
-
+ 
             { name: "Jakarta City Hall", category: "unique_building", lat: -6.181, lon: 106.827, is_suppressed: false },
             { name: "DPR Parliament Building", category: "unique_building", lat: -6.210, lon: 106.800, is_suppressed: false },
             { name: "BPBD DKI Jakarta Office", category: "unique_building", lat: -6.175, lon: 106.820, is_suppressed: false },
-
+ 
             { name: "UMKM Kuliner Sabang", category: "small_business", lat: -6.187, lon: 106.824, is_suppressed: false },
             { name: "Kemang Food Festival", category: "small_business", lat: -6.2725, lon: 106.8153, is_suppressed: true },
             { name: "Grogol UMKM Street Food", category: "small_business", lat: -6.166, lon: 106.788, is_suppressed: false },
-
+ 
             // --- Bogor ---
             { name: "Botani Square Mall", category: "mall", lat: -6.601, lon: 106.806, is_suppressed: false },
             { name: "Bogor Railway Station", category: "station", lat: -6.594, lon: 106.789, is_suppressed: false },
             { name: "Bogor Presidential Palace", category: "unique_building", lat: -6.597, lon: 106.797, is_suppressed: false },
             { name: "UMKM Suryakencana Street Food", category: "small_business", lat: -6.604, lon: 106.800, is_suppressed: false },
-
+ 
             // --- Depok ---
             { name: "Margo City Mall", category: "mall", lat: -6.372, lon: 106.834, is_suppressed: false },
             { name: "Depok Baru Station", category: "station", lat: -6.391, lon: 106.818, is_suppressed: false },
             { name: "Universitas Indonesia Rectorate", category: "unique_building", lat: -6.361, lon: 106.827, is_suppressed: false },
             { name: "UMKM Margonda Culinary", category: "small_business", lat: -6.376, lon: 106.832, is_suppressed: false },
-
+ 
             // --- Tangerang ---
             { name: "Summarecon Mall Serpong", category: "mall", lat: -6.241, lon: 106.628, is_suppressed: false },
             { name: "Tangerang Railway Station", category: "station", lat: -6.176, lon: 106.633, is_suppressed: false },
             { name: "Tangerang City Hall", category: "unique_building", lat: -6.174, lon: 106.640, is_suppressed: false },
             { name: "UMKM Pasar Lama Tangerang", category: "small_business", lat: -6.179, lon: 106.632, is_suppressed: false },
-
+ 
             // --- Bekasi ---
             { name: "Summarecon Mall Bekasi", category: "mall", lat: -6.223, lon: 106.999, is_suppressed: false },
             { name: "Bekasi Railway Station", category: "station", lat: -6.235, lon: 106.999, is_suppressed: false },
@@ -402,7 +402,7 @@ export default function MapView({
         });
       });
   }, []);
-
+ 
   // Fetch dynamic Waterways catalog
   useEffect(() => {
     fetch(`${API_URL}/rivers`)
@@ -425,7 +425,7 @@ export default function MapView({
         });
       });
   }, [predictions]); // Refetch when predictions sweep updates (ensures sync)
-
+ 
   // Fetch ALL zone statuses (not just alerts) to show every zone on the map
   useEffect(() => {
     const fetchAllZones = async () => {
@@ -443,7 +443,7 @@ export default function MapView({
     const id = setInterval(fetchAllZones, 30000);
     return () => clearInterval(id);
   }, []);
-
+ 
   const toggleLayer = (layerId) => {
     setActiveLayers(prev => ({ ...prev, [layerId]: !prev[layerId] }));
   };
@@ -458,7 +458,7 @@ export default function MapView({
       console.error("Safe zones fetch failed:", err);
     });
     }, [API_URL]);
-
+ 
   // Compute active threat zone circles to suppress safe zones within them
   const threatZoneCircles = useMemo(() => {
     const list = [];
@@ -474,7 +474,7 @@ export default function MapView({
         }
       }
     });
-
+ 
     // 2. From allZones that have a dominant active threat
     const threatLayerMap = {
       traffic: 'threat_traffic',
@@ -483,14 +483,14 @@ export default function MapView({
       earthquake: 'threat_earthquake',
       waterway: 'threat_waterway',
     };
-
+ 
     allZones.forEach(zs => {
       if (predictions.some(p => p.zone?.zone_id === zs.zone_id || p.zone?.id === zs.zone_id)) {
         return;
       }
       const zone = zs.zone;
       if (!zone || !zone.geometry) return;
-
+ 
       const dimScores = {
         traffic: zs.traffic_score || 0,
         weather: zs.weather_score || 0,
@@ -498,7 +498,7 @@ export default function MapView({
         earthquake: zs.earthquake_score || 0,
         waterway: zs.waterway_score || 0,
       };
-
+ 
       let dominantActiveThreat = null;
       let dominantActiveScore = 0;
       for (const [dim, score] of Object.entries(dimScores)) {
@@ -508,7 +508,7 @@ export default function MapView({
           dominantActiveThreat = dim;
         }
       }
-
+ 
       if (dominantActiveThreat) {
         const coords = invertCoords(zone.geometry);
         if (coords.length > 0) {
@@ -517,10 +517,10 @@ export default function MapView({
         }
       }
     });
-
+ 
     return list;
   }, [predictions, allZones, activeLayers]);
-
+ 
   const filteredSafeZones = useMemo(() => {
     return safeZones.filter(sz => {
       const isInsideThreat = threatZoneCircles.some(circle => {
@@ -530,23 +530,23 @@ export default function MapView({
       return !isInsideThreat;
     });
   }, [safeZones, threatZoneCircles]);
-
+ 
   // Determine POIs to display globally
   const poisToRender = globalPois.filter(poi => activeLayers[poi.category]);
-
+ 
   return (
     <div className="relative w-full h-full overflow-hidden">
       
       {/* Floating Layer Toggle Panel */}
       <div className="absolute top-6 right-6 z-[999] pointer-events-auto">
-
+ 
   <button
     onClick={() => setShowLayerPanel(!showLayerPanel)}
     className="glass-panel px-4 py-3 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 font-bold"
   >
     ⚙️ Layers
   </button>
-
+ 
   <div
     className={`glass-panel mt-2 p-2.5 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-1 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0 pointer-events-none'}`}
     aria-hidden={!showLayerPanel}
@@ -582,7 +582,7 @@ export default function MapView({
             </label>
           ))}
         </div>
-
+ 
         <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Map Overlays</div>
         <div className="flex flex-col space-y-2 pb-2">
           {[
@@ -640,7 +640,7 @@ export default function MapView({
             </div>
           </div>
         )}
-
+ 
         {/* Radius query control integrated in layer filters panel */}
         {userLocation && (
           <div className="border-t border-slate-800/80 pt-2.5 mt-1.5 space-y-2.5">
@@ -671,10 +671,10 @@ export default function MapView({
           </div>
         )}
         
-
+ 
       </div>
     </div>
-
+ 
       <MapContainer 
         center={JABODETABEK_CENTER} 
         zoom={10} 
@@ -725,7 +725,7 @@ export default function MapView({
                         {nearMeFilterActive ? 'Active' : 'Enable'}
                       </button>
                     </div>
-
+ 
                     <div className="space-y-1">
                       <div className="flex justify-between text-[10px] font-bold text-slate-600 dark:text-slate-400">
                         <span>Search Radius:</span>
@@ -744,7 +744,7 @@ export default function MapView({
                 </div>
               </Popup>
             </Marker>
-
+ 
             <Circle
               center={[userLocation.lat, userLocation.lon]}
               radius={nearMeRadius * 1000}
@@ -773,20 +773,17 @@ export default function MapView({
           const isSelected = selectedZone && selectedZone.zone.id === zone.id;
           
           if (coords.length === 0) return null;
-          const disruptionLayerMap = {
-            'traffic': 'threat_traffic',
-            'weather': 'threat_weather',
-            'crowd': 'threat_crowd',
-            'earthquake': 'threat_earthquake',
-            'waterway': 'threat_waterway',
-            'flood': 'threat_waterway',
+ 
+          // Gate by threat layer filter checkboxes
+          const disruptionToLayer = {
+            traffic: 'threat_traffic', weather: 'threat_weather', crowd: 'threat_crowd',
+            earthquake: 'threat_earthquake', waterway: 'threat_waterway', flood: 'threat_waterway',
           };
           const dtype = (pred.disruption_type || '').toLowerCase().trim();
           const layerId = disruptionToLayer[dtype];
-          // Known type: respect its checkbox. Unknown type: hide when all threat layers are off.
           const allOff = !Object.values(disruptionToLayer).some(id => activeLayers[id]);
           if (layerId ? !activeLayers[layerId] : allOff) return null;
-          
+ 
           const { center, radius } = getCircleParams(coords);
           const riskStyle = getStyleForRisk(pred.risk_level);
           
@@ -801,7 +798,7 @@ export default function MapView({
               distanceStr = `${distance.toFixed(1)} km`;
             }
           }
-
+ 
           // Modify path styling if out of radius or selected
           let pathOptions = riskStyle;
           if (isOutOfRadius) {
@@ -815,7 +812,7 @@ export default function MapView({
           } else if (isSelected) {
             pathOptions = { ...riskStyle, weight: 4, fillOpacity: 0.4, opacity: 0.8, dashArray: '6, 6' };
           }
-
+ 
           return (
             <Circle
               key={zone.id}
@@ -856,12 +853,12 @@ export default function MapView({
             </Circle>
           );
         })}
-
+ 
         {/* Render threat zone circles */}
         {allZones.filter(zs => !predictions.some(p =>p.zone?.zone_id === zs.zone_id ||p.zone?.id === zs.zone_id)).map(zs => {
           const zone = zs.zone;
           if (!zone || !zone.geometry) return null;
-
+ 
           const dimScores = {
             traffic: zs.traffic_score || 0,
             weather: zs.weather_score || 0,
@@ -869,7 +866,7 @@ export default function MapView({
             earthquake: zs.earthquake_score || 0,
             waterway: zs.waterway_score || 0,
           };
-
+ 
           const threatLayerMap = {
             traffic: 'threat_traffic',
             weather: 'threat_weather',
@@ -877,7 +874,7 @@ export default function MapView({
             earthquake: 'threat_earthquake',
             waterway: 'threat_waterway',
           };
-
+ 
           let dominantActiveThreat = null;
           let dominantActiveScore = 0;
           for (const [dim, score] of Object.entries(dimScores)) {
@@ -887,21 +884,21 @@ export default function MapView({
               dominantActiveThreat = dim;
             }
           }
-
+ 
           if (!dominantActiveThreat) return null;
-
+ 
           let riskKey = 'Low';
           if (dominantActiveScore >= 65) riskKey = 'High';
           else if (dominantActiveScore >= 35) riskKey = 'Medium';
           const riskStyle = getStyleForRisk(riskKey);
-
+ 
           const coords = invertCoords(zone.geometry);
           if (coords.length === 0) return null;
           const { center, radius } = getCircleParams(coords);
-
+ 
           const matchedPred = predictions.find(p => p.zone?.zone_id === zone.zone_id || p.zone?.id === zone.zone_id);
           const isSelected = selectedZone && (selectedZone.zone?.id === zone.zone_id || selectedZone.zone?.zone_id === zone.zone_id);
-
+ 
           let isOutOfRadius = false;
           let distanceStr = '';
           if (nearMeFilterActive && userLocation) {
@@ -912,7 +909,7 @@ export default function MapView({
               distanceStr = `${distance.toFixed(1)} km`;
             }
           }
-
+ 
           let pathOptions = riskStyle;
           if (isOutOfRadius) {
             pathOptions = {
@@ -925,7 +922,7 @@ export default function MapView({
           } else if (isSelected) {
             pathOptions = { ...riskStyle, weight: 4, fillOpacity: 0.4, opacity: 0.8, dashArray: '6, 6' };
           }
-
+ 
           return (
             <Circle
               key={zone.zone_id}
@@ -972,7 +969,7 @@ export default function MapView({
             </Circle>
           );
         })}
-
+ 
         {/* Render Earthquakes if active */}
         {activeLayers.earthquakes && earthquakes.map((eq, idx) => {
           const isMajor = eq.magnitude >= 6.0;
@@ -1023,7 +1020,7 @@ export default function MapView({
             </Circle>
           );
         })}
-
+ 
         {/* Render dynamic Waterways safety buffer layer beneath the actual waterways */}
         <WaterwayBufferLayer
           waterways={waterways}
@@ -1031,7 +1028,7 @@ export default function MapView({
           waterwayBuffer={waterwayBuffer}
           activeLayers={activeLayers}
         />
-
+ 
         {/* Render dynamic Waterways layers (Rivers, Canals, creeks) */}
         {activeLayers.waterways && waterways.map((waterway, idx) => {
           const positions =
@@ -1096,7 +1093,7 @@ export default function MapView({
           </Polyline>
           );
         })}
-
+ 
         {/* Render POIs inside selected zone (Only if they aren't already globally displayed) */}
         {!selectedZone?.zone?.pois?.some(poi => activeLayers[poi.category]) && selectedZone?.zone?.pois?.map((poi, idx) => (
           <Marker
@@ -1139,15 +1136,15 @@ export default function MapView({
                   <div className="font-bold text-lg">
                     {zone.name}
                   </div>
-
+ 
                   <div className="text-emerald-500 font-semibold">
                     {type}
                   </div>
-
+ 
                   <div className="mt-2 text-sm">
                     Capacity: {capacity}
                   </div>
-
+ 
                   <div className="text-sm mt-1">
                     {details}
                   </div>
@@ -1156,13 +1153,13 @@ export default function MapView({
             </Marker>
            );
          })}
-
+ 
         {/* Render Global POIs based on checkbox toggles */}
         {poisToRender.map((poi, idx) => (
           <Marker
             key={`global-${poi.name}-${idx}`}
             position={[poi.lat, poi.lon]}
-            icon={createPoiIcon(poi.category, poi.is_suppressed)}
+            icon={createPoiIcon(poi.category, poi.is_suppressed, poi.crowd_score || 0)}
           >
             <Popup>
               <div className="font-sans p-2 text-slate-100 min-w-[190px]">
@@ -1178,6 +1175,23 @@ export default function MapView({
                   <span>Category:</span>
                   <span className="font-semibold text-indigo-500 dark:text-indigo-400">{poi.category.replace('_', ' ')}</span>
                 </div>
+                {typeof poi.crowd_score === 'number' && (
+                  <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 dark:text-slate-400 font-semibold">👥 Crowd Level:</span>
+                      <span className={`font-bold ${poi.crowd_score >= 65 ? 'text-red-400' : poi.crowd_score >= 35 ? 'text-orange-400' : 'text-emerald-400'}`}>
+                        {poi.crowd_score >= 65 ? 'High' : poi.crowd_score >= 35 ? 'Moderate' : 'Low'}
+                        <span className="ml-1 opacity-70 font-normal">({Math.round(poi.crowd_score)}/100)</span>
+                      </span>
+                    </div>
+                    <div className="mt-1 w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${poi.crowd_score >= 65 ? 'bg-red-500' : poi.crowd_score >= 35 ? 'bg-orange-400' : 'bg-emerald-400'}`}
+                        style={{ width: `${Math.min(100, poi.crowd_score)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
                 <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 border-t border-slate-200 dark:border-slate-800 pt-1.5">
                   Status: <span className={poi.is_suppressed ? 'text-rose-400' : 'text-emerald-400'}>
                     {poi.is_suppressed ? 'Priority-Suppressed (Ignored in Zoning)' : 'Active Zoning POI'}
@@ -1189,14 +1203,14 @@ export default function MapView({
             </Popup>
           </Marker>
         ))}
-
-
+ 
+ 
         {/* Listen for selected zone changes and reposition camera */}
         <MapController selectedZone={selectedZone?.zone} selectedEarthquake={selectedEarthquake} />
-
+ 
         {/* Map click listener to dismiss selection */}
         <MapClickListener onClearSelectedEarthquake={onClearSelectedEarthquake} />
-
+ 
         {/* Focus Popup for inspected earthquake */}
         {selectedEarthquake && (
           <Popup position={[selectedEarthquake.latitude, selectedEarthquake.longitude]} autoClose={false} closeOnClick={false}>
@@ -1228,12 +1242,12 @@ export default function MapView({
             <div className="glass-panel rounded-xl px-4 py-3 border border-emerald-500/20 bg-emerald-500/10 backdrop-blur-md">
               <div className="flex items-center gap-2">
                 <span className="text-xl">✅</span>
-
+ 
                 <div>
                   <div className="font-bold text-emerald-400">
                     All Clear
                   </div>
-
+ 
                   <div className="text-xs text-slate-300">
                     No active disruptions detected in Jabodetabek
                   </div>
