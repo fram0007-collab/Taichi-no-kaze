@@ -49,27 +49,27 @@ function getStyleForRisk(risk) {
         fillColor: '#FF2A2A',
         color: '#FF2A2A',
         weight: 3.5,
-        opacity: 0.85,
-        fillOpacity: 0.45,
-        className: 'animate-pulse hover:fill-opacity-65 hover:opacity-95 transition-all duration-300'
+        opacity: 0.55,
+        fillOpacity: 0.25,
+        className: 'animate-pulse hover:fill-opacity-40 hover:opacity-75 transition-all duration-300'
       };
     case 'High':
       return {
         fillColor: '#FF7A00',
         color: '#FF7A00',
         weight: 3.0,
-        opacity: 0.8,
-        fillOpacity: 0.4,
-        className: 'hover:fill-opacity-60 hover:opacity-90 transition-all duration-300'
+        opacity: 0.45,
+        fillOpacity: 0.20,
+        className: 'hover:fill-opacity-35 hover:opacity-65 transition-all duration-300'
       };
     case 'Medium':
       return {
         fillColor: '#FFD600',
         color: '#FFD600',
         weight: 2.5,
-        opacity: 0.75,
-        fillOpacity: 0.35,
-        className: 'hover:fill-opacity-55 hover:opacity-85 transition-all duration-300'
+        opacity: 0.35,
+        fillOpacity: 0.15,
+        className: 'hover:fill-opacity-25 hover:opacity-50 transition-all duration-300'
       };
     case 'Low':
     default:
@@ -77,9 +77,9 @@ function getStyleForRisk(risk) {
         fillColor: '#00E676',
         color: '#00E676',
         weight: 2.0,
-        opacity: 0.7,
-        fillOpacity: 0.3,
-        className: 'hover:fill-opacity-50 hover:opacity-80 transition-all duration-300'
+        opacity: 0.15,
+        fillOpacity: 0.04,
+        className: 'hover:fill-opacity-10 hover:opacity-25 transition-all duration-300'
       };
   }
 }

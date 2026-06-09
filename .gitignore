@@ -17,3 +17,6 @@ ENV/
 # System-specific files
 .DS_Store
 Thumbs.db
+
+# Local admin dashboard
+local_admin_dashboard.html
