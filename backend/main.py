@@ -622,15 +622,19 @@ async def get_zones_by_spatial_proximity(
 # ── Safe Zones ────────────────────────────────────────────────────────────────
 @app.get("/safe-zones")
 async def get_safe_zones(
-    lat: float = Query(None, description="Filter by proximity (optional)"),
-    lon: float = Query(None, description="Filter by proximity (optional)"),
+    lat: float = Query(None, description="Sort by proximity (optional)"),
+    lon: float = Query(None, description="Sort by proximity (optional)"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Returns all POIs marked as safe zones, optionally sorted by proximity."""
-    result = await db.execute(
-        select(PoiMaster).where(PoiMaster.is_safe_zone == True)
-    )
-    pois = result.scalars().all()
+    """
+    Returns zones currently at LOW overall risk — areas safe to head toward.
+    A zone qualifies as safe when:
+      - overall_risk_score < 35  AND
+      - no individual dimension (traffic/weather/crowd/earthquake/waterway) >= 35
+    Capacity fields removed — no credible source for those figures.
+    """
+    if not ZoneCache.get_all():
+        await ZoneCache.sync(db)
 
     # Fetch all zones with active risk alerts
     alert_stmt = select(RiskAlert.zone_id).where(
@@ -694,9 +698,7 @@ async def get_safe_zones(
     ]
 
     if lat is not None and lon is not None:
-        data.sort(
-            key=lambda p: haversine_m(lat, lon, p["latitude"], p["longitude"])
-        )
+        data.sort(key=lambda z: haversine_m(lat, lon, z["latitude"], z["longitude"]))
 
     return data
 
@@ -811,7 +813,12 @@ async def get_db_stats(db: AsyncSession = Depends(get_db)):
 # Frontend expects: { name, category, lat, lon, is_suppressed }
 @app.get("/pois")
 async def get_pois(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(PoiMaster))
+    INTERNAL_CATEGORIES = {"evacuation_point", "high_ground"}
+    result = await db.execute(
+        select(PoiMaster).where(
+            PoiMaster.category.notin_(list(INTERNAL_CATEGORIES))
+        )
+    )
     pois = result.scalars().all()
 
     # Fetch active threat zone circles
