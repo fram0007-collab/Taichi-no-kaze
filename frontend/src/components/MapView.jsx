@@ -781,13 +781,11 @@ export default function MapView({
             'waterway': 'threat_waterway',
             'flood': 'threat_waterway',
           };
-          const disruptionKey = (pred.disruption_type || '').toLowerCase();
-          const mappedLayer = disruptionLayerMap[disruptionKey];
-          // Hide this circle if its threat type layer is toggled off
-          // If type is unknown, show it only if at least one threat layer is active
-          const anyThreatActive = Object.keys(disruptionLayerMap).some(k => activeLayers[disruptionLayerMap[k]]);
-          if (mappedLayer && !activeLayers[mappedLayer]) return null;
-          if (!mappedLayer && !anyThreatActive) return null;
+          const dtype = (pred.disruption_type || '').toLowerCase().trim();
+          const layerId = disruptionToLayer[dtype];
+          // Known type: respect its checkbox. Unknown type: hide when all threat layers are off.
+          const allOff = !Object.values(disruptionToLayer).some(id => activeLayers[id]);
+          if (layerId ? !activeLayers[layerId] : allOff) return null;
           
           const { center, radius } = getCircleParams(coords);
           const riskStyle = getStyleForRisk(pred.risk_level);
