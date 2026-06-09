@@ -451,6 +451,79 @@ export default function MapView({
       console.error("Safe zones fetch failed:", err);
     });
     }, [API_URL]);
+
+  // Compute active threat zone circles to suppress safe zones within them
+  const threatZoneCircles = useMemo(() => {
+    const list = [];
+    
+    // 1. From active predictions
+    predictions.forEach(pred => {
+      const zone = pred.zone;
+      if (zone && zone.geometry) {
+        const coords = invertCoords(zone.geometry);
+        if (coords.length > 0) {
+          const { center, radius } = getCircleParams(coords);
+          list.push({ center, radius });
+        }
+      }
+    });
+
+    // 2. From allZones that have a dominant active threat
+    const threatLayerMap = {
+      traffic: 'threat_traffic',
+      weather: 'threat_weather',
+      crowd: 'threat_crowd',
+      earthquake: 'threat_earthquake',
+      waterway: 'threat_waterway',
+    };
+
+    allZones.forEach(zs => {
+      if (predictions.some(p => p.zone?.zone_id === zs.zone_id || p.zone?.id === zs.zone_id)) {
+        return;
+      }
+      const zone = zs.zone;
+      if (!zone || !zone.geometry) return;
+
+      const dimScores = {
+        traffic: zs.traffic_score || 0,
+        weather: zs.weather_score || 0,
+        crowd: zs.crowd_score || 0,
+        earthquake: zs.earthquake_score || 0,
+        waterway: zs.waterway_score || 0,
+      };
+
+      let dominantActiveThreat = null;
+      let dominantActiveScore = 0;
+      for (const [dim, score] of Object.entries(dimScores)) {
+        const layerId = threatLayerMap[dim];
+        if (activeLayers[layerId] && score > dominantActiveScore) {
+          dominantActiveScore = score;
+          dominantActiveThreat = dim;
+        }
+      }
+
+      if (dominantActiveThreat) {
+        const coords = invertCoords(zone.geometry);
+        if (coords.length > 0) {
+          const { center, radius } = getCircleParams(coords);
+          list.push({ center, radius });
+        }
+      }
+    });
+
+    return list;
+  }, [predictions, allZones, activeLayers]);
+
+  const filteredSafeZones = useMemo(() => {
+    return safeZones.filter(sz => {
+      const isInsideThreat = threatZoneCircles.some(circle => {
+        const distKm = calculateDistanceKm(sz.latitude, sz.longitude, circle.center[0], circle.center[1]);
+        return distKm * 1000 <= circle.radius;
+      });
+      return !isInsideThreat;
+    });
+  }, [safeZones, threatZoneCircles]);
+
   // Determine POIs to display globally
   const poisToRender = globalPois.filter(poi => activeLayers[poi.category]);
 
@@ -1031,7 +1104,7 @@ export default function MapView({
         {/* Render Safe Zones */}
         {hasActiveDisruptions && 
          activeLayers.safe_zones &&
-         safeZones.map(zone => {
+         filteredSafeZones.map(zone => {
            const type = zone.type || (zone.category === 'evacuation_point' ? 'Evacuation Point' : zone.category === 'high_ground' ? 'High Ground' : 'Safe Zone');
            const capacity = zone.capacity || (zone.category === 'evacuation_point' ? 500 : 250);
            const details = zone.details || (zone.category === 'evacuation_point' ? 'Equipped with emergency medical kits, power back-up, and shelter supplies.' : 'Designated high ground assembly area above flood levels.');

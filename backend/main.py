@@ -632,6 +632,51 @@ async def get_safe_zones(
     )
     pois = result.scalars().all()
 
+    # Fetch all zones with active risk alerts
+    alert_stmt = select(RiskAlert.zone_id).where(
+        RiskAlert.status == "OPEN",
+        RiskAlert.probability_percentage >= 20
+    )
+    alert_res = await db.execute(alert_stmt)
+    alert_zone_ids = set(alert_res.scalars().all())
+
+    # Fetch all zones with overall_risk_score >= 25
+    status_stmt = select(ZoneStatus.zone_id).where(
+        ZoneStatus.overall_risk_score >= 25
+    )
+    status_res = await db.execute(status_stmt)
+    status_zone_ids = set(status_res.scalars().all())
+
+    threat_zone_ids = alert_zone_ids.union(status_zone_ids)
+
+    # Collect threat circles
+    threat_circles = []
+    for zid in threat_zone_ids:
+        zdata = ZoneCache.get(zid)
+        if zdata:
+            threat_circles.append({
+                "lat": zdata["latitude"],
+                "lon": zdata["longitude"],
+                "radius_m": zdata["radius_m"]
+            })
+
+    # Filter pois: exclude those geographically within any threat zone
+    filtered_pois = []
+    for p in pois:
+        if not p.latitude or not p.longitude:
+            continue
+        is_inside_threat = False
+        for circle in threat_circles:
+            dist = haversine_m(
+                float(p.latitude), float(p.longitude),
+                circle["lat"], circle["lon"]
+            )
+            if dist <= circle["radius_m"]:
+                is_inside_threat = True
+                break
+        if not is_inside_threat:
+            filtered_pois.append(p)
+
     data = [
         {
             "id": p.poi_id,
@@ -645,8 +690,7 @@ async def get_safe_zones(
             "longitude": p.longitude,
             "zone_id": p.zone_id,
         }
-        for p in pois
-        if p.latitude and p.longitude
+        for p in filtered_pois
     ]
 
     if lat is not None and lon is not None:
@@ -769,6 +813,52 @@ async def get_db_stats(db: AsyncSession = Depends(get_db)):
 async def get_pois(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(PoiMaster))
     pois = result.scalars().all()
+
+    # Fetch active threat zone circles
+    alert_stmt = select(RiskAlert.zone_id).where(
+        RiskAlert.status == "OPEN",
+        RiskAlert.probability_percentage >= 20
+    )
+    alert_res = await db.execute(alert_stmt)
+    alert_zone_ids = set(alert_res.scalars().all())
+
+    status_stmt = select(ZoneStatus.zone_id).where(
+        ZoneStatus.overall_risk_score >= 25
+    )
+    status_res = await db.execute(status_stmt)
+    status_zone_ids = set(status_res.scalars().all())
+
+    threat_zone_ids = alert_zone_ids.union(status_zone_ids)
+
+    threat_circles = []
+    for zid in threat_zone_ids:
+        zdata = ZoneCache.get(zid)
+        if zdata:
+            threat_circles.append({
+                "lat": zdata["latitude"],
+                "lon": zdata["longitude"],
+                "radius_m": zdata["radius_m"]
+            })
+
+    # Filter pois
+    filtered_pois = []
+    for p in pois:
+        if not p.latitude or not p.longitude:
+            continue
+        if p.is_safe_zone:
+            is_inside_threat = False
+            for circle in threat_circles:
+                dist = haversine_m(
+                    float(p.latitude), float(p.longitude),
+                    circle["lat"], circle["lon"]
+                )
+                if dist <= circle["radius_m"]:
+                    is_inside_threat = True
+                    break
+            if is_inside_threat:
+                continue
+        filtered_pois.append(p)
+
     return [
         {
             "name": p.name,
@@ -779,8 +869,7 @@ async def get_pois(db: AsyncSession = Depends(get_db)):
             "is_safe_zone": p.is_safe_zone,
             "zone_id": p.zone_id,
         }
-        for p in pois
-        if p.latitude and p.longitude
+        for p in filtered_pois
     ]
 
 

@@ -282,8 +282,54 @@ class PredictiveDisruptionEngine:
 
         # ── Preload lookups ───────────────────────────────────────────────────
         safe_zone_pois = db.query(PoiMaster).filter(PoiMaster.is_safe_zone == True).all()
-        safe_zones = [{"latitude": float(p.latitude), "longitude": float(p.longitude)}
-                      for p in safe_zone_pois if p.latitude and p.longitude]
+        
+        # Fetch active threat zone circles
+        alert_zone_ids = set()
+        alerts = db.query(RiskAlert.zone_id).filter(
+            RiskAlert.status == "OPEN",
+            RiskAlert.probability_percentage >= 20
+        ).all()
+        for a in alerts:
+            alert_zone_ids.add(a.zone_id)
+
+        status_zone_ids = set()
+        statuses = db.query(ZoneStatus.zone_id).filter(
+            ZoneStatus.overall_risk_score >= 25
+        ).all()
+        for s in statuses:
+            status_zone_ids.add(s.zone_id)
+
+        threat_zone_ids = alert_zone_ids.union(status_zone_ids)
+        zones_map = {z.zone_id: z for z in zones}
+        
+        threat_circles = []
+        for zid in threat_zone_ids:
+            z = zones_map.get(zid)
+            if z and z.latitude and z.longitude:
+                threat_circles.append({
+                    "lat": float(z.latitude),
+                    "lon": float(z.longitude),
+                    "radius_m": float(z.radius_m or 0)
+                })
+
+        safe_zones = []
+        for p in safe_zone_pois:
+            if not p.latitude or not p.longitude:
+                continue
+            is_inside_threat = False
+            for circle in threat_circles:
+                dist_m = haversine_km(
+                    float(p.latitude), float(p.longitude),
+                    circle["lat"], circle["lon"]
+                ) * 1000.0
+                if dist_m <= circle["radius_m"]:
+                    is_inside_threat = True
+                    break
+            if not is_inside_threat:
+                safe_zones.append({
+                    "latitude": float(p.latitude),
+                    "longitude": float(p.longitude)
+                })
 
         eq_cutoff = now - timedelta(hours=24)
         recent_quakes = db.query(EarthquakeEvent).filter(
