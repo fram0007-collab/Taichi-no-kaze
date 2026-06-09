@@ -164,8 +164,11 @@ body,
 
 .light-mode .bg-slate-900,
 .light-mode .bg-slate-950,
+.light-mode .bg-slate-900\/30,
 .light-mode .bg-slate-900\/40,
-.light-mode .bg-slate-950\/40 {
+.light-mode .bg-slate-900\/50,
+.light-mode .bg-slate-950\/40,
+.light-mode .bg-slate-950\/60 {
   background-color: #F1F5F9 !important;
   color: #1E293B !important;
 }

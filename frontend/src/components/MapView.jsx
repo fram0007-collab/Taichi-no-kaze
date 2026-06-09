@@ -207,7 +207,8 @@ function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, act
             ? JSON.parse(waterway.coordinates)
             : waterway.coordinates;
         const leafletPositions = positions.map(([lon, lat]) => [lat, lon]);
-        const dynamicBufferMeters = waterwayBuffer * Math.pow(waterway.capacity_percentage / 100, 2);
+        const cappedCapacity = Math.min(100, waterway.capacity_percentage);
+        const dynamicBufferMeters = waterwayBuffer * Math.pow(cappedCapacity / 100, 2);
 
         // Compute pixel weight representing the dynamic buffer distance (diameter = 2 * radius in meters)
         // We enforce a minimum weight of 20px so that it is always visibly wider than the 5px waterway line itself.
@@ -467,7 +468,7 @@ export default function MapView({
   </button>
 
   <div
-    className={`glass-panel mt-2 p-3 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-2 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0 pointer-events-none'}`}
+    className={`glass-panel mt-2 p-2.5 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-1 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0 pointer-events-none'}`}
     aria-hidden={!showLayerPanel}
   >
     <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
@@ -490,7 +491,7 @@ export default function MapView({
             { id: 'threat_crowd', label: 'Crowd 👥', color: 'text-yellow-400' },
             { id: 'threat_earthquake', label: 'Earthquake 🌋', color: 'text-red-400' }
           ].map(layer => (
-            <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-2.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
+            <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
               <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-500'} group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
               <input
                 type="checkbox"
@@ -513,7 +514,7 @@ export default function MapView({
             { id: 'small_business', label: 'UMKM Foods 🍱', color: 'text-amber-400' },
             { id: 'safe_zones', label: 'Safe Zones 🛟', color: 'text-emerald-400' },
           ].map(layer => (
-            <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-2.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
+            <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
               <span className={`text-[11px] font-semibold ${layer.color} group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
               <input
                 type="checkbox"
