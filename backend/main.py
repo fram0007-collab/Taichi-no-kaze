@@ -620,40 +620,109 @@ async def get_zones_by_spatial_proximity(
 
 
 # ── Safe Zones ────────────────────────────────────────────────────────────────
+# Which safe zone category is relevant per disruption type.
+# high_ground = elevated terrain above flood level → only useful for flood/waterway.
+# evacuation_point = sheltered assembly area → useful for everything else.
+_DISRUPTION_SAFE_CATEGORIES: dict[str, set[str]] = {
+    "flood":      {"high_ground"},
+    "waterway":   {"high_ground"},
+    "earthquake": {"evacuation_point"},
+    "traffic":    {"evacuation_point"},
+    "crowd":      {"evacuation_point"},
+    "weather":    {"evacuation_point"},
+}
+
+_SAFE_ZONE_DETAILS: dict[str, dict[str, str]] = {
+    "high_ground": {
+        "type": "High Ground",
+        "details": "Elevated terrain above projected flood levels. Move here immediately when a waterway or flood alert is active.",
+    },
+    "evacuation_point_earthquake": {
+        "type": "Evacuation Point",
+        "details": "Open-ground assembly area away from structures. Do not re-enter buildings until all-clear is issued.",
+    },
+    "evacuation_point_traffic": {
+        "type": "Evacuation Point",
+        "details": "Designated dispersion point with crowd-management support and emergency supplies.",
+    },
+    "evacuation_point_crowd": {
+        "type": "Evacuation Point",
+        "details": "Designated dispersion point with crowd-management support and emergency supplies.",
+    },
+    "evacuation_point_weather": {
+        "type": "Evacuation Point",
+        "details": "Sheltered assembly area with weather protection, power back-up, and first-aid supplies.",
+    },
+    "evacuation_point": {
+        "type": "Evacuation Point",
+        "details": "Equipped with emergency medical kits, power back-up, and shelter supplies.",
+    },
+}
+
+
 @app.get("/safe-zones")
 async def get_safe_zones(
     lat: float = Query(None, description="Sort by proximity (optional)"),
     lon: float = Query(None, description="Sort by proximity (optional)"),
+    disruption_types: str = Query(
+        None,
+        description=(
+            "Comma-separated active disruption types e.g. 'flood,earthquake'. "
+            "flood/waterway → high_ground; all others → evacuation_point. "
+            "Omit to return all categories."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Returns zones currently at LOW overall risk — areas safe to head toward.
-    A zone qualifies as safe when:
-      - overall_risk_score < 35  AND
-      - no individual dimension (traffic/weather/crowd/earthquake/waterway) >= 35
-    Capacity fields removed — no credible source for those figures.
+    Returns safe zones relevant to the currently active disruption types.
+    Each disruption maps to the safe zone category that actually helps:
+      flood / waterway  → high_ground (elevation above flood level)
+      earthquake        → evacuation_point (open ground, away from structures)
+      traffic / crowd   → evacuation_point (dispersion/shelter points)
+      weather           → evacuation_point (sheltered area with supplies)
+    Also fixes a latent bug: pois was referenced but never fetched in the original.
     """
     if not ZoneCache.get_all():
         await ZoneCache.sync(db)
 
-    # Fetch all zones with active risk alerts
-    alert_stmt = select(RiskAlert.zone_id).where(
-        RiskAlert.status == "OPEN",
-        RiskAlert.probability_percentage >= 20
+    # Resolve which safe zone categories to return
+    if disruption_types:
+        active_types = [t.strip().lower() for t in disruption_types.split(",") if t.strip()]
+        allowed_categories: set[str] = set()
+        for dtype in active_types:
+            allowed_categories.update(
+                _DISRUPTION_SAFE_CATEGORIES.get(dtype, {"evacuation_point", "high_ground"})
+            )
+        primary_type = active_types[0] if active_types else ""
+    else:
+        active_types = []
+        primary_type = ""
+        allowed_categories = {"evacuation_point", "high_ground"}
+
+    # Fetch only the relevant safe zone POIs (fixes the missing-pois bug too)
+    poi_res = await db.execute(
+        select(PoiMaster).where(
+            PoiMaster.is_safe_zone == True,
+            PoiMaster.category.in_(list(allowed_categories)),
+        )
     )
-    alert_res = await db.execute(alert_stmt)
+    pois = poi_res.scalars().all()
+
+    # Exclude safe zones that sit inside an active threat zone circle
+    alert_res = await db.execute(
+        select(RiskAlert.zone_id).where(
+            RiskAlert.status == "OPEN",
+            RiskAlert.probability_percentage >= 20,
+        )
+    )
     alert_zone_ids = set(alert_res.scalars().all())
 
-    # Fetch all zones with overall_risk_score >= 25
-    status_stmt = select(ZoneStatus.zone_id).where(
-        ZoneStatus.overall_risk_score >= 25
+    status_res = await db.execute(
+        select(ZoneStatus.zone_id).where(ZoneStatus.overall_risk_score >= 25)
     )
-    status_res = await db.execute(status_stmt)
-    status_zone_ids = set(status_res.scalars().all())
+    threat_zone_ids = alert_zone_ids.union(set(status_res.scalars().all()))
 
-    threat_zone_ids = alert_zone_ids.union(status_zone_ids)
-
-    # Collect threat circles
     threat_circles = []
     for zid in threat_zone_ids:
         zdata = ZoneCache.get(zid)
@@ -661,25 +730,26 @@ async def get_safe_zones(
             threat_circles.append({
                 "lat": zdata["latitude"],
                 "lon": zdata["longitude"],
-                "radius_m": zdata["radius_m"]
+                "radius_m": zdata["radius_m"],
             })
 
-    # Filter pois: exclude those geographically within any threat zone
-    filtered_pois = []
-    for p in pois:
-        if not p.latitude or not p.longitude:
-            continue
-        is_inside_threat = False
-        for circle in threat_circles:
-            dist = haversine_m(
-                float(p.latitude), float(p.longitude),
-                circle["lat"], circle["lon"]
-            )
-            if dist <= circle["radius_m"]:
-                is_inside_threat = True
-                break
-        if not is_inside_threat:
-            filtered_pois.append(p)
+    filtered_pois = [
+        p for p in pois
+        if p.latitude and p.longitude and not any(
+            haversine_m(float(p.latitude), float(p.longitude), c["lat"], c["lon"]) <= c["radius_m"]
+            for c in threat_circles
+        )
+    ]
+
+    def _meta(category: str) -> dict:
+        key = f"{category}_{primary_type}" if f"{category}_{primary_type}" in _SAFE_ZONE_DETAILS else category
+        info = _SAFE_ZONE_DETAILS.get(key, _SAFE_ZONE_DETAILS["evacuation_point"])
+        return {
+            "type": info["type"],
+            "capacity": 500 if category == "evacuation_point" else 250,
+            "details": info["details"],
+            "disruption_relevance": primary_type or "all",
+        }
 
     data = [
         {
@@ -687,12 +757,10 @@ async def get_safe_zones(
             "poi_id": p.poi_id,
             "name": p.name,
             "category": p.category,
-            "type": "Evacuation Point" if p.category == "evacuation_point" else "High Ground" if p.category == "high_ground" else "Safe Zone",
-            "capacity": 500 if p.category == "evacuation_point" else 250,
-            "details": "Equipped with emergency medical kits, power back-up, and shelter supplies." if p.category == "evacuation_point" else "Designated high ground assembly area above flood levels.",
             "latitude": p.latitude,
             "longitude": p.longitude,
             "zone_id": p.zone_id,
+            **_meta(p.category),
         }
         for p in filtered_pois
     ]
