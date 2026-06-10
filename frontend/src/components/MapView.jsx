@@ -536,7 +536,38 @@ export default function MapView({
  
   return (
     <div className="relative w-full h-full overflow-hidden">
-      
+      {/* Risk Legend */}
+    <div className="absolute top-24 left-4 z-[999]">
+      <div className="glass-panel rounded-xl px-3 py-3 border border-slate-700/40 shadow-lg">
+        
+        <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">
+          Risk Levels
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-[#FF2A2A]"></span>
+            <span className="text-[11px]">Critical (80+)</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-[#FF7A00]"></span>
+            <span className="text-[11px]">High (65-79)</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-[#FFD600]"></span>
+            <span className="text-[11px]">Medium (35-64)</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-[#00E676]"></span>
+            <span className="text-[11px]">Low (0-34)</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
       {/* Floating Layer Toggle Panel */}
       <div className="absolute top-6 right-6 z-[999] pointer-events-auto">
  
