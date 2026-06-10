@@ -909,6 +909,36 @@ export default function App() {
                 and seismic indicators.
               </p>
             </div>
+            <div>
+              <h3 className="font-bold text-indigo-400 mb-2">
+                How to Read the Map
+              </h3>
+
+              <div className="space-y-2 text-xs">
+
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-red-500"></div>
+                  <span>
+                    Stronger colors indicate higher disruption risk.
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-indigo-400"></div>
+                  <span>
+                    Larger geofences indicate a wider affected area.
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-indigo-400/20 border border-indigo-400"></div>
+                  <span>
+                    More transparent zones indicate lower disruption severity.
+                  </span>
+                </div>
+
+              </div>
+            </div>
 
 
           </div>
