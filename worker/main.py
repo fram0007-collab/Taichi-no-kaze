@@ -433,7 +433,12 @@ if __name__ == "__main__":
     )
     scheduler.add_job(
         worker.run_scoring_cycle, "interval", minutes=15,
-        next_run_time=datetime.now(), id="predictive_scoring",
+        # Delay first scoring run by 90s so all ingestion jobs (which fire at
+        # datetime.now()) have time to commit their snapshots before the engine reads them.
+        # Without this, the scoring cycle races ingestion and reads empty crowd/traffic
+        # snapshots → all scores stay 0.
+        next_run_time=datetime.now() + timedelta(seconds=10),
+        id="predictive_scoring",
     )
 
     try:
