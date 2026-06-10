@@ -1,17 +1,3 @@
-"""
-DIS-RUPTURE Backend API — Neon PostgreSQL Edition
-==================================================
-Migrated from Oracle ATP + SDO_GEOMETRY to Neon PostgreSQL with flat lat/lon zones.
-
-Key changes from Oracle version:
-  - SDO_UTIL.TO_GEOJSON → not needed; geometry computed from lat/lon + radius_m
-  - CLOB / LOB reading → standard Python strings
-  - DisruptionPrediction table → risk_alerts (zone_status holds scores)
-  - Zone geometry served as GeoJSON Polygon derived from lat/lon/radius_m
-  - SELECT 1 FROM DUAL → SELECT 1
-  - All Oracle wallet connection args → DATABASE_URL with sslmode=require
-"""
-
 import json
 import logging
 import os
