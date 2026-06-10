@@ -201,9 +201,44 @@ def compute_weather_score(rainfall, humidity, wind_speed, flood_vulnerability=0.
 
 
 # ── Crowd Score ───────────────────────────────────────────────────────────────
-def compute_crowd_score(poi_count, hazard_count, capacity, zone_lat, zone_lon, safe_zones) -> tuple[float, float]:
+# How strongly inbound traffic predicts footfall per POI category.
+# Destination hubs get full weight; hospitals are emergencies, not traffic-driven crowds.
+TRAFFIC_ATTRACTION_WEIGHTS = {
+    "mall":       1.0,
+    "station":    1.0,
+    "market":     0.8,
+    "university": 0.7,
+    "hospital":   0.3,
+}
+
+
+def compute_crowd_score(
+    poi_count: int,
+    hazard_count: int,
+    capacity: int,
+    zone_lat: float,
+    zone_lon: float,
+    safe_zones: list,
+    traffic_score: float = 0.0,
+    poi_category_counts: dict = None,
+) -> tuple[float, float]:
+    """
+    Crowd score combining time-of-day density with traffic-based attraction.
+
+    Root cause of always-zero bug:
+      poi_count from crowd_snapshots is a structural DB count (e.g. 3 malls),
+      NOT footfall. Dividing 3 / 100 (capacity) = 0.03 → score ≈ 3.
+      Since poi_count > 0, the density_factor fallback never ran.
+
+    Fix: always use time-of-day density_factor as the base, then amplify
+    by poi density and inbound traffic attraction for destination POIs.
+    """
     if capacity is None or capacity <= 0:
         capacity = 100
+    if poi_category_counts is None:
+        poi_category_counts = {}
+
+    # ── Time-of-day base density ──────────────────────────────────────────────
     hour = datetime.now().hour
     if   7  <= hour <= 9:   density_factor = random.uniform(0.55, 0.80)
     elif 17 <= hour <= 19:  density_factor = random.uniform(0.60, 0.85)
@@ -212,7 +247,22 @@ def compute_crowd_score(poi_count, hazard_count, capacity, zone_lat, zone_lon, s
     elif 20 <= hour <= 23:  density_factor = random.uniform(0.20, 0.35)
     else:                   density_factor = random.uniform(0.05, 0.15)
 
-    occupancy_ratio = min(1.0, poi_count / capacity) if poi_count > 0 else density_factor
+    # ── POI density multiplier (up to +40% for POI-dense zones) ──────────────
+    poi_multiplier = 1.0 + min(1.0, poi_count / 5.0) * 0.4
+
+    # ── Traffic-attraction amplifier ──────────────────────────────────────────
+    # Zones with destination POIs (mall, station) get amplified when traffic is high
+    # because inbound congestion signals people are heading there.
+    raw_attraction = sum(
+        TRAFFIC_ATTRACTION_WEIGHTS.get(cat, 0.0) * count
+        for cat, count in poi_category_counts.items()
+    )
+    attraction_weight = min(1.0, raw_attraction / 5.0)
+    traffic_amplifier = 1.0 + (traffic_score / 100.0) * 0.5 * attraction_weight
+
+    occupancy_ratio = min(1.0, density_factor * poi_multiplier * traffic_amplifier)
+
+    # ── Hazard penalty and safe-zone proximity ────────────────────────────────
     hazard_penalty  = min(0.25, hazard_count * 0.05)
     safe_zone_bonus = 0.0
     if safe_zones:
@@ -222,7 +272,7 @@ def compute_crowd_score(poi_count, hazard_count, capacity, zone_lat, zone_lon, s
 
     raw = occupancy_ratio + hazard_penalty + safe_zone_bonus
     crowd_score = round(max(0.0, min(1.0, raw)) * 100.0, 2)
-    confidence  = round(min(1.0, (poi_count / max(1, capacity)) * 1.5 if poi_count > 0 else density_factor * 0.6), 2)
+    confidence  = round(min(1.0, density_factor * (1.0 + poi_count * 0.05)), 2)
     return crowd_score, confidence
 
 
@@ -509,8 +559,22 @@ class PredictiveDisruptionEngine:
                             .first())
             poi_count    = int(latest_crowd.poi_count    or 0) if latest_crowd else 0
             hazard_count = int(latest_crowd.hazard_count or 0) if latest_crowd else 0
+
+            # Per-category POI counts so crowd model can weight traffic attraction
+            # by POI type (mall/station = strong signal, hospital = weak signal)
+            zone_poi_rows = db.query(PoiMaster).filter(
+                PoiMaster.zone_id == zone.zone_id,
+                PoiMaster.is_safe_zone == False,
+            ).all()
+            poi_category_counts: dict = {}
+            for _p in zone_poi_rows:
+                if _p.category:
+                    poi_category_counts[_p.category] = poi_category_counts.get(_p.category, 0) + 1
+
             crowd_score, confidence_score = compute_crowd_score(
-                poi_count, hazard_count, capacity, zone_lat, zone_lon, safe_zones
+                poi_count, hazard_count, capacity, zone_lat, zone_lon, safe_zones,
+                traffic_score=traffic_score,
+                poi_category_counts=poi_category_counts,
             )
             if latest_crowd:
                 latest_crowd.crowd_score      = crowd_score
