@@ -187,7 +187,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'light';
   });
-  
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [mobileTab, setMobileTab] = useState('map'); // 'map', 'feed', 'settings'
 
   // Sync theme selection to document element classes
@@ -448,6 +448,13 @@ export default function App() {
                 ) : (
                   <Sun className="w-4 h-4 text-amber-400" />
                 )}
+              </button>
+
+              <button
+                onClick={() => setShowAboutModal(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all text-xs font-semibold"
+              >
+                <span>ℹ️ About</span>
               </button>
 
               <button 
@@ -825,6 +832,88 @@ export default function App() {
             />
           </div>
         </main>
+      )}
+      {showAboutModal && (
+        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" 
+        onClick={() => setShowAboutModal(false)}>
+
+          <div className="w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-700 bg-brand-elevated shadow-2xl" 
+          onClick={(e) => e.stopPropagation()}>
+
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+              <h2 className="text-xl font-bold text-indigo-400">
+                What is DIS-RUPTURE?
+              </h2>
+
+              <button
+                onClick={() => setShowAboutModal(false)}
+                className="p-2 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 text-slate-300">
+              <p>
+                DIS-RUPTURE is a real-time disruption intelligence platform
+                designed to identify and visualize flood, weather, traffic,
+                crowd, and earthquake risks across Jabodetabek.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-bold text-indigo-400 mb-2">
+                Monitored Risk Sources
+              </h3>
+
+              <div className="flex flex-wrap gap-2">
+                <span className="px-2 py-1 rounded bg-slate-800">🚗 Traffic</span>
+                <span className="px-2 py-1 rounded bg-slate-800">🌧️ Weather</span>
+                <span className="px-2 py-1 rounded bg-slate-800">🌊 Flood</span>
+                <span className="px-2 py-1 rounded bg-slate-800">👥 Crowd</span>
+                <span className="px-2 py-1 rounded bg-slate-800">🌋 Earthquake</span>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-bold text-indigo-400 mb-2">
+                Risk Classification
+              </h3>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <span>Critical (76-100%)</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                  <span>High (51-75%)</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                  <span>Medium (26-50%)</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                  <span>Low (0-25%)</span>
+                </div>
+
+              </div>
+
+              <p className="mt-3 text-xs text-slate-400">
+                Risk levels are generated from a composite disruption score
+                combining environmental, traffic, hydrological, crowd,
+                and seismic indicators.
+              </p>
+            </div>
+
+
+          </div>
+
+        </div>
       )}
     </div>
   );

@@ -537,7 +537,7 @@ export default function MapView({
   return (
     <div className="relative w-full h-full overflow-hidden">
       {/* Risk Legend */}
-    <div className="absolute top-24 left-4 z-[999]">
+    <div className="absolute top-32 left-4 z-[999]">
       <div className="glass-panel rounded-xl px-3 py-3 border border-slate-700/40 shadow-lg">
         
         <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">
