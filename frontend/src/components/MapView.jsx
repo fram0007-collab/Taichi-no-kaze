@@ -48,27 +48,27 @@ function getStyleForRisk(risk) {
       return {
         fillColor: '#FF2A2A',
         color: '#FF2A2A',
-        weight: 3.5,
-        opacity: 0.55,
-        fillOpacity: 0.25,
+        weight: 4.0,
+        opacity: 0.95,
+        fillOpacity: 0.15,
         className: 'animate-pulse hover:fill-opacity-40 hover:opacity-75 transition-all duration-300'
       };
     case 'High':
       return {
         fillColor: '#FF7A00',
         color: '#FF7A00',
-        weight: 3.0,
-        opacity: 0.35,
-        fillOpacity: 0.12,
+        weight: 3.5,
+        opacity: 0.90,
+        fillOpacity: 0.10,
         className: 'hover:fill-opacity-25 hover:opacity-50 transition-all duration-300'
       };
     case 'Medium':
       return {
         fillColor: '#FFD600',
         color: '#FFD600',
-        weight: 2.5,
-        opacity: 0.25,
-        fillOpacity: 0.08,
+        weight: 3.0,
+        opacity: 0.85,
+        fillOpacity: 0.07,
         className: 'hover:fill-opacity-18 hover:opacity-40 transition-all duration-300'
       };
     case 'Low':
@@ -76,9 +76,9 @@ function getStyleForRisk(risk) {
       return {
         fillColor: '#00E676',
         color: '#00E676',
-        weight: 2.0,
-        opacity: 0.15,
-        fillOpacity: 0.04,
+        weight: 2.5,
+        opacity: 0.80,
+        fillOpacity: 0.05,
         className: 'hover:fill-opacity-10 hover:opacity-25 transition-all duration-300'
       };
   }
@@ -542,7 +542,7 @@ export default function MapView({
  
   <button
     onClick={() => setShowLayerPanel(!showLayerPanel)}
-    className="glass-panel px-4 py-3 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 font-bold"
+    className="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all font-bold"
   >
     ⚙️ Layers
   </button>
@@ -810,7 +810,7 @@ export default function MapView({
               className: 'transition-all duration-300 pointer-events-none'
             };
           } else if (isSelected) {
-            pathOptions = { ...riskStyle, weight: 4, fillOpacity: 0.4, opacity: 0.8, dashArray: '6, 6' };
+            pathOptions = { ...riskStyle, weight: 5, fillOpacity: 1, opacity: 0.20, dashArray: '6, 6' };
           }
  
           return (
@@ -920,7 +920,7 @@ export default function MapView({
               className: 'transition-all duration-300 pointer-events-none'
             };
           } else if (isSelected) {
-            pathOptions = { ...riskStyle, weight: 4, fillOpacity: 0.4, opacity: 0.8, dashArray: '6, 6' };
+            pathOptions = { ...riskStyle, weight: 5, fillOpacity: 1, opacity: 0.20, dashArray: '6, 6' };
           }
  
           return (
