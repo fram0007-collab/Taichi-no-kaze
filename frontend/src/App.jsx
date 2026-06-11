@@ -837,7 +837,7 @@ export default function App() {
         <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" 
         onClick={() => setShowAboutModal(false)}>
 
-          <div className="w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-700 bg-brand-elevated shadow-2xl" 
+          <div className="w-full max-w-5xl max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-700 bg-brand-elevated shadow-2xl" 
           onClick={(e) => e.stopPropagation()}>
 
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
@@ -853,33 +853,35 @@ export default function App() {
               </button>
             </div>
 
-            <div className="p-6 text-slate-300">
+            <div className="p-8 space-y-6 text-slate-300">
               <p>
                 DIS-RUPTURE is a real-time disruption intelligence platform
                 designed to identify and visualize flood, weather, traffic,
                 crowd, and earthquake risks across Jabodetabek.
               </p>
             </div>
+
+            
             <div>
-              <h3 className="font-bold text-indigo-400 mb-2">
+              <h3 className="font-bold mb-2 text-slate-900 dark:text-indigo-400">
                 Monitored Risk Sources
               </h3>
 
               <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-1 rounded bg-slate-800">🚗 Traffic</span>
-                <span className="px-2 py-1 rounded bg-slate-800">🌧️ Weather</span>
-                <span className="px-2 py-1 rounded bg-slate-800">🌊 Flood</span>
-                <span className="px-2 py-1 rounded bg-slate-800">👥 Crowd</span>
-                <span className="px-2 py-1 rounded bg-slate-800">🌋 Earthquake</span>
+                <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🚗 Traffic</span>
+                <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌧️ Weather</span>
+                <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌊 Flood</span>
+                <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">👥 Crowd</span>
+                <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌋 Earthquake</span>
               </div>
             </div>
 
             <div>
-              <h3 className="font-bold text-indigo-400 mb-2">
-                Risk Classification
+              <h3 className="font-bold mb-2 text-slate-900 dark:text-indigo-400">
+                 Map Legend
               </h3>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
 
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-red-500"></div>
@@ -909,10 +911,18 @@ export default function App() {
                 and seismic indicators.
               </p>
             </div>
+
+
             <div>
-              <h3 className="font-bold text-indigo-400 mb-2">
+              <h3 className="font-bold text-slate-900 dark:text-indigo-400 mb-2">
                 How to Read the Map
               </h3>
+            
+            <div className="text-xs text-slate-400 space-y-1">
+              <p> ● Color = Risk Severity</p>
+              <p> ● Size = Geographic Impact Area</p>
+              <p> ● Opacity = Disruption Intensity</p>
+            </div>
 
               <div className="space-y-2 text-xs">
 
