@@ -21,7 +21,7 @@ Flood Prediction Logic:
   within the same river network get a flood_score amplifier.
 
   waterway_score per zone = max flood_score of nearby segments, 
-  amplified by zone historical_flood_vulnerability.
+  amplified by zone historical_flood_vulnerability
 """
 
 import json
