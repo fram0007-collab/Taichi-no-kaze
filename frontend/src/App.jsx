@@ -833,128 +833,98 @@ export default function App() {
           </div>
         </main>
       )}
-      {showAboutModal && (
-        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" 
-        onClick={() => setShowAboutModal(false)}>
+        {showAboutModal && (
+          <div
+            className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowAboutModal(false)}
+          >
+            <div
+              className="w-full max-w-5xl max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-700 bg-brand-elevated shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+                <h2 className="text-xl font-bold text-indigo-400">
+                  What is DIS-RUPTURE?
+                </h2>
 
-          <div className="w-full max-w-5xl max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-700 bg-brand-elevated shadow-2xl" 
-          onClick={(e) => e.stopPropagation()}>
-
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-              <h2 className="text-xl font-bold text-indigo-400">
-                What is DIS-RUPTURE?
-              </h2>
-
-              <button
-                onClick={() => setShowAboutModal(false)}
-                className="p-2 rounded-lg hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-8 space-y-6 text-slate-300">
-              <p>
-                DIS-RUPTURE is a real-time disruption intelligence platform
-                designed to identify and visualize flood, weather, traffic,
-                crowd, and earthquake risks across Jabodetabek.
-              </p>
-            </div>
-
-            
-            <div>
-              <h3 className="font-bold mb-2 text-slate-900 dark:text-indigo-400">
-                Monitored Risk Sources
-              </h3>
-
-              <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🚗 Traffic</span>
-                <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌧️ Weather</span>
-                <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌊 Flood</span>
-                <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">👥 Crowd</span>
-                <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌋 Earthquake</span>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-bold mb-2 text-slate-900 dark:text-indigo-400">
-                 Map Legend
-              </h3>
-
-              <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
-
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                  <span>Critical (76-100%)</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                  <span>High (51-75%)</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                  <span>Medium (26-50%)</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                  <span>Low (0-25%)</span>
-                </div>
-
+                <button
+                  onClick={() => setShowAboutModal(false)}
+                  className="p-2 rounded-lg hover:bg-slate-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              <p className="mt-3 text-xs text-slate-400">
-                Risk levels are generated from a composite disruption score
-                combining environmental, traffic, hydrological, crowd,
-                and seismic indicators.
-              </p>
-            </div>
+              <div className="p-8 space-y-8 text-slate-300">
 
+                <p>
+                  DIS-RUPTURE is a real-time disruption intelligence platform
+                  designed to identify and visualize flood, weather, traffic,
+                  crowd, and earthquake risks across Jabodetabek.
+                </p>
 
-            <div>
-              <h3 className="font-bold text-slate-900 dark:text-indigo-400 mb-2">
-                How to Read the Map
-              </h3>
-            
-            <div className="text-xs text-slate-400 space-y-1">
-              <p> ● Color = Risk Severity</p>
-              <p> ● Size = Geographic Impact Area</p>
-              <p> ● Opacity = Disruption Intensity</p>
-            </div>
+                <div>
+                  <h3 className="font-bold mb-2 text-slate-900 dark:text-indigo-400">
+                    Monitored Risk Sources
+                  </h3>
 
-              <div className="space-y-2 text-xs">
-
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full bg-red-500"></div>
-                  <span>
-                    Stronger colors indicate higher disruption risk.
-                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🚗 Traffic</span>
+                    <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌧️ Weather</span>
+                    <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌊 Flood</span>
+                    <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">👥 Crowd</span>
+                    <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌋 Earthquake</span>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-indigo-400"></div>
-                  <span>
-                    Larger geofences indicate a wider affected area.
-                  </span>
+                <div>
+                  <h3 className="font-bold mb-2 text-slate-900 dark:text-indigo-400">
+                    Risk Levels
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                      <span>Critical (76–100%)</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                      <span>High (51–75%)</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                      <span>Medium (26–50%)</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                      <span>Low (0–25%)</span>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-xs text-slate-400">
+                    Risk levels are generated from a composite disruption score combining
+                    environmental, traffic, hydrological, crowd, and seismic indicators.
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full bg-indigo-400/20 border border-indigo-400"></div>
-                  <span>
-                    More transparent zones indicate lower disruption severity.
-                  </span>
+                <div>
+                  <h3 className="font-bold mb-2 text-slate-900 dark:text-indigo-400">
+                    How to Read the Map
+                  </h3>
+
+                  <div className="text-sm space-y-2">
+                    <p>🎨 Color = Risk Severity</p>
+                    <p>⭕ Size = Geographic Impact Area</p>
+                    <p>🌫️ Density = Disruption Intensity</p>
+                  </div>
                 </div>
 
               </div>
             </div>
-
-
           </div>
-
-        </div>
-      )}
-    </div>
+        )}    </div>
   );
 }
