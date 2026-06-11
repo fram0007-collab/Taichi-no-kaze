@@ -3,7 +3,7 @@ SQLAlchemy ORM Models — Neon PostgreSQL Edition
 Migrated from Oracle ATP (SDO_GEOMETRY) to standard PostgreSQL with flat lat/lon columns.
 Schema aligns with the new Neon schema: zones, zone_status, crowd_snapshots,
 traffic_snapshots, weather_snapshots, earthquake_events, risk_alerts, poi_master,
-jabodetabek_waterways.
+jabodetabek_waterways
 """
 
 from sqlalchemy import (
