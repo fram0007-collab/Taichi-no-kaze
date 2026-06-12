@@ -1,16 +1,4 @@
 """
-Predictive Disruption Engine — v3 (Waterway Edition)
-=====================================================
-Fixes from v2:
-  - compute_waterway_score: was missing return, called with wrong args
-  - Waterway scoring now uses real HydroRIVERS fields:
-      dis_av_cms (mean annual flow), upland_skm (upstream catchment),
-      ord_strahler (river order), catch_skm (local catchment)
-  - Writes zone_waterway_mapping, waterway_snapshots, waterway_telemetry
-  - Upstream cascade propagation: high gate readings amplify downstream zones
-  - ZoneStatus.waterway_score now populated correctly
-  - overall_risk weights updated to include waterway (20%)
-
 Flood Prediction Logic:
   Rainfall-Runoff model per HydroRIVERS segment:
     runoff_cms = rainfall_mm/1000 * catch_skm*1e6 / (30min * 60s) * runoff_coeff
@@ -222,16 +210,29 @@ POI_CATEGORY_CROWD_WEIGHT = {
 }
 
 
-def compute_density_factor(now: Optional[datetime] = None) -> float:
+# Jakarta (WIB) is UTC+7. The server runs on UTC (datetime.utcnow()), but all
+# crowd/traffic patterns below describe LOCAL Jakarta rush hours. Without this
+# offset, e.g. 17:33 WIB (evening rush) reads as 10:33 UTC → "midday lull"
+# bracket, producing a low crowd_score for a station that's actually packed.
+WIB_OFFSET_HOURS = 7
+
+
+def compute_density_factor(hour_wib: Optional[int] = None) -> float:
     """
-    Time-of-day ambient crowd density, 0-1.
+    Time-of-day ambient crowd density, 0-1, based on Jakarta LOCAL hour (WIB).
 
     This is the shared baseline for both zone-level and POI-level crowd
     scoring within a single scoring cycle — pass the SAME value to every
     compute_*_crowd_score call in that cycle so a mall and a hospital in
     the same zone at the same moment are compared on equal footing.
+
+    Args:
+        hour_wib: Jakarta-local hour (0-23). If omitted, derives it from
+                  datetime.utcnow() + WIB_OFFSET_HOURS.
     """
-    hour = (now or datetime.now()).hour
+    if hour_wib is None:
+        hour_wib = (datetime.utcnow().hour + WIB_OFFSET_HOURS) % 24
+    hour = hour_wib
     if   7  <= hour <= 9:   return random.uniform(0.55, 0.80)
     elif 17 <= hour <= 19:  return random.uniform(0.60, 0.85)
     elif 12 <= hour <= 13:  return random.uniform(0.40, 0.60)
@@ -411,6 +412,35 @@ class PredictiveDisruptionEngine:
 
         # ── Preload lookups ───────────────────────────────────────────────────
         safe_zone_pois = db.query(PoiMaster).filter(PoiMaster.is_safe_zone == True).all()
+
+        # ── Per-POI crowd scoring: nearest-zone assignment ──────────────────────
+        # Some POIs have zone_id = NULL (never backfilled) or a zone_id whose
+        # radius_m doesn't actually contain their coordinates. Rather than
+        # silently skipping these POIs forever (they'd stay frozen at the
+        # migration seed crowd_score=0), assign EVERY non-safe-zone POI to its
+        # geographically NEAREST zone by centroid distance — independent of the
+        # stored zone_id or radius_m. That nearest zone's traffic_score,
+        # density_factor, and hazard flags are what drive this POI's crowd score.
+        all_crowd_pois = db.query(PoiMaster).filter(PoiMaster.is_safe_zone == False).all()
+        poi_nearest_zone: dict[str, int] = {}
+        for _poi in all_crowd_pois:
+            if not _poi.category or _poi.latitude is None or _poi.longitude is None:
+                continue
+            best_zid, best_dist = None, float("inf")
+            for _z in zones:
+                d = haversine_km(float(_poi.latitude), float(_poi.longitude),
+                                  float(_z.latitude), float(_z.longitude))
+                if d < best_dist:
+                    best_dist, best_zid = d, _z.zone_id
+            if best_zid is not None:
+                poi_nearest_zone[_poi.poi_id] = best_zid
+
+        # Group POIs by their nearest zone for the per-zone scoring loop below
+        pois_by_nearest_zone: dict[int, list] = {}
+        for _poi in all_crowd_pois:
+            zid = poi_nearest_zone.get(_poi.poi_id)
+            if zid is not None:
+                pois_by_nearest_zone.setdefault(zid, []).append(_poi)
         
         # Fetch active threat zone circles
         alert_zone_ids = set()
@@ -518,9 +548,14 @@ class PredictiveDisruptionEngine:
                 waterway_coords[w.hyriv_id] = []
 
         # ── Step 3: Score each zone ───────────────────────────────────────────
+        # Jakarta-local hour (WIB = UTC+7). `now` is UTC (datetime.utcnow()), so
+        # without this conversion, evening rush (17:00 WIB = 10:00 UTC) would be
+        # scored as a midday lull — see WIB_OFFSET_HOURS above.
+        cycle_hour_wib = (now.hour + WIB_OFFSET_HOURS) % 24
+
         # Shared time-of-day density factor — same baseline for every zone AND
         # every POI scored in this cycle, so they're all comparable to each other.
-        cycle_density_factor = compute_density_factor(now)
+        cycle_density_factor = compute_density_factor(cycle_hour_wib)
 
         for zone in zones:
             zone_lat = float(zone.latitude)
@@ -623,8 +658,7 @@ class PredictiveDisruptionEngine:
                 traffic_score = compute_traffic_score(
                     latest_traffic.speed, latest_traffic.congestion, baseline
                 )
-                hr = now.hour
-                if (7 <= hr <= 9) or (17 <= hr <= 19):
+                if (7 <= cycle_hour_wib <= 9) or (17 <= cycle_hour_wib <= 19):
                     traffic_score = min(100.0, round(traffic_score * 1.25, 2))
 
             # ── Weather ───────────────────────────────────────────────────────
@@ -670,10 +704,12 @@ class PredictiveDisruptionEngine:
                 latest_crowd.confidence_score = confidence_score
 
             # ── Per-POI crowd scores ────────────────────────────────────────────
-            # Each POI in this zone gets its own score: same density_factor and
-            # traffic_score as the zone, but weighted by its own category.
+            # Score every POI whose NEAREST zone is this one (pois_by_nearest_zone),
+            # not just POIs whose stored zone_id happens to match — this covers POIs
+            # with zone_id=NULL or sitting just outside their assigned zone's radius_m,
+            # which would otherwise stay frozen at the migration seed crowd_score=0.
             zone_hazard_nearby = zone_waterway_score >= 35.0 or eq_score >= 35.0
-            for _poi in zone_poi_rows:
+            for _poi in pois_by_nearest_zone.get(zone.zone_id, []):
                 if not _poi.category:
                     continue
                 _near_safe = any(
