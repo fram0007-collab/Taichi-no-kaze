@@ -448,16 +448,22 @@ export default function MapView({
     setActiveLayers(prev => ({ ...prev, [layerId]: !prev[layerId] }));
   };
   const [safeZones, setSafeZones] = useState([]);
-  useEffect(() => {fetch(`${API_URL}/safe-zones`)
-    .then(res => {
-      if (!res.ok) throw new Error("Failed to load safe zones");
-      return res.json();
-    })
-    .then(data => setSafeZones(data))
-    .catch(err => {
-      console.error("Safe zones fetch failed:", err);
-    });
-    }, [API_URL]);
+  // Re-fetch whenever active threat layers change so the right safe zone category shows:
+  // flood/waterway → high_ground, everything else → evacuation_point
+  useEffect(() => {
+    const LAYER_TO_DISRUPTION = {
+      threat_traffic: 'traffic', threat_weather: 'weather', threat_crowd: 'crowd',
+      threat_earthquake: 'earthquake', threat_waterway: 'waterway',
+    };
+    const activeDisruptions = Object.entries(LAYER_TO_DISRUPTION)
+      .filter(([id]) => activeLayers[id])
+      .map(([, dtype]) => dtype);
+    const qs = activeDisruptions.length ? `?disruption_types=${activeDisruptions.join(',')}` : '';
+    fetch(`${API_URL}/safe-zones${qs}`)
+      .then(res => { if (!res.ok) throw new Error('Failed'); return res.json(); })
+      .then(data => setSafeZones(data))
+      .catch(err => console.error('Safe zones fetch failed:', err));
+  }, [API_URL, activeLayers]);
  
   // Compute active threat zone circles to suppress safe zones within them
   const threatZoneCircles = useMemo(() => {
@@ -499,17 +505,15 @@ export default function MapView({
         waterway: zs.waterway_score || 0,
       };
  
-      let dominantActiveThreat = null;
-      let dominantActiveScore = 0;
-      for (const [dim, score] of Object.entries(dimScores)) {
-        const layerId = threatLayerMap[dim];
-        if (activeLayers[layerId] && score > dominantActiveScore) {
-          dominantActiveScore = score;
-          dominantActiveThreat = dim;
-        }
-      }
- 
-      if (dominantActiveThreat) {
+      // Zone suppresses nearby safe zones only if it has an OPEN alert for an
+      // active checked dimension — matches the "ghost circle" fix above so
+      // safe zones reappear once the alert closes, not just once the score decays.
+      const openDims = new Set(zs.open_threat_dims || []);
+      const hasActiveThreat = Object.entries(dimScores).some(([dim, score]) =>
+        activeLayers[threatLayerMap[dim]] && openDims.has(dim) && score >= 10
+      );
+
+      if (hasActiveThreat) {
         const coords = invertCoords(zone.geometry);
         if (coords.length > 0) {
           const { center, radius } = getCircleParams(coords);
@@ -885,121 +889,117 @@ export default function MapView({
           );
         })}
  
-        {/* Render threat zone circles */}
-        {allZones.filter(zs => !predictions.some(p =>p.zone?.zone_id === zs.zone_id ||p.zone?.id === zs.zone_id)).map(zs => {
-          const zone = zs.zone;
-          if (!zone || !zone.geometry) return null;
- 
-          const dimScores = {
-            traffic: zs.traffic_score || 0,
-            weather: zs.weather_score || 0,
-            crowd: zs.crowd_score || 0,
-            earthquake: zs.earthquake_score || 0,
-            waterway: zs.waterway_score || 0,
-          };
- 
+        {/* Render threat zone circles — one circle per ACTIVE threat type per zone.
+             Unchecking "Traffic" removes only traffic circles. Checking only "Flood"
+             shows only flood/waterway circles. Zones with no active types are hidden. */}
+        {(() => {
           const threatLayerMap = {
-            traffic: 'threat_traffic',
-            weather: 'threat_weather',
-            crowd: 'threat_crowd',
-            earthquake: 'threat_earthquake',
-            waterway: 'threat_waterway',
+            traffic: 'threat_traffic', weather: 'threat_weather',
+            crowd: 'threat_crowd', earthquake: 'threat_earthquake', waterway: 'threat_waterway',
           };
- 
-          let dominantActiveThreat = null;
-          let dominantActiveScore = 0;
-          for (const [dim, score] of Object.entries(dimScores)) {
-            const layerId = threatLayerMap[dim];
-            if (activeLayers[layerId] && score > dominantActiveScore) {
-              dominantActiveScore = score;
-              dominantActiveThreat = dim;
-            }
-          }
- 
-          if (!dominantActiveThreat) return null;
- 
-          let riskKey = 'Low';
-          if (dominantActiveScore >= 65) riskKey = 'High';
-          else if (dominantActiveScore >= 35) riskKey = 'Medium';
-          const riskStyle = getStyleForRisk(riskKey);
- 
-          const coords = invertCoords(zone.geometry);
-          if (coords.length === 0) return null;
-          const { center, radius } = getCircleParams(coords);
- 
-          const matchedPred = predictions.find(p => p.zone?.zone_id === zone.zone_id || p.zone?.id === zone.zone_id);
-          const isSelected = selectedZone && (selectedZone.zone?.id === zone.zone_id || selectedZone.zone?.zone_id === zone.zone_id);
- 
-          let isOutOfRadius = false;
-          let distanceStr = '';
-          if (nearMeFilterActive && userLocation) {
-            const distance = calculateDistanceKm(userLocation.lat, userLocation.lon, center[0], center[1]);
-            if (distance > nearMeRadius) {
-              isOutOfRadius = true;
-            } else {
-              distanceStr = `${distance.toFixed(1)} km`;
-            }
-          }
- 
-          let pathOptions = riskStyle;
-          if (isOutOfRadius) {
-            pathOptions = {
-              ...riskStyle,
-              fillOpacity: 0.01,
-              opacity: 0.04,
-              weight: 0.5,
-              className: 'transition-all duration-300 pointer-events-none'
-            };
-          } else if (isSelected) {
-            pathOptions = { ...riskStyle, weight: 5, fillOpacity: 1, opacity: 0.20, dashArray: '6, 6' };
-          }
- 
-          return (
-            <Circle
-              key={zone.zone_id}
-              center={center}
-              radius={radius}
-              pathOptions={pathOptions}
-              interactive={!isOutOfRadius}
-              eventHandlers={{
-                click: () => matchedPred ? onSelectZone(matchedPred) : onSelectZone({ zone: { ...zone, id: zone.zone_id }, risk_level: riskKey, disruption_type: zs.dominant_risk || 'Threat', probability_percentage: zs.overall_risk_score || 0 })
-              }}
-            >
-              <Tooltip sticky>
-                <div className="font-sans p-1 text-slate-100">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-sm">{zone.name}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                      riskKey === 'Critical' ? 'bg-red-500/20 text-red-400' :
-                      riskKey === 'High' ? 'bg-orange-500/20 text-orange-400' :
-                      riskKey === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                      'bg-emerald-500/20 text-emerald-400'
-                    }`}>
-                      {riskKey}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-300 mt-1">
-                    Active threat: <span className="font-semibold text-slate-100 capitalize">{dominantActiveThreat}</span>
-                    <span className="ml-1 text-slate-400">({dominantActiveScore.toFixed(1)}/100)</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-1 space-y-0.5">
-                    {Object.entries(dimScores).map(([dim, score]) => score >= 25 ? (
-                      <div key={dim} className="flex justify-between gap-3">
-                        <span className="capitalize">{dim}</span>
-                        <span className={score >= 65 ? 'text-red-400 font-bold' : score >= 35 ? 'text-yellow-400' : 'text-emerald-400'}>{score.toFixed(1)}</span>
+          const DIM_COLORS = {
+            traffic: '#f97316', weather: '#3b82f6', crowd: '#eab308',
+            earthquake: '#ef4444', waterway: '#06b6d4',
+          };
+          const dimOrder = ['traffic','weather','crowd','earthquake','waterway'];
+          const circles = [];
+
+          allZones
+            .filter(zs => !predictions.some(p => p.zone?.zone_id === zs.zone_id || p.zone?.id === zs.zone_id))
+            .forEach(zs => {
+              const zone = zs.zone;
+              if (!zone || !zone.geometry) return;
+              const coords = invertCoords(zone.geometry);
+              if (coords.length === 0) return;
+              const { center, radius } = getCircleParams(coords);
+
+              const dimScores = {
+                traffic: zs.traffic_score || 0, weather: zs.weather_score || 0,
+                crowd: zs.crowd_score || 0, earthquake: zs.earthquake_score || 0,
+                waterway: zs.waterway_score || 0,
+              };
+              const matchedPred = predictions.find(p => p.zone?.zone_id === zone.zone_id || p.zone?.id === zone.zone_id);
+              const isSelected = !!(selectedZone && (selectedZone.zone?.id === zone.zone_id || selectedZone.zone?.zone_id === zone.zone_id));
+
+              let isOutOfRadius = false, distanceStr = '';
+              if (nearMeFilterActive && userLocation) {
+                const d = calculateDistanceKm(userLocation.lat, userLocation.lon, center[0], center[1]);
+                if (d > nearMeRadius) isOutOfRadius = true;
+                else distanceStr = `${d.toFixed(1)} km`;
+              }
+
+              const openDims = new Set(zs.open_threat_dims || []);
+
+              dimOrder.forEach((dim, idx) => {
+                const score = dimScores[dim];
+                if (!activeLayers[threatLayerMap[dim]]) return;
+                // Only draw a circle for this dimension if it has an OPEN risk_alert.
+                // zone_status scores persist after an alert closes, so without this
+                // check, closed-alert zones would still show a "ghost" threat circle.
+                if (!openDims.has(dim)) return;
+                if (score < 10) return;
+
+                const riskKey = score >= 65 ? 'High' : score >= 35 ? 'Medium' : 'Low';
+                const color = DIM_COLORS[dim];
+                const r = radius * (1 - idx * 0.03);
+
+                let po = {
+                  fillColor: color, color,
+                  weight: score >= 65 ? 3.0 : score >= 35 ? 2.5 : 2.0,
+                  opacity: score >= 65 ? 0.55 : score >= 35 ? 0.35 : 0.15,
+                  fillOpacity: score >= 65 ? 0.20 : score >= 35 ? 0.10 : 0.04,
+                  className: score >= 65 ? 'animate-pulse' : '',
+                };
+                if (isOutOfRadius) {
+                  po = { ...po, fillOpacity: 0.01, opacity: 0.04, weight: 0.5, className: 'pointer-events-none' };
+                } else if (isSelected) {
+                  po = { ...po, weight: 4, fillOpacity: 0.30, opacity: 0.8, dashArray: '6,6' };
+                }
+
+                circles.push(
+                  <Circle
+                    key={`${zone.zone_id}-${dim}`}
+                    center={center} radius={r} pathOptions={po}
+                    interactive={!isOutOfRadius}
+                    eventHandlers={{ click: () => matchedPred
+                      ? onSelectZone(matchedPred)
+                      : onSelectZone({ zone: { ...zone, id: zone.zone_id }, risk_level: riskKey, disruption_type: dim, probability_percentage: score })
+                    }}
+                  >
+                    <Tooltip sticky>
+                      <div className="font-sans p-1 text-slate-100">
+                        <div className="flex items-center space-x-2 mb-0.5">
+                          <span className="font-bold text-sm">{zone.name}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold capitalize"
+                            style={{ background: `${color}25`, color }}>{dim} · {riskKey}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-300">
+                          Score: <span className="font-semibold text-slate-100">{score.toFixed(1)}/100</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-1 space-y-0.5">
+                          {dimOrder.map(d => {
+                            const s = dimScores[d];
+                            return s >= 25 && activeLayers[threatLayerMap[d]] ? (
+                              <div key={d} className="flex justify-between gap-3">
+                                <span className="capitalize" style={{ color: DIM_COLORS[d] }}>{d}</span>
+                                <span className={s >= 65 ? 'text-red-400 font-bold' : s >= 35 ? 'text-yellow-400' : 'text-emerald-400'}>{s.toFixed(1)}</span>
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                        {distanceStr && (
+                          <div className="text-[10px] text-indigo-300 font-bold border-t border-slate-700/40 pt-1 mt-1">
+                            📍 {distanceStr} away from you
+                          </div>
+                        )}
                       </div>
-                    ) : null)}
-                  </div>
-                  {distanceStr && (
-                    <div className="text-[10px] text-indigo-300 font-bold border-t border-slate-700/40 pt-1 mt-1">
-                      📍 {distanceStr} away from you
-                    </div>
-                  )}
-                </div>
-              </Tooltip>
-            </Circle>
-          );
-        })}
+                    </Tooltip>
+                  </Circle>
+                );
+              });
+            });
+          return circles;
+        })()}
  
         {/* Render Earthquakes if active */}
         {activeLayers.earthquakes && earthquakes.map((eq, idx) => {
