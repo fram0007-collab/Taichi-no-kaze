@@ -71,6 +71,21 @@ class CrowdSnapshot(Base):
     confidence_score = Column(Numeric(5, 2), nullable=True)
 
 
+class PoiCrowdStatus(Base):
+    """Per-POI crowd score, recomputed every scoring cycle.
+
+    Unlike crowd_snapshots (zone-level, historical), this table holds the
+    CURRENT crowd estimate for each individual POI — a mall and a hospital
+    in the same zone get different scores based on their category's typical
+    crowd behaviour and their sensitivity to inbound traffic.
+    """
+    __tablename__ = "poi_crowd_status"
+    poi_id = Column(String(100), ForeignKey("poi_master.poi_id", ondelete="CASCADE"), primary_key=True)
+    crowd_score = Column(Numeric(5, 2), nullable=True)
+    confidence_score = Column(Numeric(5, 2), nullable=True)
+    last_updated = Column(DateTime, nullable=True)
+
+
 class EarthquakeEvent(Base):
     __tablename__ = "earthquake_events"
     event_id = Column(String(100), primary_key=True)
