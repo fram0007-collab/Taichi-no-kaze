@@ -1,4 +1,16 @@
 """
+Predictive Disruption Engine — v3 (Waterway Edition)
+=====================================================
+Fixes from v2:
+  - compute_waterway_score: was missing return, called with wrong args
+  - Waterway scoring now uses real HydroRIVERS fields:
+      dis_av_cms (mean annual flow), upland_skm (upstream catchment),
+      ord_strahler (river order), catch_skm (local catchment)
+  - Writes zone_waterway_mapping, waterway_snapshots, waterway_telemetry
+  - Upstream cascade propagation: high gate readings amplify downstream zones
+  - ZoneStatus.waterway_score now populated correctly
+  - overall_risk weights updated to include waterway (20%)
+
 Flood Prediction Logic:
   Rainfall-Runoff model per HydroRIVERS segment:
     runoff_cms = rainfall_mm/1000 * catch_skm*1e6 / (30min * 60s) * runoff_coeff
@@ -623,6 +635,11 @@ class PredictiveDisruptionEngine:
                     latest_weather.wind_speed, flood_vulnerability=vuln,
                 )
 
+            # ── Earthquake ────────────────────────────────────────────────────
+            # Computed here (before Crowd) because the per-POI crowd hazard check
+            # below needs eq_score to know if this zone currently has a seismic threat.
+            eq_score = compute_earthquake_score(zone_lat, zone_lon, recent_quakes)
+
             # ── Crowd ─────────────────────────────────────────────────────────
             latest_crowd = (db.query(CrowdSnapshot)
                             .filter(CrowdSnapshot.zone_id == zone.zone_id)
@@ -687,9 +704,6 @@ class PredictiveDisruptionEngine:
                         confidence_score=_poi_conf,
                         last_updated=now,
                     ))
-
-            # ── Earthquake ────────────────────────────────────────────────────
-            eq_score = compute_earthquake_score(zone_lat, zone_lon, recent_quakes)
 
             # ── Overall ───────────────────────────────────────────────────────
             overall, dominant = overall_risk(
