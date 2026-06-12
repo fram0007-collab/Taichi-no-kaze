@@ -31,7 +31,7 @@ from database import get_db, TTLCache, get_sql_ops_metrics, AsyncSessionLocal
 from models import (
     Zone, ZoneStatus, TrafficSnapshot, WeatherSnapshot,
     CrowdSnapshot, EarthquakeEvent, RiskAlert, PoiMaster,
-    JabodetabekWaterway,
+    JabodetabekWaterway, PoiCrowdStatus,
 )
 
 # ── Logging ─────────────────────────────────────────────────────────────────
@@ -363,6 +363,17 @@ async def get_all_zone_statuses_with_zones(db: AsyncSession = Depends(get_db)):
     statuses = result.scalars().all()
     status_map = {s.zone_id: s for s in statuses}
 
+    # Fetch OPEN alerts grouped by zone + disruption_type. A dimension's score
+    # in zone_status persists even after its alert closes — without this, the
+    # frontend keeps drawing a (now-stale) threat circle for a closed alert.
+    open_alerts_res = await db.execute(
+        select(RiskAlert.zone_id, RiskAlert.disruption_type)
+        .where(RiskAlert.status == "OPEN")
+    )
+    open_dims_by_zone: dict[int, set[str]] = {}
+    for zid_, dtype in open_alerts_res.all():
+        open_dims_by_zone.setdefault(zid_, set()).add((dtype or "").lower())
+
     response = []
     for zone_data in ZoneCache.get_all():
         zid = zone_data["zone_id"]
@@ -404,6 +415,10 @@ async def get_all_zone_statuses_with_zones(db: AsyncSession = Depends(get_db)):
             "dominant_risk": dom,
             "recommended_action": s.recommended_action if s else "No data yet.",
             "last_updated": s.last_updated.isoformat() if s and s.last_updated else None,
+            # Which dimensions currently have an OPEN risk alert for this zone.
+            # The map only draws a threat circle for a dimension if it's in this list —
+            # this stops "ghost" circles for dimensions whose alert was already CLOSED.
+            "open_threat_dims": sorted(open_dims_by_zone.get(zid, set())),
         })
 
     return response
@@ -934,6 +949,16 @@ async def get_pois(db: AsyncSession = Depends(get_db)):
                 continue
         filtered_pois.append(p)
 
+    # Per-POI crowd scores (mall vs hospital in the same zone get different values)
+    poi_ids_needed = [p.poi_id for p in filtered_pois]
+    crowd_by_poi: dict = {}
+    if poi_ids_needed:
+        crowd_res = await db.execute(
+            select(PoiCrowdStatus.poi_id, PoiCrowdStatus.crowd_score)
+            .where(PoiCrowdStatus.poi_id.in_(poi_ids_needed))
+        )
+        crowd_by_poi = {row.poi_id: float(row.crowd_score or 0) for row in crowd_res}
+
     return [
         {
             "name": p.name,
@@ -943,6 +968,7 @@ async def get_pois(db: AsyncSession = Depends(get_db)):
             "is_suppressed": False,
             "is_safe_zone": p.is_safe_zone,
             "zone_id": p.zone_id,
+            "crowd_score": crowd_by_poi.get(p.poi_id, 0.0),
         }
         for p in filtered_pois
     ]
