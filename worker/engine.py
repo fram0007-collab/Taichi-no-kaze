@@ -1,16 +1,4 @@
 """
-Predictive Disruption Engine — v3 (Waterway Edition)
-=====================================================
-Fixes from v2:
-  - compute_waterway_score: was missing return, called with wrong args
-  - Waterway scoring now uses real HydroRIVERS fields:
-      dis_av_cms (mean annual flow), upland_skm (upstream catchment),
-      ord_strahler (river order), catch_skm (local catchment)
-  - Writes zone_waterway_mapping, waterway_snapshots, waterway_telemetry
-  - Upstream cascade propagation: high gate readings amplify downstream zones
-  - ZoneStatus.waterway_score now populated correctly
-  - overall_risk weights updated to include waterway (20%)
-
 Flood Prediction Logic:
   Rainfall-Runoff model per HydroRIVERS segment:
     runoff_cms = rainfall_mm/1000 * catch_skm*1e6 / (30min * 60s) * runoff_coeff
@@ -37,7 +25,7 @@ from worker.models import (
     Zone, ZoneStatus, TrafficSnapshot, WeatherSnapshot,
     CrowdSnapshot, EarthquakeEvent, RiskAlert, PoiMaster,
     JabodetabekWaterway, WaterwaySnapshot, WaterwayTelemetry,
-    WaterwayConnectivity, ZoneWaterwayMapping,
+    WaterwayConnectivity, ZoneWaterwayMapping, PoiCrowdStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -211,6 +199,34 @@ TRAFFIC_ATTRACTION_WEIGHTS = {
     "hospital":   0.3,
 }
 
+# Baseline "how busy is this category relative to the zone's ambient density".
+# >1.0 = busier than ambient, <1.0 = quieter than ambient.
+POI_CATEGORY_CROWD_WEIGHT = {
+    "mall":       1.2,
+    "station":    1.3,
+    "market":     1.0,
+    "university": 0.9,
+    "hospital":   0.6,
+}
+
+
+def compute_density_factor(now: Optional[datetime] = None) -> float:
+    """
+    Time-of-day ambient crowd density, 0-1.
+
+    This is the shared baseline for both zone-level and POI-level crowd
+    scoring within a single scoring cycle — pass the SAME value to every
+    compute_*_crowd_score call in that cycle so a mall and a hospital in
+    the same zone at the same moment are compared on equal footing.
+    """
+    hour = (now or datetime.now()).hour
+    if   7  <= hour <= 9:   return random.uniform(0.55, 0.80)
+    elif 17 <= hour <= 19:  return random.uniform(0.60, 0.85)
+    elif 12 <= hour <= 13:  return random.uniform(0.40, 0.60)
+    elif 10 <= hour <= 16:  return random.uniform(0.25, 0.45)
+    elif 20 <= hour <= 23:  return random.uniform(0.20, 0.35)
+    else:                   return random.uniform(0.05, 0.15)
+
 
 def compute_crowd_score(
     poi_count: int,
@@ -221,9 +237,11 @@ def compute_crowd_score(
     safe_zones: list,
     traffic_score: float = 0.0,
     poi_category_counts: dict = None,
+    density_factor: Optional[float] = None,
 ) -> tuple[float, float]:
     """
-    Crowd score combining time-of-day density with traffic-based attraction.
+    ZONE-LEVEL aggregate crowd score (used for zone_status.crowd_score and
+    the "Crowd" threat-zone map layer).
 
     Root cause of always-zero bug:
       poi_count from crowd_snapshots is a structural DB count (e.g. 3 malls),
@@ -232,20 +250,16 @@ def compute_crowd_score(
 
     Fix: always use time-of-day density_factor as the base, then amplify
     by poi density and inbound traffic attraction for destination POIs.
+
+    Pass `density_factor` from compute_density_factor() so this stays
+    consistent with the per-POI scores computed in the same cycle.
     """
     if capacity is None or capacity <= 0:
         capacity = 100
     if poi_category_counts is None:
         poi_category_counts = {}
-
-    # ── Time-of-day base density ──────────────────────────────────────────────
-    hour = datetime.now().hour
-    if   7  <= hour <= 9:   density_factor = random.uniform(0.55, 0.80)
-    elif 17 <= hour <= 19:  density_factor = random.uniform(0.60, 0.85)
-    elif 12 <= hour <= 13:  density_factor = random.uniform(0.40, 0.60)
-    elif 10 <= hour <= 16:  density_factor = random.uniform(0.25, 0.45)
-    elif 20 <= hour <= 23:  density_factor = random.uniform(0.20, 0.35)
-    else:                   density_factor = random.uniform(0.05, 0.15)
+    if density_factor is None:
+        density_factor = compute_density_factor()
 
     # ── POI density multiplier (up to +40% for POI-dense zones) ──────────────
     poi_multiplier = 1.0 + min(1.0, poi_count / 5.0) * 0.4
@@ -272,7 +286,60 @@ def compute_crowd_score(
 
     raw = occupancy_ratio + hazard_penalty + safe_zone_bonus
     crowd_score = round(max(0.0, min(1.0, raw)) * 100.0, 2)
-    confidence  = round(min(1.0, density_factor * (1.0 + poi_count * 0.05)), 2)
+
+    # Same confidence logic as compute_poi_crowd_score: 0.4 floor (synthetic
+    # density baseline) + up to 0.6 scaled by real traffic signal weighted by
+    # the zone's overall attraction profile.
+    confidence = 0.4 + 0.6 * (traffic_score / 100.0) * attraction_weight
+    confidence = round(min(1.0, max(0.0, confidence)), 2)
+    return crowd_score, confidence
+
+
+def compute_poi_crowd_score(
+    category: str,
+    density_factor: float,
+    traffic_score: float,
+    hazard_nearby: bool = False,
+    near_safe_zone: bool = False,
+) -> tuple[float, float]:
+    """
+    POI-LEVEL crowd score — gives each POI its own value based on:
+      1. The zone's shared time-of-day density_factor (same for every POI in
+         the zone at this moment — people are or aren't out and about).
+      2. POI_CATEGORY_CROWD_WEIGHT — how busy this category typically runs
+         relative to ambient (stations/malls run hotter, hospitals steadier).
+      3. Inbound traffic amplification, scaled by how strongly THIS category
+         attracts traffic-driven footfall (TRAFFIC_ATTRACTION_WEIGHTS).
+      4. Small adjustments: a nearby active hazard nudges crowd up (people
+         clustering/evacuating), proximity to a safe zone nudges it down
+         slightly (dispersal point, less likely to be jam-packed).
+
+    Formula:
+        traffic_amplifier = 1 + (traffic_score/100) * 0.5 * traffic_attraction[category]
+        occupancy_ratio   = clamp01(density_factor * category_weight * traffic_amplifier)
+        raw               = occupancy_ratio + hazard_penalty - safe_zone_bonus
+        crowd_score       = clamp01(raw) * 100
+    """
+    category_weight = POI_CATEGORY_CROWD_WEIGHT.get(category, 1.0)
+    traffic_attraction = TRAFFIC_ATTRACTION_WEIGHTS.get(category, 0.0)
+
+    traffic_amplifier = 1.0 + (traffic_score / 100.0) * 0.5 * traffic_attraction
+    occupancy_ratio = min(1.0, density_factor * category_weight * traffic_amplifier)
+
+    hazard_penalty  = 0.10 if hazard_nearby else 0.0
+    safe_zone_bonus = 0.05 if near_safe_zone else 0.0
+
+    raw = occupancy_ratio + hazard_penalty - safe_zone_bonus
+    crowd_score = round(max(0.0, min(1.0, raw)) * 100.0, 2)
+
+    # Confidence reflects how much REAL sensor data (TomTom traffic) backs this
+    # estimate, vs. the synthetic time-of-day density_factor baseline.
+    #   - 0.4 floor: time-of-day pattern + real weather/hazard inputs always apply
+    #   - up to +0.6: scales with traffic_score × this category's sensitivity to
+    #     traffic (mall/station benefit a lot from real traffic data; hospitals
+    #     barely do, so traffic data doesn't add much certainty for them)
+    confidence = 0.4 + 0.6 * (traffic_score / 100.0) * traffic_attraction
+    confidence = round(min(1.0, max(0.0, confidence)), 2)
     return crowd_score, confidence
 
 
@@ -439,6 +506,10 @@ class PredictiveDisruptionEngine:
                 waterway_coords[w.hyriv_id] = []
 
         # ── Step 3: Score each zone ───────────────────────────────────────────
+        # Shared time-of-day density factor — same baseline for every zone AND
+        # every POI scored in this cycle, so they're all comparable to each other.
+        cycle_density_factor = compute_density_factor(now)
+
         for zone in zones:
             zone_lat = float(zone.latitude)
             zone_lon = float(zone.longitude)
@@ -575,10 +646,47 @@ class PredictiveDisruptionEngine:
                 poi_count, hazard_count, capacity, zone_lat, zone_lon, safe_zones,
                 traffic_score=traffic_score,
                 poi_category_counts=poi_category_counts,
+                density_factor=cycle_density_factor,
             )
             if latest_crowd:
                 latest_crowd.crowd_score      = crowd_score
                 latest_crowd.confidence_score = confidence_score
+
+            # ── Per-POI crowd scores ────────────────────────────────────────────
+            # Each POI in this zone gets its own score: same density_factor and
+            # traffic_score as the zone, but weighted by its own category.
+            zone_hazard_nearby = zone_waterway_score >= 35.0 or eq_score >= 35.0
+            for _poi in zone_poi_rows:
+                if not _poi.category:
+                    continue
+                _near_safe = any(
+                    haversine_km(
+                        float(_poi.latitude or 0), float(_poi.longitude or 0),
+                        sz["latitude"], sz["longitude"]
+                    ) < 0.3
+                    for sz in safe_zones
+                ) if (_poi.latitude and _poi.longitude and safe_zones) else False
+
+                _poi_score, _poi_conf = compute_poi_crowd_score(
+                    category=_poi.category,
+                    density_factor=cycle_density_factor,
+                    traffic_score=traffic_score,
+                    hazard_nearby=zone_hazard_nearby,
+                    near_safe_zone=_near_safe,
+                )
+
+                _existing_pcs = db.query(PoiCrowdStatus).filter_by(poi_id=_poi.poi_id).first()
+                if _existing_pcs:
+                    _existing_pcs.crowd_score      = _poi_score
+                    _existing_pcs.confidence_score = _poi_conf
+                    _existing_pcs.last_updated      = now
+                else:
+                    db.add(PoiCrowdStatus(
+                        poi_id=_poi.poi_id,
+                        crowd_score=_poi_score,
+                        confidence_score=_poi_conf,
+                        last_updated=now,
+                    ))
 
             # ── Earthquake ────────────────────────────────────────────────────
             eq_score = compute_earthquake_score(zone_lat, zone_lon, recent_quakes)
