@@ -350,7 +350,7 @@ export default function MapView({
     return predictions.some(pred => {
       const coords = invertCoords(pred.zone.geometry);
       if (coords.length === 0) return false;
-      const { center } = getCircleParams(coords);
+      const { center } = getParams(coords);
       const distance = calculateDistanceKm(userLocation.lat, userLocation.lon, center[0], center[1]);
       return distance <= nearMeRadius;
     });
@@ -483,8 +483,8 @@ export default function MapView({
       .catch(err => console.error('Safe zones fetch failed:', err));
   }, [API_URL, activeLayers]);
  
-  // Compute active threat zone circles to suppress safe zones within them
-  const threatZoneCircles = useMemo(() => {
+  // Compute active threat zone s to suppress safe zones within them
+  const threatZones = useMemo(() => {
     const list = [];
     
     // 1. From active predictions
@@ -493,7 +493,7 @@ export default function MapView({
       if (zone && zone.geometry) {
         const coords = invertCoords(zone.geometry);
         if (coords.length > 0) {
-          const { center, radius } = getCircleParams(coords);
+          const { center, radius } = getParams(coords);
           list.push({ center, radius });
         }
       }
@@ -524,7 +524,7 @@ export default function MapView({
       };
  
       // Zone suppresses nearby safe zones only if it has an OPEN alert for an
-      // active checked dimension — matches the "ghost circle" fix above so
+      // active checked dimension — matches the "ghost " fix above so
       // safe zones reappear once the alert closes, not just once the score decays.
       const openDims = new Set(zs.open_threat_dims || []);
       const hasActiveThreat = Object.entries(dimScores).some(([dim, score]) =>
@@ -534,7 +534,7 @@ export default function MapView({
       if (hasActiveThreat) {
         const coords = invertCoords(zone.geometry);
         if (coords.length > 0) {
-          const { center, radius } = getCircleParams(coords);
+          const { center, radius } = getParams(coords);
           list.push({ center, radius });
         }
       }
@@ -545,7 +545,7 @@ export default function MapView({
  
   const filteredSafeZones = useMemo(() => {
     return safeZones.filter(sz => {
-      const isInsideThreat = threatZoneCircles.some(circle => {
+      const isInsideThreat = threatZones.some(circle => {
         const distKm = calculateDistanceKm(sz.latitude, sz.longitude, circle.center[0], circle.center[1]);
         return distKm * 1000 <= circle.radius;
       });
@@ -885,7 +885,7 @@ export default function MapView({
  
           return (
             <Circle
-              key={zone.id}
+              key={`${zone.id}_${pred.disruption_type}`}
               center={center}
               radius={radius}
               pathOptions={pathOptions}
