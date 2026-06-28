@@ -1,0 +1,83 @@
+name: Worker Ingestion
+
+on:
+  schedule:
+    # Every 15 minutes — GitHub Actions cron is UTC
+    # 00:00-04:59 WIB = 17:00-21:59 UTC — our engine skips these anyway
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {} # manual trigger from Actions tab
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12  # safety cutoff before next cycle
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: worker/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r worker/requirements.txt
+
+      - name: Create worker .env
+        run: |
+          cat > worker/.env << EOF
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          TOMTOM_API_KEY=${{ secrets.TOMTOM_API_KEY }}
+          TRAFFIC_PROVIDER=tomtom
+          ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
+          DISPLAY_ALL_EARTHQUAKES=false
+          MOCK_SERVER_URL=
+          CRON_SECRET=
+          EOF
+
+      - name: Run ingestion cycle
+        run: |
+          python - << 'PYEOF'
+          import sys, os
+          sys.path.insert(0, '.')
+
+          from datetime import datetime, timezone
+          from worker.engine import WIB_OFFSET_HOURS
+          from worker.main import IngestionWorker, wait_for_db_ready
+
+          wait_for_db_ready()
+          worker = IngestionWorker()
+
+          hour_wib = (datetime.now(timezone.utc).hour + WIB_OFFSET_HOURS) % 24
+          print(f"[Cron] WIB hour: {hour_wib:02d}:xx")
+
+          # Always run these (no TomTom calls, unlimited APIs)
+          print("[Cron] Running earthquake ingestion...")
+          worker.run_earthquake_ingestion()
+
+          print("[Cron] Running weather ingestion...")
+          worker.run_weather_ingestion()
+
+          print("[Cron] Running waterway telemetry...")
+          worker.run_waterway_telemetry_ingestion()
+
+          # Time-gated (respects our TomTom budget logic)
+          print("[Cron] Running traffic ingestion (time-gated)...")
+          worker.run_traffic_ingestion()
+
+          print("[Cron] Running crowd ingestion (time-gated)...")
+          worker.run_crowd_ingestion()
+
+          # Scoring always runs last
+          print("[Cron] Running scoring cycle...")
+          worker.run_scoring_cycle()
+
+          print("[Cron] Done.")
+          PYEOF
+
+      - name: Keep backend warm
+        run: |
+          curl -sf ${{ secrets.BACKEND_URL }}/admin/status || echo "Backend ping failed (non-critical)"
