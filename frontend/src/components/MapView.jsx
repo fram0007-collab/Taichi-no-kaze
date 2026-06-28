@@ -350,7 +350,7 @@ export default function MapView({
     return predictions.some(pred => {
       const coords = invertCoords(pred.zone.geometry);
       if (coords.length === 0) return false;
-      const { center } = getParams(coords);
+      const { center } = getCircleParams(coords);
       const distance = calculateDistanceKm(userLocation.lat, userLocation.lon, center[0], center[1]);
       return distance <= nearMeRadius;
     });
@@ -493,7 +493,7 @@ export default function MapView({
       if (zone && zone.geometry) {
         const coords = invertCoords(zone.geometry);
         if (coords.length > 0) {
-          const { center, radius } = getParams(coords);
+          const { center, radius } = getCircleParams(coords);
           list.push({ center, radius });
         }
       }
@@ -534,7 +534,7 @@ export default function MapView({
       if (hasActiveThreat) {
         const coords = invertCoords(zone.geometry);
         if (coords.length > 0) {
-          const { center, radius } = getParams(coords);
+          const { center, radius } = getCircleParams(coords);
           list.push({ center, radius });
         }
       }
@@ -551,7 +551,7 @@ export default function MapView({
       });
       return !isInsideThreat;
     });
-  }, [safeZones, threatZoneCircles]);
+  }, [safeZones, threatZones]);
  
   // Determine POIs to display globally
   const poisToRender = globalPois.filter(poi => activeLayers[poi.category]);
