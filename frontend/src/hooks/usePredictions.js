@@ -23,6 +23,8 @@ export function usePredictions() {
         disruption_type: a.disruption_type,
         probability_percentage: a.probability_percentage,
         estimated_time_to_peak: a.estimated_time_to_peak,
+        estimated_resolution_at: a.estimated_resolution_at,
+        resolution_confidence: a.resolution_confidence,
         risk_level: a.severity ? (a.severity.charAt(0).toUpperCase() + a.severity.slice(1).toLowerCase()) : 'Low',
         created_at: a.alert_timestamp,
         zone: {

@@ -112,6 +112,8 @@ class RiskAlert(Base):
     status = Column(String(20), default="OPEN")
     probability_percentage = Column(Numeric(5, 2), nullable=True)
     estimated_time_to_peak = Column(DateTime, nullable=True)
+    estimated_resolution_at = Column(DateTime, nullable=True)
+    resolution_confidence = Column(Numeric(5, 2), nullable=True)
 
 
 class PoiMaster(Base):

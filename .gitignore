@@ -22,4 +22,21 @@ Thumbs.db
 local_admin_dashboard.html
 
 # Discussion notes/reports
-discussions/
+discussions/
+
+# Supabase/DB seed files with potential sensitive data — keep local only
+# db/*.sql  # Uncomment if seeds contain sensitive zone data
+
+# Python cache (nested)
+**/*.pyc
+**/__pycache__/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Render/deployment local overrides
+.render-buildpacks.json
+
+# Test/diagnostic scripts with live DB access
+diagnose.py

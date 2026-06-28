@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional, Any
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import event
 from dotenv import load_dotenv
@@ -19,18 +20,40 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 if not DATABASE_URL:
     raise RuntimeError(
         "DATABASE_URL not set. Make sure backend/.env exists with:\n"
-        "  DATABASE_URL=postgresql+asyncpg://user:pass@ep-xxx.neon.tech/dbname?sslmode=require"
+        "  DATABASE_URL=postgresql+asyncpg://user:pass@host.supabase.com:6543/postgres"
     )
 
+# asyncpg does not accept sslmode= as a query param — strip it and pass ssl
+# via connect_args instead. This works for both Supabase and Neon.
+_url = DATABASE_URL.replace("sslmode=require", "").replace("sslmode=prefer", "").rstrip("?&")
+_use_ssl = "supabase.com" in DATABASE_URL or "neon.tech" in DATABASE_URL or "sslmode=require" in DATABASE_URL
+
+# Supabase with asyncpg: NullPool avoids all pgbouncer prepared-statement
+# conflicts by creating a fresh connection per request instead of pooling.
+# Slightly higher latency per request but eliminates all "__asyncpg_stmt_N__"
+# errors. Alternative: switch to Session pooler (port 5432) in Supabase
+# dashboard which supports prepared statements natively.
+_is_supabase = "supabase.com" in DATABASE_URL
+
 engine = create_async_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=5,
-    pool_timeout=30,
-    pool_recycle=300,
+    _url,
     future=True,
     echo=False,
+    connect_args={"ssl": "require", "statement_cache_size": 0} if _use_ssl
+                 else {"statement_cache_size": 0},
+    # NullPool for Supabase transaction pooler (port 6543) — no connection
+    # reuse means no prepared statement lifecycle conflicts.
+    # For Session pooler (port 5432) or direct connections, use the
+    # standard pool settings below instead by removing poolclass=NullPool.
+    **({
+        "poolclass": NullPool,
+    } if _is_supabase else {
+        "pool_pre_ping": True,
+        "pool_size": 10,
+        "max_overflow": 5,
+        "pool_timeout": 30,
+        "pool_recycle": 300,
+    })
 )
 
 AsyncSessionLocal = sessionmaker(

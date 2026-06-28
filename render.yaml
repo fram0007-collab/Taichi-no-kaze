@@ -1,0 +1,47 @@
+# Render Blueprint — deploy with "New + > Blueprint" on render.com, pointing
+# at this repo. Creates two free web services. After the first deploy, set
+# the secret-valued env vars below in the Render dashboard (they are marked
+# sync: false so Render won't ask you to paste them into git).
+#
+# Equivalent of what used to run on Railway:
+#   - backend  -> FastAPI API (was the Railway "backend" service)
+#   - worker   -> HTTP-triggered ingestion jobs (was the Railway "worker" service,
+#                 previously an always-on APScheduler loop — now called on a
+#                 schedule by .github/workflows/ingestion-cron.yml instead)
+
+services:
+  - type: web
+    name: dis-rupture-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false # paste your Neon postgresql+asyncpg:// URL in the Render dashboard
+      - key: TOMTOM_API_KEY
+        sync: false
+      - key: TRAFFIC_PROVIDER
+        value: tomtom
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DISPLAY_ALL_EARTHQUAKES
+        value: "false"
+
+  - type: web
+    name: dis-rupture-worker
+    runtime: python
+    rootDir: . # repo root — worker/app.py imports `worker.*` as a package
+    plan: free
+    buildCommand: pip install -r worker/requirements.txt
+    startCommand: uvicorn worker.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false # paste your Neon postgresql:// URL (no +asyncpg) in the Render dashboard
+      - key: TOMTOM_API_KEY
+        sync: false
+      - key: TRAFFIC_PROVIDER
+        value: tomtom
+      - key: CRON_SECRET
+        sync: false # must match the CRON_SECRET GitHub Actions secret

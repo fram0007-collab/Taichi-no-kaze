@@ -1,0 +1,53 @@
+name: Ingestion Cron
+
+# Replaces the old always-on APScheduler loop (worker/main.py).
+# Runs every 15 minutes; weather (originally every 30 min) is triggered on
+# alternate runs (minute 0/30) so it still fires roughly every 30 minutes.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   WORKER_URL    e.g. https://your-worker.onrender.com
+#   CRON_SECRET   same value as CRON_SECRET in worker/.env / Render env vars
+#
+# Note: GitHub's scheduled cron is best-effort, not exact — during periods of
+# high GitHub Actions load, runs can be delayed by several (sometimes 10-20)
+# minutes. Fine for traffic/weather polling, not suitable for anything that
+# needs second-level precision.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {} # lets you trigger a run manually from the Actions tab
+
+jobs:
+  trigger-ingestion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call always-15-min jobs (traffic, crowd, earthquake, waterway telemetry)
+        run: |
+          for path in traffic crowd earthquake waterway-telemetry; do
+            echo "Triggering /run/$path"
+            curl -sS -X POST "${{ secrets.WORKER_URL }}/run/$path" \
+              -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+              --max-time 60 --fail-with-body || echo "::warning::$path ingestion failed"
+          done
+
+      - name: Call weather job (every ~30 min)
+        if: ${{ (github.event.schedule == '*/15 * * * *') }}
+        run: |
+          minute=$(date -u +%M)
+          if [ "$minute" = "00" ] || [ "$minute" = "30" ]; then
+            echo "Triggering /run/weather"
+            curl -sS -X POST "${{ secrets.WORKER_URL }}/run/weather" \
+              -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+              --max-time 60 --fail-with-body || echo "::warning::weather ingestion failed"
+          else
+            echo "Skipping weather this run (minute=$minute)"
+          fi
+
+      - name: Call scoring cycle (after ingestion has had a moment to commit)
+        run: |
+          sleep 10
+          echo "Triggering /run/scoring"
+          curl -sS -X POST "${{ secrets.WORKER_URL }}/run/scoring" \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            --max-time 60 --fail-with-body || echo "::warning::scoring cycle failed"

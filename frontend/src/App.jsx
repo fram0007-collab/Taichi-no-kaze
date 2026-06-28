@@ -3,6 +3,7 @@ import { usePredictions } from './hooks/usePredictions';
 import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
 import BottomSheet from './components/BottomSheet';
+import EvacuationPanel from './components/EvacuationPanel';
 import MetricsGrid from './components/MetricsGrid';
 import AdminDashboard from './components/AdminDashboard';
 import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate } from 'lucide-react';
@@ -13,6 +14,10 @@ const API_URL = getApiUrl();
 
 export default function App() {
   const { predictions, loading, error, isFallback, refresh } = usePredictions();
+
+  const handleRouteReady = (geoJSON, destination) => {
+    setEvacuationRoute(geoJSON);
+  };
   const [selectedPrediction, setSelectedPrediction] = useState(null);
   const [timelineData, setTimelineData] = useState(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
@@ -30,6 +35,20 @@ export default function App() {
 
   // Proximity "Near Me" Spatial Filter states
   const [nearMeFilterActive, setNearMeFilterActive] = useState(false);
+  const [showEvacuation, setShowEvacuation] = useState(false);
+  const [evacuationRoute, setEvacuationRoute] = useState(null); // GeoJSON LineString
+  const [safePois, setSafePois] = useState([]);
+
+  // Fetch safe POIs when disruptions are active in user radius
+  useEffect(() => {
+    if (!showEvacuation) return;
+    const dtype = predictions?.[0]?.disruption_type ?? '';
+    const qs = dtype ? `?disruption_types=${dtype}` : '';
+    fetch(`${API_URL}/safe-zones${qs}`)
+      .then(r => r.json())
+      .then(d => setSafePois(Array.isArray(d) ? d : (d.safe_zones ?? [])))
+      .catch(() => setSafePois([]));
+  }, [showEvacuation, predictions, API_URL]);
   const [nearMeRadius, setNearMeRadius] = useState(5); // in km (default 5km)
 
   // Derived state: predictions filtered by spatial proximity if nearMeFilterActive is true
@@ -531,6 +550,7 @@ export default function App() {
                   setNearMeFilterActive={setNearMeFilterActive}
                   nearMeRadius={nearMeRadius}
                   setNearMeRadius={setNearMeRadius}
+                  evacuationRoute={evacuationRoute}
                 />
               </div>
 
@@ -543,6 +563,41 @@ export default function App() {
                 selectedHours={selectedHours}
                 setSelectedHours={setSelectedHours}
               />
+
+              {/* Evacuation guidance trigger — shown when threats exist in radius */}
+              {filteredPredictions.length > 0 && !showEvacuation && (
+                <div className="px-3 pb-3 shrink-0">
+                  <button
+                    onClick={() => setShowEvacuation(true)}
+                    className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
+                  >
+                    <span>🚨</span>
+                    Get Evacuation Guidance
+                  </button>
+                </div>
+              )}
+
+              {/* Evacuation panel */}
+              {showEvacuation && (
+                <div className="flex-1 overflow-hidden border-t border-slate-800">
+                  <EvacuationPanel
+                    userLocation={userLocation}
+                    predictions={filteredPredictions}
+                    safePois={safePois}
+                    activeThreatZones={filteredPredictions.map(p => ({
+                      lat: p.zone?.latitude ?? p.zone?.geometry?.[0]?.[0],
+                      lon: p.zone?.longitude ?? p.zone?.geometry?.[0]?.[1],
+                      radius_m: p.zone?.radius_m ?? 1000,
+                      name: p.zone?.name ?? 'threat zone',
+                    }))}
+                    tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
+                    onRouteReady={handleRouteReady}
+                    onClose={() => { setShowEvacuation(false); setEvacuationRoute(null); }}
+                    onRequestLocation={locateUser}
+                    activePrediction={filteredPredictions[0] ?? null}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -557,6 +612,39 @@ export default function App() {
                   {filteredPredictions.length} alerts
                 </span>
               </div>
+
+              {/* Evacuation button — mobile feed tab */}
+              {filteredPredictions.length > 0 && !showEvacuation && (
+                <button
+                  onClick={() => { setShowEvacuation(true); setMobileTab('feed'); }}
+                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
+                >
+                  <span>🚨</span>
+                  Get Evacuation Guidance
+                </button>
+              )}
+
+              {/* Evacuation panel — mobile */}
+              {showEvacuation && (
+                <div className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">
+                  <EvacuationPanel
+                    userLocation={userLocation}
+                    predictions={filteredPredictions}
+                    safePois={safePois}
+                    activeThreatZones={filteredPredictions.map(p => ({
+                      lat: p.zone?.latitude ?? p.zone?.geometry?.[0]?.[0],
+                      lon: p.zone?.longitude ?? p.zone?.geometry?.[0]?.[1],
+                      radius_m: p.zone?.radius_m ?? 1000,
+                      name: p.zone?.name ?? 'threat zone',
+                    }))}
+                    tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
+                    onRouteReady={handleRouteReady}
+                    onClose={() => { setShowEvacuation(false); setEvacuationRoute(null); }}
+                    onRequestLocation={locateUser}
+                    activePrediction={filteredPredictions[0] ?? null}
+                  />
+                </div>
+              )}
               
               {nearMeFilterActive && userLocation && (
                 <div className="glass-panel px-3 py-2.5 rounded-xl border border-indigo-500/20 text-indigo-400 text-xs flex items-center justify-between animate-pulse shrink-0">
@@ -829,6 +917,25 @@ export default function App() {
               nearMeFilterActive={nearMeFilterActive}
               nearMeRadius={nearMeRadius}
               onClearNearMeFilter={() => setNearMeFilterActive(false)}
+              onGetEvacuation={() => setShowEvacuation(true)}
+              showEvacuationPanel={showEvacuation}
+              evacuationPanelNode={
+                <EvacuationPanel
+                  userLocation={userLocation}
+                  predictions={filteredPredictions}
+                  safePois={safePois}
+                  activeThreatZones={filteredPredictions.map(p => ({
+                    lat: p.zone?.latitude ?? p.zone?.geometry?.[0]?.[0],
+                    lon: p.zone?.longitude ?? p.zone?.geometry?.[0]?.[1],
+                    radius_m: p.zone?.radius_m ?? 1000,
+                    name: p.zone?.name ?? 'threat zone',
+                  }))}
+                  tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
+                  onRouteReady={handleRouteReady}
+                  onClose={() => { setShowEvacuation(false); setEvacuationRoute(null); }}
+                  onRequestLocation={locateUser}
+                />
+              }
             />
           </div>
         </main>

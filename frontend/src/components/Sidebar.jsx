@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { 
   ResponsiveContainer, 
   ComposedChart, 
@@ -27,7 +28,10 @@ export default function Sidebar({
   onSelectEarthquake,
   nearMeFilterActive = false,
   nearMeRadius = 5,
-  onClearNearMeFilter
+  onClearNearMeFilter,
+  onGetEvacuation,
+  showEvacuationPanel = false,
+  evacuationPanelNode = null,
 }) {
   const [poiFilter, setPoiFilter] = useState('all');
   const [showAllWarnings, setShowAllWarnings] = useState(false);
@@ -100,6 +104,24 @@ export default function Sidebar({
           <Bell className="w-5 h-5 text-indigo-400" />
           <h2>Predictive Warning Feed</h2>
         </div>
+
+        {/* Evacuation guidance button — shown when active threats exist */}
+        {predictions.length > 0 && !showEvacuationPanel && onGetEvacuation && (
+          <button
+            onClick={onGetEvacuation}
+            className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30 mb-3"
+          >
+            <span>🚨</span>
+            Get Evacuation Guidance
+          </button>
+        )}
+
+        {/* Evacuation panel rendered inside sidebar */}
+        {showEvacuationPanel && evacuationPanelNode && (
+          <div className="mb-3 rounded-xl border border-slate-700 overflow-hidden">
+            {evacuationPanelNode}
+          </div>
+        )}
 
         {nearMeFilterActive && (
           <div className="glass-panel px-3 py-2.5 rounded-xl border border-indigo-500/20 text-indigo-400 text-xs flex items-center justify-between animate-pulse mb-3 mt-1 shrink-0 select-none">
@@ -175,6 +197,14 @@ export default function Sidebar({
                     <span>Confidence Level</span>
                     <span className={getConfidenceColor(pred.probability_percentage)}>{pred.probability_percentage}%</span>
                   </div>
+                  {pred.estimated_resolution_at && (
+                    <div className="mt-1.5 pt-1.5 border-t border-slate-800/40">
+                      <ResolutionBadgeCompact
+                        estimated_resolution_at={pred.estimated_resolution_at}
+                        resolution_confidence={pred.resolution_confidence}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })
