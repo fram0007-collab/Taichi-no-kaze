@@ -465,7 +465,7 @@ def compute_resolution(
                     candidate += timedelta(days=1)
                 # Higher score = more congested = slightly less certain to clear on schedule
                 conf = base_conf - max(0, (current_score - 50) / 200)
-                return candidate, round(max(45, min(90, conf)) * 100)
+                return candidate, round(max(0.45, min(0.90, conf)) * 100)
         # Outside rush: score decays ~5pts per 15min
         pts_above = max(0, current_score - 35)
         mins = (pts_above / 5.0) * 15
