@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { MapContainer, TileLayer, Tooltip, useMap, useMapEvents, Marker, Popup, Polyline, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { Layers } from 'lucide-react';
