@@ -10,7 +10,7 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 12  # safety cutoff before next cycle
+    timeout-minutes: 14  # safety cutoff before next cycle
 
     steps:
       - name: Checkout repo
