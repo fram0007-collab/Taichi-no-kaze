@@ -50,7 +50,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",          # local dev
+        "http://localhost:4173",          # local preview
+        os.getenv("FRONTEND_URL", "*"),   # set FRONTEND_URL=https://your-app.vercel.app in Render env
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -317,6 +321,10 @@ async def _fetch_active_alerts(db: AsyncSession, force: bool = False):
                 "estimated_time_to_peak": (
                     a.estimated_time_to_peak.isoformat() if a.estimated_time_to_peak else None
                 ),
+                "estimated_resolution_at": (
+                    a.estimated_resolution_at.isoformat() if a.estimated_resolution_at else None
+                ),
+                "resolution_confidence": float(a.resolution_confidence or 0),
                 "message": a.message,
                 "status": a.status,
                 "alert_timestamp": a.alert_timestamp.isoformat() if a.alert_timestamp else None,
@@ -625,6 +633,11 @@ async def get_zones_by_spatial_proximity(
                         a.estimated_time_to_peak.isoformat()
                         if a.estimated_time_to_peak else None
                     ),
+                    "estimated_resolution_at": (
+                        a.estimated_resolution_at.isoformat()
+                        if a.estimated_resolution_at else None
+                    ),
+                    "resolution_confidence": float(a.resolution_confidence or 0),
                     "message": a.message,
                 }
                 for a in alerts
@@ -635,43 +648,79 @@ async def get_zones_by_spatial_proximity(
 
 
 # ── Safe Zones ────────────────────────────────────────────────────────────────
-# Which safe zone category is relevant per disruption type.
-# high_ground = elevated terrain above flood level → only useful for flood/waterway.
-# evacuation_point = sheltered assembly area → useful for everything else.
-_DISRUPTION_SAFE_CATEGORIES: dict[str, set[str]] = {
-    "flood":      {"high_ground"},
-    "waterway":   {"high_ground"},
-    "earthquake": {"evacuation_point"},
-    "traffic":    {"evacuation_point"},
-    "crowd":      {"evacuation_point"},
-    "weather":    {"evacuation_point"},
+# ── Safe Zone Configuration ───────────────────────────────────────────────────
+# Tiered failover: each disruption type has a preferred category (Tier 1).
+# If no uncrowded Tier-1 POI is reachable, the engine falls through to Tier 2,
+# then Tier 3. Any POI is eligible as long as its live crowd_score < threshold.
+#
+# Tier 1: hospital / police  — primary emergency facilities (is_safe_zone=True)
+# Tier 2: university         — large campus, low crowd baseline, covered space
+# Tier 3: mall / market / station — last resort shelter; only if not crowded
+
+_DISRUPTION_SAFE_TIERS: dict[str, list[list[str]]] = {
+    "flood":      [["hospital"],           ["university"],            ["mall", "market"]],
+    "waterway":   [["hospital"],           ["university"],            ["mall", "market"]],
+    "earthquake": [["hospital", "police"], ["university"],            ["mall"]],
+    "traffic":    [["hospital", "police"], ["university", "station"], ["mall", "market"]],
+    "crowd":      [["hospital", "police"], ["university"],            ["mall", "market", "station"]],
+    "weather":    [["hospital"],           ["university", "mall"],    ["market", "station"]],
 }
 
+# Crowd score (0-100) below which a POI is considered safe to recommend.
+# Mirrors the engine's HIGH-crowd threshold (>65) with a small buffer.
+# Matches engine.py HIGH crowd threshold (82.0) — a POI is "too crowded
+# to shelter in" only if it hits the same bar that triggers a HIGH alert.
+_CROWD_SAFE_THRESHOLD = 82.0
+
+# Tier 1 primary categories (have is_safe_zone=True in DB, always checked first)
+_PRIMARY_SAFE_CATEGORIES = {"hospital", "police"}
+
 _SAFE_ZONE_DETAILS: dict[str, dict[str, str]] = {
-    "high_ground": {
-        "type": "High Ground",
-        "details": "Elevated terrain above projected flood levels. Move here immediately when a waterway or flood alert is active.",
+    "hospital": {
+        "type": "Hospital",
+        "details": "Equipped with emergency medical staff, backup power, and disaster response supplies. Designated emergency reference point under BNPB guidelines.",
     },
-    "evacuation_point_earthquake": {
-        "type": "Evacuation Point",
-        "details": "Open-ground assembly area away from structures. Do not re-enter buildings until all-clear is issued.",
+    "hospital_flood": {
+        "type": "Hospital",
+        "details": "Emergency shelter with elevated structure, backup power, and medical support. Proceed here when flood or waterway alerts are active.",
     },
-    "evacuation_point_traffic": {
-        "type": "Evacuation Point",
-        "details": "Designated dispersion point with crowd-management support and emergency supplies.",
+    "hospital_earthquake": {
+        "type": "Hospital",
+        "details": "Emergency medical facility. Proceed here for injury treatment and shelter after seismic activity.",
     },
-    "evacuation_point_crowd": {
-        "type": "Evacuation Point",
-        "details": "Designated dispersion point with crowd-management support and emergency supplies.",
+    "hospital_weather": {
+        "type": "Hospital",
+        "details": "Sheltered facility with power backup and medical support during severe weather events.",
     },
-    "evacuation_point_weather": {
-        "type": "Evacuation Point",
-        "details": "Sheltered assembly area with weather protection, power back-up, and first-aid supplies.",
+    "police": {
+        "type": "Police Station",
+        "details": "Emergency coordination point with communications equipment and crowd management capacity.",
     },
-    "evacuation_point": {
-        "type": "Evacuation Point",
-        "details": "Equipped with emergency medical kits, power back-up, and shelter supplies.",
+    "police_earthquake": {
+        "type": "Police Station",
+        "details": "Emergency coordination and crowd management point. Report here for assistance and evacuation guidance.",
     },
+    "police_crowd": {
+        "type": "Police Station",
+        "details": "Crowd management and emergency coordination point. Officers can direct dispersal and provide safety guidance.",
+    },
+    "university": {
+        "type": "University Campus",
+        "details": "Large covered campus with open grounds. Lower crowd density makes it a viable secondary shelter point.",
+    },
+    "mall": {
+        "type": "Mall",
+        "details": "Currently below crowd capacity. Provides shelter, climate control, and access to food and first-aid facilities.",
+    },
+    "market": {
+        "type": "Market",
+        "details": "Currently uncrowded. Can serve as a temporary shelter and supply point.",
+    },
+    "station": {
+        "type": "Transit Station",
+        "details": "Currently uncrowded. Provides shelter and potential evacuation transport connections.",
+    },
+
 }
 
 
@@ -683,7 +732,7 @@ async def get_safe_zones(
         None,
         description=(
             "Comma-separated active disruption types e.g. 'flood,earthquake'. "
-            "flood/waterway → high_ground; all others → evacuation_point. "
+            "flood/waterway → hospital; earthquake/crowd/traffic → hospital or police. "
             "Omit to return all categories."
         ),
     ),
@@ -692,78 +741,132 @@ async def get_safe_zones(
     """
     Returns safe zones relevant to the currently active disruption types.
     Each disruption maps to the safe zone category that actually helps:
-      flood / waterway  → high_ground (elevation above flood level)
-      earthquake        → evacuation_point (open ground, away from structures)
-      traffic / crowd   → evacuation_point (dispersion/shelter points)
-      weather           → evacuation_point (sheltered area with supplies)
+      flood / waterway  → hospital (backup power, medical support)
+      earthquake        → hospital + police (treatment and coordination)
+      traffic / crowd   → hospital + police (medical and crowd management)
+      weather           → hospital (sheltered facility with supplies)
     Also fixes a latent bug: pois was referenced but never fetched in the original.
     """
     if not ZoneCache.get_all():
         await ZoneCache.sync(db)
 
-    # Resolve which safe zone categories to return
-    if disruption_types:
-        active_types = [t.strip().lower() for t in disruption_types.split(",") if t.strip()]
-        allowed_categories: set[str] = set()
-        for dtype in active_types:
-            allowed_categories.update(
-                _DISRUPTION_SAFE_CATEGORIES.get(dtype, {"evacuation_point", "high_ground"})
-            )
-        primary_type = active_types[0] if active_types else ""
-    else:
-        active_types = []
-        primary_type = ""
-        allowed_categories = {"evacuation_point", "high_ground"}
-
-    # Fetch only the relevant safe zone POIs (fixes the missing-pois bug too)
-    poi_res = await db.execute(
-        select(PoiMaster).where(
-            PoiMaster.is_safe_zone == True,
-            PoiMaster.category.in_(list(allowed_categories)),
-        )
+    active_types = (
+        [t.strip().lower() for t in disruption_types.split(",") if t.strip()]
+        if disruption_types else []
     )
-    pois = poi_res.scalars().all()
+    primary_type = active_types[0] if active_types else ""
 
-    # Exclude safe zones that sit inside an active threat zone circle
+    # Derive tier list for this disruption set.
+    # Merge tiers across all active disruption types; use flood as default.
+    if active_types:
+        merged_tiers: list[set[str]] = [set(), set(), set()]
+        for dtype in active_types:
+            tiers = _DISRUPTION_SAFE_TIERS.get(dtype, _DISRUPTION_SAFE_TIERS["flood"])
+            for i, tier in enumerate(tiers):
+                merged_tiers[i].update(tier)
+        tier_list = [list(t) for t in merged_tiers if t]
+    else:
+        # No disruption filter — return all categories, Tier 1 first
+        tier_list = [
+            list(_PRIMARY_SAFE_CATEGORIES),
+            ["university"],
+            ["mall", "market", "station"],
+        ]
+
+    # Build threat zone circles to exclude POIs inside active danger areas
     alert_res = await db.execute(
         select(RiskAlert.zone_id).where(
             RiskAlert.status == "OPEN",
             RiskAlert.probability_percentage >= 20,
         )
     )
-    alert_zone_ids = set(alert_res.scalars().all())
-
     status_res = await db.execute(
         select(ZoneStatus.zone_id).where(ZoneStatus.overall_risk_score >= 25)
     )
-    threat_zone_ids = alert_zone_ids.union(set(status_res.scalars().all()))
+    threat_zone_ids = set(alert_res.scalars().all()) | set(status_res.scalars().all())
+    threat_circles = [
+        {"lat": z["latitude"], "lon": z["longitude"], "radius_m": z["radius_m"]}
+        for zid in threat_zone_ids
+        if (z := ZoneCache.get(zid))
+    ]
 
-    threat_circles = []
-    for zid in threat_zone_ids:
-        zdata = ZoneCache.get(zid)
-        if zdata:
-            threat_circles.append({
-                "lat": zdata["latitude"],
-                "lon": zdata["longitude"],
-                "radius_m": zdata["radius_m"],
-            })
-
-    filtered_pois = [
-        p for p in pois
-        if p.latitude and p.longitude and not any(
+    def _inside_threat(p) -> bool:
+        return any(
             haversine_m(float(p.latitude), float(p.longitude), c["lat"], c["lon"]) <= c["radius_m"]
             for c in threat_circles
         )
-    ]
 
-    def _meta(category: str) -> dict:
+    # Fetch ALL candidate POIs across all tiers in one query
+    all_tier_cats = {cat for tier in tier_list for cat in tier}
+    poi_res = await db.execute(
+        select(PoiMaster).where(PoiMaster.category.in_(list(all_tier_cats)))
+    )
+    all_pois_raw = [p for p in poi_res.scalars().all() if p.latitude and p.longitude]
+
+    # Split into preferred (outside threat zones) and fallback (inside)
+    # Never return empty just because every POI happens to be inside a threat zone —
+    # during mass emergencies this would leave users with no guidance at all.
+    outside_threat = [p for p in all_pois_raw if not _inside_threat(p)]
+    inside_threat  = [p for p in all_pois_raw if _inside_threat(p)]
+
+    # Use outside-threat POIs if available, fall back to inside ones
+    all_pois = outside_threat if outside_threat else inside_threat
+    using_fallback_pois = len(outside_threat) == 0 and len(inside_threat) > 0
+
+    # Fetch live crowd scores for every candidate POI
+    poi_ids = [p.poi_id for p in all_pois]
+    crowd_res = await db.execute(
+        select(PoiCrowdStatus.poi_id, PoiCrowdStatus.crowd_score)
+        .where(PoiCrowdStatus.poi_id.in_(poi_ids))
+    )
+    crowd_by_poi: dict[str, float] = {r.poi_id: float(r.crowd_score or 0) for r in crowd_res}
+
+    def _not_crowded(p) -> bool:
+        """True if POI has no crowd data yet OR its live score is below threshold."""
+        score = crowd_by_poi.get(p.poi_id)
+        return score is None or score < _CROWD_SAFE_THRESHOLD
+
+    # Tiered selection: walk tiers until we have results
+    selected: list = []
+    reached_tier: int = 0
+    for tier_idx, tier_cats in enumerate(tier_list):
+        candidates = [
+            p for p in all_pois
+            if p.category in tier_cats and _not_crowded(p)
+        ]
+        if candidates:
+            selected = candidates
+            reached_tier = tier_idx + 1
+            break
+
+    # If every tier is crowded or empty, return least-crowded POIs across all categories
+    if not selected and all_pois:
+        selected = sorted(all_pois, key=lambda p: crowd_by_poi.get(p.poi_id, 0))
+        reached_tier = 99  # sentinel: "last resort"
+
+    def _meta(category: str, crowd_score: float, tier: int) -> dict:
         key = f"{category}_{primary_type}" if f"{category}_{primary_type}" in _SAFE_ZONE_DETAILS else category
-        info = _SAFE_ZONE_DETAILS.get(key, _SAFE_ZONE_DETAILS["evacuation_point"])
+        info = _SAFE_ZONE_DETAILS.get(key, _SAFE_ZONE_DETAILS.get(category, {
+            "type": category.replace("_", " ").title(),
+            "details": "Available as an emergency shelter point.",
+        }))
+        capacity = {"hospital": 500, "police": 200, "university": 800,
+                    "mall": 1000, "market": 400, "station": 600}.get(category, 300)
+        tier_label = (
+            "Primary" if tier == 1
+            else "Secondary" if tier == 2
+            else "Last resort" if tier <= 3
+            else "Least crowded available"
+        )
         return {
             "type": info["type"],
-            "capacity": 500 if category == "evacuation_point" else 250,
+            "capacity": capacity,
             "details": info["details"],
             "disruption_relevance": primary_type or "all",
+            "shelter_tier": tier_label,
+            "crowd_score": crowd_score,
+            "is_crowded": crowd_score >= _CROWD_SAFE_THRESHOLD,
+            "inside_threat_zone": using_fallback_pois,
         }
 
     data = [
@@ -775,9 +878,9 @@ async def get_safe_zones(
             "latitude": p.latitude,
             "longitude": p.longitude,
             "zone_id": p.zone_id,
-            **_meta(p.category),
+            **_meta(p.category, crowd_by_poi.get(p.poi_id, 0.0), reached_tier),
         }
-        for p in filtered_pois
+        for p in selected
     ]
 
     if lat is not None and lon is not None:
@@ -896,7 +999,7 @@ async def get_db_stats(db: AsyncSession = Depends(get_db)):
 # Frontend expects: { name, category, lat, lon, is_suppressed }
 @app.get("/pois")
 async def get_pois(db: AsyncSession = Depends(get_db)):
-    INTERNAL_CATEGORIES = {"evacuation_point", "high_ground"}
+    INTERNAL_CATEGORIES = set()  # all POI categories are now public (fictional ones removed)
     result = await db.execute(
         select(PoiMaster).where(
             PoiMaster.category.notin_(list(INTERNAL_CATEGORIES))

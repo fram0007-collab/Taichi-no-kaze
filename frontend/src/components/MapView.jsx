@@ -1,9 +1,26 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { MapContainer, TileLayer, Tooltip, useMap, useMapEvents, Marker, Popup, Polyline, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { Layers } from 'lucide-react';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
+
+// Which disruption types each POI category can serve as shelter for.
+// Mirrors _DISRUPTION_SAFE_TIERS in backend/main.py — keep in sync if tiers change.
+const POI_DISRUPTION_SUITABILITY = {
+  hospital:   { disruptions: ['Flood', 'Earthquake', 'Traffic', 'Crowd', 'Severe Weather'], tier: 'Primary', emoji: '🏥' },
+  police:     { disruptions: ['Earthquake', 'Traffic', 'Crowd'],                            tier: 'Primary', emoji: '🚔' },
+  university: { disruptions: ['Flood', 'Earthquake', 'Traffic', 'Crowd', 'Severe Weather'], tier: 'Secondary', emoji: '🎓' },
+  mall:       { disruptions: ['Flood', 'Earthquake', 'Traffic', 'Crowd', 'Severe Weather'], tier: 'Fallback', emoji: '🏬' },
+  market:     { disruptions: ['Flood', 'Traffic', 'Crowd', 'Severe Weather'],               tier: 'Fallback', emoji: '🏪' },
+  station:    { disruptions: ['Traffic', 'Crowd'],                                          tier: 'Fallback', emoji: '🚉' },
+};
+
+const DISRUPTION_EMOJI = {
+  Flood: '🌊', Earthquake: '🌍', Traffic: '🚦', Crowd: '👥', 'Severe Weather': '⛈️',
+};
+
  
 // Leaflet center for Jabodetabek regional focus
 const JABODETABEK_CENTER = [-6.25, 106.85];
@@ -298,7 +315,8 @@ export default function MapView({
   nearMeFilterActive = false,
   setNearMeFilterActive,
   nearMeRadius = 5,
-  setNearMeRadius
+  setNearMeRadius,
+  evacuationRoute = null,
 }) {
   const [globalPois, setGlobalPois] = useState([]);
   const hasActiveDisruptions = predictions.length > 0;
@@ -802,7 +820,20 @@ export default function MapView({
         )}
         
         {/* Render geofenced zones */}
-        {predictions.length > 0 && predictions.map(pred => {
+        {predictions.length > 0 && (() => {
+          // Deduplicate by zone_id + disruption_type — keeps the highest probability entry.
+          // Guards against duplicate OPEN alerts from the worker before the DB is cleaned up.
+          const seen = new Map();
+          predictions.forEach(pred => {
+            const key = `${pred.zone?.id ?? pred.zone?.zone_id}_${pred.disruption_type}`;
+            const existing = seen.get(key);
+            if (!existing || (pred.probability_percentage ?? 0) > (existing.probability_percentage ?? 0)) {
+              seen.set(key, pred);
+            }
+          });
+          const dedupedPredictions = Array.from(seen.values());
+          return dedupedPredictions;
+        })().map(pred => {
           const zone = pred.zone;
           const coords = invertCoords(zone.geometry);
           const isSelected = selectedZone && selectedZone.zone.id === zone.id;
@@ -814,10 +845,14 @@ export default function MapView({
             traffic: 'threat_traffic', weather: 'threat_weather', crowd: 'threat_crowd',
             earthquake: 'threat_earthquake', waterway: 'threat_waterway', flood: 'threat_waterway',
           };
+          // Snapshot allOff at render time — avoids stale closure from toggle cycles.
+          // Check allOff FIRST so deselecting all always hides every zone regardless
+          // of per-layer state (fixes the ghost-circle bug on repeated toggle cycles).
+          const allOff = !Object.values(disruptionToLayer).some(id => activeLayers[id]);
+          if (allOff) return null;
           const dtype = (pred.disruption_type || '').toLowerCase().trim();
           const layerId = disruptionToLayer[dtype];
-          const allOff = !Object.values(disruptionToLayer).some(id => activeLayers[id]);
-          if (layerId ? !activeLayers[layerId] : allOff) return null;
+          if (layerId && !activeLayers[layerId]) return null;
  
           const { center, radius } = getCircleParams(coords);
           const riskStyle = getStyleForRisk(pred.risk_level);
@@ -878,6 +913,14 @@ export default function MapView({
                   <div className="text-[11px] text-slate-300">
                     Confidence: <span className="font-semibold text-slate-100">{pred.probability_percentage}%</span>
                   </div>
+                  {pred.estimated_resolution_at && (
+                    <div className="mt-1.5 pt-1.5 border-t border-slate-700/40">
+                      <ResolutionBadgeCompact
+                        estimated_resolution_at={pred.estimated_resolution_at}
+                        resolution_confidence={pred.resolution_confidence}
+                      />
+                    </div>
+                  )}
                   {distanceStr && (
                     <div className="text-[10px] text-indigo-300 font-bold border-t border-slate-700/40 pt-1 mt-1">
                       📍 {distanceStr} away from you
@@ -1141,6 +1184,23 @@ export default function MapView({
                   <span>Category:</span>
                   <span className="font-semibold text-indigo-500 dark:text-indigo-400">{poi.category.replace('_', ' ')}</span>
                 </div>
+
+                {/* Disruption suitability for zone POIs */}
+                {POI_DISRUPTION_SUITABILITY[poi.category] && (
+                  <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide mb-1">
+                      Safe refuge during:
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {POI_DISRUPTION_SUITABILITY[poi.category].disruptions.map(d => (
+                        <span key={d} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          {DISRUPTION_EMOJI[d] || '⚠️'} {d}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 border-t border-slate-200 dark:border-slate-800 pt-1.5">
                   Latitude: {poi.lat.toFixed(4)}<br/>
                   Longitude: {poi.lon.toFixed(4)}
@@ -1154,7 +1214,7 @@ export default function MapView({
          activeLayers.safe_zones &&
          filteredSafeZones.map(zone => {
            const type = zone.type || (zone.category === 'evacuation_point' ? 'Evacuation Point' : zone.category === 'high_ground' ? 'High Ground' : 'Safe Zone');
-           const capacity = zone.capacity || (zone.category === 'evacuation_point' ? 500 : 250);
+           // capacity intentionally removed — not shown in popup
            const details = zone.details || (zone.category === 'evacuation_point' ? 'Equipped with emergency medical kits, power back-up, and shelter supplies.' : 'Designated high ground assembly area above flood levels.');
            return (
             <Marker
@@ -1163,22 +1223,44 @@ export default function MapView({
               icon={createSafeZoneIcon(type)}
             >
               <Popup>
-                <div className="min-w-[220px] p-2">
-                  <div className="font-bold text-lg">
-                    {zone.name}
+                <div className="font-sans min-w-[220px] p-2.5 text-slate-900 dark:text-slate-100">
+                  <div className="font-bold text-sm mb-0.5">{zone.name}</div>
+                  <div className="text-emerald-500 dark:text-emerald-400 text-xs font-semibold mb-2">
+                    {POI_DISRUPTION_SUITABILITY[zone.category]?.emoji || '🛟'} {type}
                   </div>
- 
-                  <div className="text-emerald-500 font-semibold">
-                    {type}
-                  </div>
- 
-                  <div className="mt-2 text-sm">
-                    Capacity: {capacity}
-                  </div>
- 
-                  <div className="text-sm mt-1">
-                    {details}
-                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-2">{details}</div>
+                  {POI_DISRUPTION_SUITABILITY[zone.category] && (
+                    <div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide mb-1">
+                        Recommended during:
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {POI_DISRUPTION_SUITABILITY[zone.category].disruptions.map(d => (
+                          <span key={d} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                            {DISRUPTION_EMOJI[d] || '⚠️'} {d}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {typeof zone.crowd_score === 'number' && (
+                    <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center justify-between text-[10px] mb-1">
+                        <span className="text-slate-500 dark:text-slate-400 font-semibold">👥 Current Crowd</span>
+                        <span className={`font-bold ${zone.crowd_score >= 65 ? 'text-red-400' : zone.crowd_score >= 35 ? 'text-orange-400' : 'text-emerald-400'}`}>
+                          {zone.crowd_score >= 65 ? 'High' : zone.crowd_score >= 35 ? 'Moderate' : 'Low'}
+                          <span className="ml-1 opacity-70 font-normal">({Math.round(zone.crowd_score)}/100)</span>
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${zone.crowd_score >= 65 ? 'bg-red-500' : zone.crowd_score >= 35 ? 'bg-orange-400' : 'bg-emerald-400'}`}
+                          style={{ width: `${Math.min(100, zone.crowd_score)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Popup>
             </Marker>
@@ -1206,6 +1288,23 @@ export default function MapView({
                   <span>Category:</span>
                   <span className="font-semibold text-indigo-500 dark:text-indigo-400">{poi.category.replace('_', ' ')}</span>
                 </div>
+
+                {/* Disruption suitability */}
+                {POI_DISRUPTION_SUITABILITY[poi.category] && (
+                  <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide mb-1">
+                      Recommended during:
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {POI_DISRUPTION_SUITABILITY[poi.category].disruptions.map(d => (
+                        <span key={d} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          {DISRUPTION_EMOJI[d] || '⚠️'} {d}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {typeof poi.crowd_score === 'number' && (
                   <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
                     <div className="flex items-center justify-between text-[11px]">
@@ -1268,19 +1367,53 @@ export default function MapView({
             </div>
           </Popup>
         )}
+
+                {/* Evacuation route — dashed indigo polyline drawn on the map */}
+        {evacuationRoute && (() => {
+          const coords = evacuationRoute.geometry?.coordinates ?? [];
+          if (coords.length < 2) return null;
+          const positions = coords.map(([lon, lat]) => [lat, lon]);
+          return (
+            <Polyline
+              positions={positions}
+              pathOptions={{
+                color: '#6366f1',
+                weight: 5,
+                opacity: 0.9,
+                dashArray: '12, 7',
+                lineCap: 'round',
+              }}
+            />
+          );
+        })()}
+
+        {/* Global all-clear: no disruptions anywhere */}
         {predictions.length === 0 && allZones.length === 0 && (
           <div className="absolute bottom-6 left-6 z-[1000]">
             <div className="glass-panel rounded-xl px-4 py-3 border border-emerald-500/20 bg-emerald-500/10 backdrop-blur-md">
               <div className="flex items-center gap-2">
                 <span className="text-xl">✅</span>
- 
                 <div>
-                  <div className="font-bold text-emerald-400">
-                    All Clear
-                  </div>
- 
-                  <div className="text-xs text-slate-300">
-                    No active disruptions detected in Jabodetabek
+                  <div className="font-bold text-emerald-400">All Clear</div>
+                  <div className="text-xs text-slate-300">No active disruptions detected in Jabodetabek</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Personal all-clear: user has location active, there ARE disruptions globally
+            but none within their search radius */}
+        {userLocation && nearMeFilterActive && predictions.length > 0 && !hasDisruptionInRadius && (
+          <div className="absolute bottom-6 left-6 z-[1000] animate-fade-in">
+            <div className="glass-panel rounded-xl px-4 py-3 border border-emerald-500/30 bg-emerald-500/10 backdrop-blur-md max-w-[260px]">
+              <div className="flex items-start gap-2.5">
+                <span className="text-2xl mt-0.5">✅</span>
+                <div>
+                  <div className="font-bold text-emerald-400 text-sm">You&apos;re in the clear</div>
+                  <div className="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                    No active disruptions within <span className="font-semibold text-white">{nearMeRadius} km</span> of your location.
+                    Active disruptions exist elsewhere in Jabodetabek — stay informed.
                   </div>
                 </div>
               </div>

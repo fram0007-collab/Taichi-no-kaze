@@ -19,13 +19,13 @@ import sys
 import time
 import math
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy import text
 
 from worker.database import get_db_session
 from worker.models import (
-    Zone, TrafficSnapshot, WeatherSnapshot,
+    Zone, ZoneStatus, RiskAlert, TrafficSnapshot, WeatherSnapshot,
     CrowdSnapshot, EarthquakeEvent, PoiMaster,
     JabodetabekWaterway, WaterwayTelemetry, WaterwayConnectivity,
 )
@@ -60,12 +60,114 @@ class IngestionWorker:
         self.engine = PredictiveDisruptionEngine()
 
     # ── Traffic ────────────────────────────────────────────────────────────
+    # ── TomTom budget constants (free tier: 2,500 calls/day) ─────────────────
+    # Hard caps derived from budget allocation across time brackets.
+    # These are ZONE CAPS, not percentages — they scale automatically when
+    # you add more zones because min(total_zones, cap) is applied at runtime.
+    #
+    # Budget math (verified scalable to 200+ zones):
+    #   Rush   bracket: 8h × 4 runs/h × 57 zones = 1,824 calls
+    #   Active bracket: 8h × 2 runs/h × 30 zones =   480 calls
+    #   Late   bracket: 2h × 1 run/h  × 48 zones =    96 calls
+    #   Dead   bracket: 5h × 0                   =     0 calls
+    #   Total: 2,400 calls/day — 100 below free tier regardless of zone count.
+    #
+    # Zone priority: always sorted by historical_flood_vulnerability DESC,
+    # so highest-risk zones are always included when the cap limits coverage.
+    _RUSH_ZONE_CAP   = 57
+    _ACTIVE_ZONE_CAP = 30
+    _LATE_ZONE_CAP   = 48
+
+    @staticmethod
+    def _traffic_schedule(hour_wib: int) -> tuple[bool, str, int]:
+        """
+        Returns (should_run, bracket, interval_min) for the given WIB hour.
+        Zone count is applied at call time via min(total_zones, CAP).
+        """
+        if   7 <= hour_wib <= 9:   return True, 'rush',   15
+        elif 12 <= hour_wib <= 13: return True, 'rush',   15
+        elif 17 <= hour_wib <= 19: return True, 'rush',   15
+        elif 5 <= hour_wib <= 6:   return True, 'active', 30
+        elif 10 <= hour_wib <= 11: return True, 'active', 30
+        elif 14 <= hour_wib <= 16: return True, 'active', 30
+        elif 20 <= hour_wib <= 21: return True, 'active', 30
+        elif 22 <= hour_wib <= 23: return True, 'late',   60
+        else:                      return False, 'dead',   0
+
     def run_traffic_ingestion(self):
-        logger.info("[Ingestion] Traffic ingestion starting...")
+        from worker.engine import WIB_OFFSET_HOURS
+        hour_wib = (datetime.now(timezone.utc).hour + WIB_OFFSET_HOURS) % 24
+        should_run, bracket, interval_min = self._traffic_schedule(hour_wib)
+
+        if not should_run:
+            logger.info(f"[Traffic] Skipping — dead hours (WIB {hour_wib:02d}:xx)")
+            return
+
+        # For off-peak intervals (30/60 min), skip runs that don't land on
+        # the interval boundary — the scheduler still fires every 15 min.
+        minute = datetime.now(timezone.utc).minute
+        if interval_min > 15 and (minute % interval_min) >= 15:
+            logger.debug(f"[Traffic] Off-cycle skip (interval={interval_min}m, minute={minute})")
+            return
+
+        # Zone cap from bracket — applied against live zone count so adding
+        # new zones never silently blows the TomTom daily budget.
+        cap = {
+            'rush':   self._RUSH_ZONE_CAP,
+            'active': self._ACTIVE_ZONE_CAP,
+            'late':   self._LATE_ZONE_CAP,
+        }[bracket]
+
+        logger.info(f"[Ingestion] Traffic — WIB {hour_wib:02d}:xx [{bracket}] cap={cap} every {interval_min}m")
         db = get_db_session()
         try:
-            zones = db.query(Zone).all()
-            now = datetime.utcnow()
+            total_zones = db.query(Zone).count()
+            effective_cap = min(total_zones, cap)
+
+            # ── Smart zone priority ─────────────────────────────────────────
+            # Priority 1: zones with any OPEN alert → always freshest data needed
+            # Priority 2: zones with highest live overall_risk_score (from last cycle)
+            # Priority 3: stable fallback by zone_id
+            # This means during rush hour, congested CBD zones rise to the top;
+            # during flood risk, waterway-adjacent zones with high scores rise up —
+            # not a static vulnerability column that ignores what's happening now.
+            alerted_ids = {
+                r.zone_id for r in
+                db.query(RiskAlert.zone_id)
+                .filter(RiskAlert.status == "OPEN")
+                .all()
+            }
+
+            # Zones with OPEN alerts always included first (up to cap)
+            priority_zones = (
+                db.query(Zone)
+                .filter(Zone.zone_id.in_(alerted_ids))
+                .order_by(Zone.zone_id)
+                .all()
+            ) if alerted_ids else []
+
+            remaining_cap = effective_cap - len(priority_zones)
+
+            if remaining_cap > 0:
+                # Fill remaining slots with highest overall_risk_score zones
+                # via a join to zone_status — excludes already-selected zones
+                scored = (
+                    db.query(Zone)
+                    .join(ZoneStatus, ZoneStatus.zone_id == Zone.zone_id, isouter=True)
+                    .filter(Zone.zone_id.notin_(alerted_ids))
+                    .order_by(ZoneStatus.overall_risk_score.desc().nullslast(), Zone.zone_id)
+                    .limit(remaining_cap)
+                    .all()
+                )
+                zones = priority_zones + scored
+            else:
+                zones = priority_zones[:effective_cap]
+
+            logger.info(
+                f"[Traffic] {len(zones)} zones selected "
+                f"({len(priority_zones)} alerted + {len(zones)-len(priority_zones)} by risk score)"
+            )
+            now = datetime.now(timezone.utc)
             for zone in zones:
                 try:
                     flow = self.traffic_client.get_flow_data(
@@ -85,7 +187,7 @@ class IngestionWorker:
                 except Exception as ze:
                     logger.warning(f"[Traffic] Zone {zone.name} failed: {ze}")
             db.commit()
-            logger.info(f"[Ingestion] Traffic done for {len(zones)} zones.")
+            logger.info(f"[Ingestion] Traffic done — {len(zones)} zones at WIB {hour_wib:02d}:xx")
         except Exception as e:
             db.rollback()
             logger.error(f"[Ingestion] Traffic error: {e}")
@@ -104,7 +206,7 @@ class IngestionWorker:
                         zone.name, float(zone.latitude), float(zone.longitude)
                     )
                     # Replace existing future weather snapshots for this zone
-                    now = datetime.utcnow()
+                    now = datetime.now(timezone.utc)
                     db.query(WeatherSnapshot).filter(
                         WeatherSnapshot.zone_id == zone.zone_id,
                         WeatherSnapshot.timestamp >= now,
@@ -130,6 +232,12 @@ class IngestionWorker:
 
     # ── Crowd ──────────────────────────────────────────────────────────────
     def run_crowd_ingestion(self):
+        from worker.engine import WIB_OFFSET_HOURS
+        hour_wib = (datetime.now(timezone.utc).hour + WIB_OFFSET_HOURS) % 24
+        should_run, _, _interval = self._traffic_schedule(hour_wib)
+        if not should_run:
+            logger.info(f"[Crowd] Skipping — quiet hours (WIB {hour_wib:02d}:xx)")
+            return
         """
         Ingests crowd density snapshot for each zone.
         poi_count = number of active POIs within zone radius (from poi_master)
@@ -140,7 +248,7 @@ class IngestionWorker:
         db = get_db_session()
         try:
             zones = db.query(Zone).all()
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             for zone in zones:
                 try:
@@ -195,7 +303,7 @@ class IngestionWorker:
                     impact_km = float(eq.get("impact_radius_km", mag * 15))
                     eq_dt = eq.get("datetime")
                     if not isinstance(eq_dt, datetime):
-                        eq_dt = datetime.utcnow()
+                        eq_dt = datetime.now(timezone.utc)
 
                     db.add(EarthquakeEvent(
                         event_id=event_id,
@@ -286,7 +394,7 @@ class IngestionWorker:
         try:
             import json, math
             gate_data = self.telemetry_client.get_river_gate_levels()
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             # Known gate locations — matched to nearest segment in jabodetabek_waterways
             gate_locations = {

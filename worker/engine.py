@@ -28,7 +28,7 @@ import json
 import logging
 import math
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -345,11 +345,20 @@ def compute_poi_crowd_score(
         raw               = occupancy_ratio + hazard_penalty - safe_zone_bonus
         crowd_score       = clamp01(raw) * 100
     """
-    category_weight = POI_CATEGORY_CROWD_WEIGHT.get(category, 1.0)
+    category_weight    = POI_CATEGORY_CROWD_WEIGHT.get(category, 1.0)
     traffic_attraction = TRAFFIC_ATTRACTION_WEIGHTS.get(category, 0.0)
 
-    traffic_amplifier = 1.0 + (traffic_score / 100.0) * 0.5 * traffic_attraction
-    occupancy_ratio = min(1.0, density_factor * category_weight * traffic_amplifier)
+    # Revised formula: category_weight is a CEILING scaler, not a base multiplier.
+    # Without real traffic data, a station sits at ~50% ambient (not ~97%).
+    # High traffic congestion lifts it proportionally toward the category ceiling.
+    #
+    # Old:  occupancy = density * category_weight * (1 + traffic * 0.5 * attraction)
+    #       → station with zero traffic still scores 97.5 at rush hour (wrong)
+    # New:  occupancy = density * (0.5 + 0.5 * traffic_contribution) * category_weight
+    #       → station with zero traffic scores ~49 (moderate); high traffic → ~85
+    #       → hospital stays low (~25) regardless of traffic (low weight + low attraction)
+    traffic_contribution = (traffic_score / 100.0) * traffic_attraction
+    occupancy_ratio = min(1.0, density_factor * (0.5 + 0.5 * traffic_contribution) * category_weight)
 
     hazard_penalty  = 0.10 if hazard_nearby else 0.0
     safe_zone_bonus = 0.05 if near_safe_zone else 0.0
@@ -411,6 +420,125 @@ def build_recommended_action(dominant: str, severity: str) -> str:
 
 
 # ── Main Engine ───────────────────────────────────────────────────────────────
+# ── Resolution Prediction ─────────────────────────────────────────────────────
+
+def compute_resolution(
+    disruption_type: str,
+    current_score: float,
+    now_utc: datetime,
+    traffic_score: float = 0.0,
+    weather_hourly: Optional[list] = None,
+    eq_magnitude: float = 0.0,
+    eq_timestamp: Optional[datetime] = None,
+    waterway_level_cm: float = 0.0,
+    waterway_trend: str = "stable",
+) -> tuple[datetime, float]:
+    """
+    Estimates when a disruption is likely to resolve.
+
+    Returns:
+        (estimated_resolution_at_utc, confidence_pct)
+        confidence_pct: 0–100, reflects data quality and predictability.
+
+    Method per disruption type:
+        traffic   — rush hour end times (WIB) + score decay (~5pts/15min outside rush)
+        weather   — first hourly forecast entry with rainfall < 0.1 mm
+        crowd     — peak window end times (1h later than traffic, more variable)
+        earthquake — simplified Omori-Utsu: hours_at_risk ≈ 10^(M-4)
+        waterway  — gate level decay rate + 2h downstream travel time
+        flood     — gate level decay rate + 8–12h Jakarta travel time
+    """
+    dtype = disruption_type.lower()
+    hour_wib = (now_utc.hour + WIB_OFFSET_HOURS) % 24
+
+    if dtype == "traffic":
+        RUSH_WINDOWS = [
+            ((7,  9),  9,  45, 0.80),
+            ((12, 13), 14,  0, 0.75),
+            ((17, 20), 21,  0, 0.82),
+        ]
+        for (wstart, wend), clear_h, clear_m, base_conf in RUSH_WINDOWS:
+            if wstart <= hour_wib <= wend:
+                clear_utc_h = (clear_h - WIB_OFFSET_HOURS) % 24
+                candidate = now_utc.replace(hour=clear_utc_h, minute=clear_m, second=0, microsecond=0)
+                if candidate <= now_utc:
+                    candidate += timedelta(days=1)
+                # Higher score = more congested = slightly less certain to clear on schedule
+                conf = base_conf - max(0, (current_score - 50) / 200)
+                return candidate, round(max(45, min(90, conf)) * 100)
+        # Outside rush: score decays ~5pts per 15min
+        pts_above = max(0, current_score - 35)
+        mins = (pts_above / 5.0) * 15
+        return now_utc + timedelta(minutes=max(15, mins)), 60
+
+    elif dtype == "weather":
+        if weather_hourly:
+            for entry in weather_hourly:
+                rf = float(entry.get("rainfall", 0) or 0)
+                if rf < 0.1:
+                    try:
+                        t_str = entry.get("time", "")
+                        t = datetime.fromisoformat(t_str)
+                        if t.tzinfo is None:
+                            t = t.replace(tzinfo=timezone.utc)
+                        if t > now_utc:
+                            return t, 85
+                    except Exception:
+                        pass
+        # Fallback if no forecast or all hours rainy
+        return now_utc + timedelta(hours=3), 50
+
+    elif dtype == "crowd":
+        CROWD_WINDOWS = [
+            ((7,  9),  10, 30, 0.70),
+            ((12, 13), 14, 30, 0.68),
+            ((17, 21), 22,  0, 0.65),
+        ]
+        for (wstart, wend), clear_h, clear_m, base_conf in CROWD_WINDOWS:
+            if wstart <= hour_wib <= wend:
+                clear_utc_h = (clear_h - WIB_OFFSET_HOURS) % 24
+                candidate = now_utc.replace(hour=clear_utc_h, minute=clear_m, second=0, microsecond=0)
+                if candidate <= now_utc:
+                    candidate += timedelta(days=1)
+                return candidate, round(base_conf * 100)
+        # Outside known peak — score-based
+        pts_above = max(0, current_score - 55)
+        mins = (pts_above / 5.0) * 20
+        return now_utc + timedelta(minutes=max(20, mins)), 55
+
+    elif dtype == "earthquake":
+        if eq_timestamp is None or eq_magnitude <= 0:
+            return now_utc + timedelta(hours=6), 45
+        mag = float(eq_magnitude)
+        # Omori-Utsu simplified: hours of significant aftershock risk
+        hours_risk = max(1.0, 10 ** (mag - 4.0)) if mag >= 4.0 else 2.0
+        clear_at = eq_timestamp + timedelta(hours=hours_risk)
+        if clear_at <= now_utc:
+            clear_at = now_utc + timedelta(hours=1)
+        # Confidence: best around M4-5 (predictable range), drops for extreme magnitudes
+        conf = max(40, 65 - abs(mag - 4.5) * 6)
+        return clear_at, round(conf)
+
+    elif dtype in ("waterway", "flood"):
+        # Estimate hours for gate level to return to normal
+        if waterway_trend == "falling":
+            decay_rate_cm_per_hr = 50.0
+            hours_to_normal = max(1.0, waterway_level_cm / decay_rate_cm_per_hr)
+            conf = 70
+        elif waterway_trend == "stable":
+            hours_to_normal = 4.0 + (waterway_level_cm / 100.0)
+            conf = 55
+        else:  # rising
+            hours_to_normal = 8.0 + (waterway_level_cm / 80.0)
+            conf = 40
+        # Add downstream travel time (flood takes longer to reach Jakarta from Katulampa)
+        travel_hours = 8.0 if dtype == "flood" else 2.0
+        return now_utc + timedelta(hours=hours_to_normal + travel_hours), conf
+
+    # Unknown type fallback
+    return now_utc + timedelta(hours=3), 40
+
+
 class PredictiveDisruptionEngine:
 
     def run_analysis(self, db: Session):
@@ -426,14 +554,10 @@ class PredictiveDisruptionEngine:
         safe_zone_pois = db.query(PoiMaster).filter(PoiMaster.is_safe_zone == True).all()
 
         # ── Per-POI crowd scoring: nearest-zone assignment ──────────────────────
-        # Some POIs have zone_id = NULL (never backfilled) or a zone_id whose
-        # radius_m doesn't actually contain their coordinates. Rather than
-        # silently skipping these POIs forever (they'd stay frozen at the
-        # migration seed crowd_score=0), assign EVERY non-safe-zone POI to its
-        # geographically NEAREST zone by centroid distance — independent of the
-        # stored zone_id or radius_m. That nearest zone's traffic_score,
-        # density_factor, and hazard flags are what drive this POI's crowd score.
-        all_crowd_pois = db.query(PoiMaster).filter(PoiMaster.is_safe_zone == False).all()
+        # Include ALL POIs regardless of is_safe_zone — hospitals and police are
+        # now recommended shelters and need live crowd scores so the failover
+        # mechanism can correctly rank them by current occupancy.
+        all_crowd_pois = db.query(PoiMaster).all()
         poi_nearest_zone: dict[str, int] = {}
         for _poi in all_crowd_pois:
             if not _poi.category or _poi.latitude is None or _poi.longitude is None:
@@ -698,7 +822,6 @@ class PredictiveDisruptionEngine:
             # by POI type (mall/station = strong signal, hospital = weak signal)
             zone_poi_rows = db.query(PoiMaster).filter(
                 PoiMaster.zone_id == zone.zone_id,
-                PoiMaster.is_safe_zone == False,
             ).all()
             poi_category_counts: dict = {}
             for _p in zone_poi_rows:
@@ -802,28 +925,96 @@ class PredictiveDisruptionEngine:
                 "earthquake": timedelta(minutes=15),
                 "waterway":   timedelta(hours=2),
             }
+            # ── Resolution prediction inputs (zone-level) ─────────────────────────
+            # Find the most recent/significant earthquake affecting this zone
+            nearest_quake = None
+            nearest_quake_dist = float('inf')
+            for eq in recent_quakes:
+                if eq.latitude and eq.longitude and eq.magnitude:
+                    import math
+                    dlat = zone_lat - float(eq.latitude)
+                    dlon = zone_lon - float(eq.longitude)
+                    dist = math.sqrt(dlat**2 + dlon**2)
+                    if dist < nearest_quake_dist:
+                        nearest_quake_dist = dist
+                        nearest_quake = eq
+
+            # Get latest weather forecast for this zone (for weather resolution)
+            zone_weather_hourly = []
+            if latest_weather:
+                # Reconstruct minimal forecast from snapshot — rainfall only
+                # (full hourly forecast not stored, use current reading as proxy)
+                zone_weather_hourly = [{'time': now.isoformat(), 'rainfall': float(latest_weather.rainfall or 0)}]
+
+            # Get waterway telemetry trend for this zone
+            zone_waterway_level = 0.0
+            zone_waterway_trend = 'stable'
+            if zone_waterway_score > 0:
+                # Use gate_alert as proxy for level; trend from recent telemetry
+                level_map = {'Normal': 50, 'Siaga 3': 150, 'Siaga 2': 300, 'Siaga 1': 600}
+                zone_waterway_level = level_map.get(gate_alert, 50)
+                zone_waterway_trend = 'rising' if gate_amplifier > 1.2 else 'falling' if gate_amplifier < 1.0 else 'stable'
+
             dim_thresholds = {
+                # Thresholds: (score, MEDIUM_floor, HIGH_floor)
+                # Crowd raised: normal midday density (~55-70) → MEDIUM only.
+                # HIGH crowd (>=82) = genuinely exceptional — concerts, mass
+                # evacuations, disasters. Prevents false alarms on normal days.
                 "traffic":    (traffic_score,       35.0, 65.0),
                 "weather":    (weather_score,       35.0, 65.0),
-                "crowd":      (crowd_score,         35.0, 65.0),
+                "crowd":      (crowd_score,         55.0, 82.0),
                 "earthquake": (eq_score,            25.0, 55.0),
                 "waterway":   (zone_waterway_score, 25.0, 55.0),
             }
             for dim_name, (dim_score, med_thresh, high_thresh) in dim_thresholds.items():
                 if dim_score < med_thresh:
+                    # Score dropped below threshold — proactively close any OPEN alert
+                    # for this zone+disruption so the map clears immediately, without
+                    # waiting for the 12-hour stale closer.
+                    db.query(RiskAlert).filter(
+                        RiskAlert.zone_id == zone.zone_id,
+                        RiskAlert.status == "OPEN",
+                        RiskAlert.disruption_type == dim_name,
+                    ).update({"status": "CLOSED"}, synchronize_session=False)
                     continue
                 dim_severity = "HIGH" if dim_score >= high_thresh else "MEDIUM"
                 dim_action   = build_recommended_action(dim_name, dim_severity)
-                recent_alert = (
+                # Upsert: find ANY existing OPEN alert for this zone+disruption type
+                # (no time window — one OPEN alert per zone per disruption type at all times)
+                existing_alert = (
                     db.query(RiskAlert)
                     .filter(
                         RiskAlert.zone_id == zone.zone_id,
                         RiskAlert.status == "OPEN",
                         RiskAlert.disruption_type == dim_name,
-                        RiskAlert.alert_timestamp >= now - timedelta(minutes=30),
                     ).first()
                 )
-                if not recent_alert:
+                # Compute resolution prediction for this disruption
+                res_at, res_conf = compute_resolution(
+                    disruption_type=dim_name,
+                    current_score=dim_score,
+                    now_utc=now,
+                    traffic_score=traffic_score,
+                    weather_hourly=zone_weather_hourly,
+                    eq_magnitude=float(nearest_quake.magnitude) if nearest_quake else 0.0,
+                    eq_timestamp=nearest_quake.event_timestamp if nearest_quake else None,
+                    waterway_level_cm=zone_waterway_level,
+                    waterway_trend=zone_waterway_trend,
+                )
+
+                if existing_alert:
+                    # Update in place — no new row, no duplicates
+                    existing_alert.severity               = dim_severity
+                    existing_alert.probability_percentage = round(dim_score, 2)
+                    existing_alert.estimated_time_to_peak = now + peak_offsets.get(dim_name, timedelta(hours=1))
+                    existing_alert.estimated_resolution_at = res_at
+                    existing_alert.resolution_confidence   = round(res_conf, 2)
+                    existing_alert.message = (
+                        f"{zone.name}: {dim_severity} {dim_name} risk - "
+                        f"score {dim_score:.1f}/100. {dim_action}"
+                    )
+                    logger.debug(f"[Alert] Updated {dim_name} alert for {zone.name} (score={dim_score:.1f})")
+                else:
                     db.add(RiskAlert(
                         zone_id=zone.zone_id,
                         disruption_type=dim_name,
@@ -836,6 +1027,8 @@ class PredictiveDisruptionEngine:
                         status="OPEN",
                         probability_percentage=round(dim_score, 2),
                         estimated_time_to_peak=now + peak_offsets.get(dim_name, timedelta(hours=1)),
+                        estimated_resolution_at=res_at,
+                        resolution_confidence=round(res_conf, 2),
                     ))
                     logger.info(f"[Alert] {dim_severity} {dim_name} alert fired for {zone.name} (score={dim_score:.1f})")
 
