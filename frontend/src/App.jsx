@@ -897,6 +897,7 @@ export default function App() {
                 setNearMeFilterActive={setNearMeFilterActive}
                 nearMeRadius={nearMeRadius}
                 setNearMeRadius={setNearMeRadius}
+                evacuationRoute={evacuationRoute}
               />
             </div>
           </div>
