@@ -298,6 +298,40 @@ function MapClickListener({ onClearSelectedEarthquake }) {
   });
   return null;
 }
+
+/**
+ * RouteController — auto-pans and zooms the map to fit the evacuation route
+ * whenever evacuationRoute changes. Works like a navigation app: as soon as
+ * a route is calculated, the map adjusts to show the full path.
+ */
+function RouteController({ evacuationRoute }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!evacuationRoute) return;
+    const coords = evacuationRoute.geometry?.coordinates ?? [];
+    if (coords.length < 2) return;
+
+    // Convert GeoJSON [lon, lat] to Leaflet [lat, lon] bounds
+    const latLngs = coords.map(([lon, lat]) => [lat, lon]);
+    const bounds = latLngs.reduce(
+      (b, [lat, lon]) => [
+        [Math.min(b[0][0], lat), Math.min(b[0][1], lon)],
+        [Math.max(b[1][0], lat), Math.max(b[1][1], lon)],
+      ],
+      [[Infinity, Infinity], [-Infinity, -Infinity]]
+    );
+
+    map.fitBounds(bounds, {
+      padding: [60, 60],
+      maxZoom: 15,
+      animate: true,
+      duration: 1.0,
+    });
+  }, [evacuationRoute, map]);
+
+  return null;
+}
  
 export default function MapView({ 
   predictions = [], 
@@ -1335,6 +1369,9 @@ export default function MapView({
         ))}
  
  
+        {/* Auto-fit map to evacuation route when route is ready */}
+        <RouteController evacuationRoute={evacuationRoute} />
+
         {/* Listen for selected zone changes and reposition camera */}
         <MapController selectedZone={selectedZone?.zone} selectedEarthquake={selectedEarthquake} />
  
