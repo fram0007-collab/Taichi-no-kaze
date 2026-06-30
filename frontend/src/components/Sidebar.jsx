@@ -300,14 +300,10 @@ export default function Sidebar({
             </div>
             <h1 className="text-2xl font-bold text-slate-100">{selectedPrediction?.zone?.name ?? 'Unknown Zone'}</h1>
             
-            <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="grid grid-cols-1 gap-3 mt-4">
               <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2 text-center">
                 <p className="text-[10px] text-slate-400">Baseline Speed</p>
                 <p className="text-lg font-bold text-slate-200">{selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'} <span className="text-xs font-normal">km/h</span></p>
-              </div>
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2 text-center">
-                <p className="text-[10px] text-slate-400">Max Capacity</p>
-                <p className="text-lg font-bold text-slate-200">{selectedPrediction?.zone?.max_passenger_capacity ? selectedPrediction.zone.max_passenger_capacity.toLocaleString() : 'N/A'}</p>
               </div>
             </div>
           </div>
@@ -400,26 +396,29 @@ export default function Sidebar({
               <div className="space-y-6 flex-1">
                 {/* Weather Chart */}
                 <div className="h-44 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-3 flex flex-col">
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Precipitation Projections</span>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Rainfall &amp; Humidity Forecast</span>
                   <div className="flex-1 min-h-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart 
                         data={timelineData.timeline.map(d => ({
                           time: formatTime(d.timestamp),
-                          probability: d.precipitation_probability,
-                          rain: d.rain_accumulation
+                          // Backend returns `rainfall` (mm) and `humidity` (%) — there is
+                          // no separate precipitation_probability field. Humidity is the
+                          // closest proxy for "chance of rain" on the left axis.
+                          probability: d.humidity,
+                          rain: d.rainfall
                         }))}
                         margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
                       >
                         <XAxis dataKey="time" stroke="#475569" fontSize={9} />
-                        <YAxis yAxisId="left" stroke="#38bdf8" fontSize={9} unit="%" />
+                        <YAxis yAxisId="left" stroke="#38bdf8" fontSize={9} unit="%" domain={[0, 100]} />
                         <YAxis yAxisId="right" orientation="right" stroke="#6636f1" fontSize={9} unit="mm" />
                         <ChartTooltip 
                           contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
                           labelStyle={{ color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
                           itemStyle={{ fontSize: '10px' }}
                         />
-                        <Area yAxisId="left" type="monotone" dataKey="probability" fill="#38bdf8" stroke="#38bdf8" fillOpacity={0.15} name="Prob (%)" />
+                        <Area yAxisId="left" type="monotone" dataKey="probability" fill="#38bdf8" stroke="#38bdf8" fillOpacity={0.15} name="Humidity (%)" />
                         <Bar yAxisId="right" dataKey="rain" fill="#6366f1" radius={[2, 2, 0, 0]} name="Rain (mm)" />
                         {nowLabel && (
                           <ReferenceLine 
