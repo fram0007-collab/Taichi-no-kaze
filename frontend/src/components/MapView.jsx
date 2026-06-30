@@ -1014,7 +1014,11 @@ export default function MapView({
                 // zone_status scores persist after an alert closes, so without this
                 // check, closed-alert zones would still show a "ghost" threat circle.
                 if (!openDims.has(dim)) return;
-                if (score < 10) return;
+                // Show any zone with a real OPEN alert, even LOW severity (score > 0).
+                // Previously filtered score < 10, which silently hid genuine LOW alerts
+                // that the database marked OPEN — misleading since "no circle" looked
+                // identical to "no alert at all".
+                if (score <= 0) return;
 
                 const riskKey = score >= 65 ? 'High' : score >= 35 ? 'Medium' : 'Low';
                 const color = DIM_COLORS[dim];
