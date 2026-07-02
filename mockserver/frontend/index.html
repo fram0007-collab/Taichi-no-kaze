@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIS-RUPTURE | API Mock & Simulation Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0b0f19;
+            --bg-secondary: #161f30;
+            --bg-tertiary: #1e2b44;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-color: #3b82f6;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --border-color: #26354e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        header {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            padding: 2rem;
+            gap: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            max-width: 450px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .right-panel {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1.2rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            color: #60a5fa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.4rem;
+        }
+
+        .form-group select, .form-group input {
+            width: 100%;
+            padding: 0.6rem;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group select:focus, .form-group input:focus {
+            border-color: var(--accent-color);
+        }
+
+        .btn {
+            background-color: var(--accent-color);
+            color: #fff;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #2563eb;
+        }
+
+        .btn-danger {
+            background-color: var(--accent-danger);
+        }
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: var(--bg-tertiary);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #4b5563;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-success);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+
+        /* Compact Table Styles */
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .table-filters {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .table-filters input, .table-filters select {
+            padding: 0.4rem 0.6rem;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            font-family: inherit;
+        }
+
+        .table-container {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            max-height: 500px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-weight: 500;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        tr {
+            cursor: pointer;
+        }
+
+        tr:hover {
+            background-color: var(--bg-tertiary);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-mock {
+            background-color: rgba(16, 185, 129, 0.15);
+            color: var(--accent-success);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .badge-proxy {
+            background-color: rgba(59, 130, 246, 0.15);
+            color: var(--accent-color);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .badge-200 {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--accent-success);
+        }
+        
+        .badge-error {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--accent-danger);
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* Modal styling */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 80%;
+            max-width: 900px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .modal-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .modal-pane h3 {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .modal-pane pre {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            overflow: auto;
+            height: 220px;
+            color: #34d399;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        
+        .close-btn:hover {
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>DIS-RUPTURE | External API Mock Server</h1>
+        <div class="toggle-container" style="padding: 0.4rem 0.8rem; gap: 1rem;">
+            <span style="font-size: 0.9rem; font-weight: 500;">Mock Mode Active</span>
+            <label class="switch">
+                <input type="checkbox" id="mockToggle" onchange="updateMockState()">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Left Simulation Controls -->
+        <div class="left-panel">
+            <div class="card">
+                <h2>
+                    <span>Traffic Simulation (TomTom)</span>
+                    <label class="switch" style="scale: 0.8; transform-origin: right center;">
+                        <input type="checkbox" id="mockTomtomToggle" onchange="updateProviderMockState()">
+                        <span class="slider"></span>
+                    </label>
+                </h2>
+                <div class="form-group">
+                    <label for="trafficScenario">Current Scenario</label>
+                    <select id="trafficScenario" onchange="updateScenarios()">
+                        <option value="normal">Normal Baseline Speeds</option>
+                        <option value="congested">Heavy Traffic Congestion</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>
+                    <span>Weather Simulation (OpenMeteo)</span>
+                    <label class="switch" style="scale: 0.8; transform-origin: right center;">
+                        <input type="checkbox" id="mockOpenMeteoToggle" onchange="updateProviderMockState()">
+                        <span class="slider"></span>
+                    </label>
+                </h2>
+                <div class="form-group">
+                    <label for="weatherScenario">Current Scenario</label>
+                    <select id="weatherScenario" onchange="updateScenarios()">
+                        <option value="normal">Clear / Mild Conditions</option>
+                        <option value="monsoon">Heavy Monsoon Storm (Afternoon burst)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>
+                    <span>Earthquake Simulation (BMKG)</span>
+                    <label class="switch" style="scale: 0.8; transform-origin: right center;">
+                        <input type="checkbox" id="mockBmkgToggle" onchange="updateProviderMockState()">
+                        <span class="slider"></span>
+                    </label>
+                </h2>
+                <div class="form-group" style="display: flex; align-items: center; justify-content: space-between;">
+                    <label for="eqActive" style="margin-bottom: 0;">Trigger Active Earthquake</label>
+                    <input type="checkbox" id="eqActive" style="width: auto;" onchange="updateEarthquake()">
+                </div>
+                <div class="form-group">
+                    <label for="eqMag">Magnitude (M)</label>
+                    <input type="number" id="eqMag" step="0.1" value="6.2" min="1" max="9.9" onchange="updateEarthquake()">
+                </div>
+                <div class="form-group">
+                    <label for="eqDepth">Depth (km)</label>
+                    <input type="number" id="eqDepth" step="1" value="15" min="1" onchange="updateEarthquake()">
+                </div>
+                <div class="form-group">
+                    <label for="eqLoc">Location Area</label>
+                    <input type="text" id="eqLoc" value="South of Jakarta, Indonesia" onchange="updateEarthquake()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Request Logging Panel -->
+        <div class="right-panel">
+            <div class="table-header">
+                <h2>Request Interceptor History</h2>
+                <div class="table-filters">
+                    <input type="text" id="filterPath" placeholder="Filter path (e.g. /forecast)" oninput="fetchLogs(1)">
+                    <select id="filterMode" onchange="fetchLogs(1)">
+                        <option value="">All Modes</option>
+                        <option value="mock">MOCK</option>
+                        <option value="proxy">PROXY</option>
+                    </select>
+                    <select id="filterStatus" onchange="fetchLogs(1)">
+                        <option value="">All Statuses</option>
+                        <option value="200">200 OK</option>
+                        <option value="500">500 Error</option>
+                    </select>
+                    <button class="btn btn-danger" style="padding: 0.3rem 0.8rem; font-size: 0.8rem;" onclick="clearLogs()">Clear Logs</button>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Method</th>
+                            <th>Path</th>
+                            <th>Mode</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        <!-- Filled by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <span id="pageInfo">Page 1 of 1 (0 items)</span>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn" style="padding: 0.3rem 0.8rem;" id="prevBtn" onclick="prevPage()">Prev</button>
+                    <button class="btn" style="padding: 0.3rem 0.8rem;" id="nextBtn" onclick="nextPage()">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inspector Modal -->
+    <div id="inspectorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Inspect Request</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-pane">
+                    <h3>Metadata & Request Payload</h3>
+                    <pre id="requestBody">No Request Body</pre>
+                </div>
+                <div class="modal-pane">
+                    <h3>Response Payload</h3>
+                    <pre id="responseBody">No Response Body</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let totalPages = 1;
+        let activeLogDetails = null;
+        let logsList = [];
+
+        // Load configuration and start polling logs
+        async function init() {
+            await loadConfig();
+            await fetchLogs(1);
+            setInterval(() => fetchLogs(currentPage), 2000); // Poll every 2s
+        }
+
+        async function loadConfig() {
+            try {
+                const res = await fetch("/mockserver/config");
+                const data = await res.json();
+                document.getElementById("mockToggle").checked = data.mock_active;
+                document.getElementById("mockTomtomToggle").checked = data.mock_tomtom !== false;
+                document.getElementById("mockOpenMeteoToggle").checked = data.mock_openmeteo !== false;
+                document.getElementById("mockBmkgToggle").checked = data.mock_bmkg !== false;
+                document.getElementById("trafficScenario").value = data.traffic_scenario;
+                document.getElementById("weatherScenario").value = data.weather_scenario;
+                
+                document.getElementById("eqActive").checked = data.earthquake_scenario.active;
+                document.getElementById("eqMag").value = data.earthquake_scenario.magnitude;
+                document.getElementById("eqDepth").value = data.earthquake_scenario.depth_km;
+                document.getElementById("eqLoc").value = data.earthquake_scenario.location;
+            } catch (e) {
+                console.error("Error loading config", e);
+            }
+        }
+
+        async function updateMockState() {
+            const mock_active = document.getElementById("mockToggle").checked;
+            await fetch("/mockserver/config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mock_active })
+            });
+        }
+
+        async function updateProviderMockState() {
+            const mock_tomtom = document.getElementById("mockTomtomToggle").checked;
+            const mock_openmeteo = document.getElementById("mockOpenMeteoToggle").checked;
+            const mock_bmkg = document.getElementById("mockBmkgToggle").checked;
+            await fetch("/mockserver/config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mock_tomtom, mock_openmeteo, mock_bmkg })
+            });
+        }
+
+        async function updateScenarios() {
+            const traffic_scenario = document.getElementById("trafficScenario").value;
+            const weather_scenario = document.getElementById("weatherScenario").value;
+            await fetch("/mockserver/config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ traffic_scenario, weather_scenario })
+            });
+        }
+
+        async function updateEarthquake() {
+            const active = document.getElementById("eqActive").checked;
+            const magnitude = parseFloat(document.getElementById("eqMag").value) || 6.0;
+            const depth_km = parseFloat(document.getElementById("eqDepth").value) || 10;
+            const location = document.getElementById("eqLoc").value;
+            
+            await fetch("/mockserver/config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    earthquake_scenario: { active, magnitude, depth_km, location }
+                })
+            });
+        }
+
+        async function fetchLogs(page) {
+            try {
+                currentPage = page;
+                const path = document.getElementById("filterPath").value;
+                const mode = document.getElementById("filterMode").value;
+                const status = document.getElementById("filterStatus").value;
+
+                let url = `/mockserver/logs?page=${page}`;
+                if (path) url += `&path=${encodeURIComponent(path)}`;
+                if (mode) url += `&mode=${mode}`;
+                if (status) url += `&status=${status}`;
+
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                logsList = data.logs;
+                totalPages = data.total_pages;
+
+                // Render Table
+                const tbody = document.getElementById("logsTableBody");
+                tbody.innerHTML = "";
+                
+                logsList.forEach(log => {
+                    const tr = document.createElement("tr");
+                    tr.onclick = () => openModal(log);
+                    
+                    const timeCell = document.createElement("td");
+                    timeCell.textContent = new Date(log.timestamp).toLocaleTimeString();
+                    
+                    const methodCell = document.createElement("td");
+                    methodCell.innerHTML = `<span style="font-weight:600">${log.method}</span>`;
+                    
+                    const pathCell = document.createElement("td");
+                    pathCell.style.fontFamily = "monospace";
+                    pathCell.textContent = log.path;
+                    
+                    const modeCell = document.createElement("td");
+                    const modeBadge = log.mode === "mock" ? "badge-mock" : "badge-proxy";
+                    modeCell.innerHTML = `<span class="badge ${modeBadge}">${log.mode}</span>`;
+                    
+                    const statusCell = document.createElement("td");
+                    const statusClass = log.response_status === 200 ? "badge-200" : "badge-error";
+                    statusCell.innerHTML = `<span class="badge ${statusClass}">${log.response_status}</span>`;
+                    
+                    tr.appendChild(timeCell);
+                    tr.appendChild(methodCell);
+                    tr.appendChild(pathCell);
+                    tr.appendChild(modeCell);
+                    tr.appendChild(statusCell);
+                    tbody.appendChild(tr);
+                });
+
+                // Update pagination info
+                document.getElementById("pageInfo").textContent = `Page ${data.page} of ${data.total_pages} (${data.total_items} items)`;
+                document.getElementById("prevBtn").disabled = currentPage <= 1;
+                document.getElementById("nextBtn").disabled = currentPage >= totalPages;
+            } catch (e) {
+                console.error("Error loading logs", e);
+            }
+        }
+
+        async function clearLogs() {
+            await fetch("/mockserver/logs/clear", { method: "POST" });
+            fetchLogs(1);
+        }
+
+        function prevPage() {
+            if (currentPage > 1) fetchLogs(currentPage - 1);
+        }
+
+        function nextPage() {
+            if (currentPage < totalPages) fetchLogs(currentPage + 1);
+        }
+
+        function openModal(log) {
+            document.getElementById("modalTitle").textContent = `Inspect Log #${log.id} - ${log.path}`;
+            
+            // Format request info
+            const reqInfo = {
+                timestamp: log.timestamp,
+                method: log.method,
+                path: log.path,
+                query_parameters: log.query_params,
+                headers: {
+                    host: window.location.host,
+                    "user-agent": navigator.userAgent
+                }
+            };
+            
+            document.getElementById("requestBody").textContent = JSON.stringify(reqInfo, null, 2);
+            document.getElementById("responseBody").textContent = JSON.stringify(log.response_body, null, 2);
+            document.getElementById("inspectorModal").style.display = "flex";
+        }
+
+        function closeModal() {
+            document.getElementById("inspectorModal").style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById("inspectorModal");
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
