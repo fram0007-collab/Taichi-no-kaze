@@ -1,7 +1,7 @@
 from http.server import BaseHTTPRequestHandler
 import sys, os, json
 sys.path.insert(0, os.path.dirname(__file__))
-from _helpers import get_conn, send_json, send_cors_preflight
+from _helpers import get_conn, send_json, send_cors_preflight, zone_to_geojson_polygon
 
 class handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args): pass  # suppress default logging
@@ -14,7 +14,7 @@ class handler(BaseHTTPRequestHandler):
             conn = get_conn()
             cur = conn.cursor()
 
-            cur.execute("SELECT zone_id, name, latitude, longitude, radius_m, historical_flood_vulnerability, traffic_speed_baseline, geometry FROM zones")
+            cur.execute("SELECT zone_id, name, latitude, longitude, radius_m, historical_flood_vulnerability, traffic_speed_baseline FROM zones")
             zone_map = {r["zone_id"]: dict(r) for r in cur.fetchall()}
 
             cur.execute("""
@@ -32,10 +32,7 @@ class handler(BaseHTTPRequestHandler):
             for a in alerts:
                 zd = zone_map.get(a["zone_id"])
                 if not zd: continue
-                geo = zd.get("geometry")
-                if isinstance(geo, str):
-                    try: geo = json.loads(geo)
-                    except: geo = None
+                geo = zone_to_geojson_polygon(float(zd["latitude"] or 0), float(zd["longitude"] or 0), float(zd["radius_m"] or 1000))
                 result.append({
                     "alert_id": a["alert_id"],
                     "disruption_type": a["disruption_type"],

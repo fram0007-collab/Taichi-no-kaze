@@ -1,3 +1,4 @@
+import math
 """Shared helpers for Vercel Python serverless functions."""
 import os, json
 import psycopg2
@@ -27,3 +28,16 @@ def send_cors_preflight(handler_instance):
     handler_instance.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
     handler_instance.send_header("Access-Control-Allow-Headers", "Content-Type")
     handler_instance.end_headers()
+
+import math
+
+def zone_to_geojson_polygon(lat, lon, radius_m):
+    """Approximates a zone circle as a 36-point GeoJSON Polygon."""
+    points = []
+    steps = 36
+    for i in range(steps + 1):
+        angle = math.radians(360.0 * i / steps)
+        delta_lat = (radius_m / 111_000) * math.cos(angle)
+        delta_lon = (radius_m / (111_000 * math.cos(math.radians(lat)))) * math.sin(angle)
+        points.append([round(lon + delta_lon, 6), round(lat + delta_lat, 6)])
+    return {"type": "Polygon", "coordinates": [points]}

@@ -1,7 +1,7 @@
 from http.server import BaseHTTPRequestHandler
 import sys, os, json
 sys.path.insert(0, os.path.dirname(__file__))
-from _helpers import get_conn, send_json, send_cors_preflight
+from _helpers import get_conn, send_json, send_cors_preflight, zone_to_geojson_polygon
 
 class handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args): pass  # suppress default logging
@@ -15,7 +15,7 @@ class handler(BaseHTTPRequestHandler):
             cur = conn.cursor()
             cur.execute("""
                 SELECT z.zone_id, z.name, z.latitude, z.longitude, z.radius_m,
-                       z.historical_flood_vulnerability, z.traffic_speed_baseline, z.geometry,
+                       z.historical_flood_vulnerability, z.traffic_speed_baseline,
                        zs.traffic_score, zs.weather_score, zs.crowd_score,
                        zs.earthquake_score, zs.waterway_score, zs.overall_risk_score,
                        zs.dominant_risk, zs.recommended_action, zs.last_updated
@@ -39,10 +39,7 @@ class handler(BaseHTTPRequestHandler):
                 dom = z["dominant_risk"] or "weather"
                 ds = {"traffic":traffic,"weather":weather,"crowd":crowd,"earthquake":eq,"waterway":ww}.get(dom, overall)
                 sev = "HIGH" if ds >= 65 or overall >= 65 else "MEDIUM" if ds >= 25 or overall >= 25 else "LOW"
-                geo = z["geometry"]
-                if isinstance(geo, str):
-                    try: geo = json.loads(geo)
-                    except: geo = None
+                geo = zone_to_geojson_polygon(float(z["latitude"] or 0), float(z["longitude"] or 0), float(z["radius_m"] or 1000))
                 zd = {"zone_id":z["zone_id"],"id":z["zone_id"],"name":z["name"],
                       "latitude":float(z["latitude"] or 0),"longitude":float(z["longitude"] or 0),
                       "radius_m":float(z["radius_m"] or 1000),
