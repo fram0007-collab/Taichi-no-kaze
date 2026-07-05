@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { usePredictions } from './hooks/usePredictions';
 import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
@@ -53,7 +53,7 @@ export default function App() {
   const [nearMeRadius, setNearMeRadius] = useState(5); // in km (default 5km)
 
   // Derived state: predictions filtered by spatial proximity if nearMeFilterActive is true
-  const filteredPredictions = React.useMemo(() => {
+  const filteredPredictions = useMemo(() => {
     if (!nearMeFilterActive || !userLocation) return predictions;
     
     return predictions.filter(pred => {
