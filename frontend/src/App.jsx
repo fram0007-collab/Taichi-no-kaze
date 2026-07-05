@@ -534,7 +534,7 @@ export default function App() {
         }} />
       ) : isMobile ? (
         // Mobile Layout: Pinned content container + fixed bottom nav bar
-        <main className="flex-1 flex flex-col relative w-full min-h-0 overflow-hidden">
+        <main className="flex-1 flex flex-col relative w-full min-h-0" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
           
           {/* Active View Selector */}
           {mobileTab === 'map' && (
@@ -556,7 +556,7 @@ export default function App() {
               )}
 
               {/* Interactive Leaflet Map */}
-              <div className="flex-1 w-full min-h-0">
+              <div className="flex-1 w-full min-h-0" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
                 <MapView 
                   predictions={predictions} 
                   selectedZone={selectedPrediction}
@@ -836,12 +836,13 @@ export default function App() {
             </div>
           )}
 
-          {/* Pinned Mobile Bottom Navigation Bar (with dynamic safe-area insets for real mobile devices) */}
+          {/* Fixed Mobile Bottom Navigation Bar */}
           <div 
-            className="w-full border-t border-slate-800/80 bg-brand-elevated/95 backdrop-blur-md flex items-center justify-around z-[999] select-none shadow-[0_-4px_16px_rgba(0,0,0,0.4)]"
+            className="fixed bottom-0 left-0 right-0 w-full border-t border-slate-800/80 bg-brand-elevated/95 backdrop-blur-md flex items-center justify-around select-none shadow-[0_-4px_16px_rgba(0,0,0,0.4)]"
             style={{ 
+              zIndex: 1500,
               paddingBottom: 'env(safe-area-inset-bottom, 0px)', 
-              minHeight: 'calc(4rem + env(safe-area-inset-bottom, 0px))' 
+              height: 'calc(4rem + env(safe-area-inset-bottom, 0px))' 
             }}
           >
             <button 

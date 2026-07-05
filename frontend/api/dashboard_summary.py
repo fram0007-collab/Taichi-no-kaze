@@ -61,7 +61,7 @@ class handler(BaseHTTPRequestHandler):
                 FROM risk_alerts
                 WHERE alert_timestamp >= NOW() - INTERVAL '%s days'
                 GROUP BY disruption_type
-                ORDER BY (high + medium) DESC
+                ORDER BY (COUNT(*) FILTER (WHERE severity='HIGH') + COUNT(*) FILTER (WHERE severity='MEDIUM')) DESC
             """ % days)
             breakdown = [
                 {
