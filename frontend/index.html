@@ -18,7 +18,6 @@
     <!-- Runtime API URL config — written by docker-entrypoint.sh at container startup.
          Sets window.__API_URL__ so the LAN IP can be injected without rebuilding the image.
          In local dev this file won't exist; the app falls back to import.meta.env.VITE_API_URL. -->
-    <script async src="/config.js" onerror="console.info('[config] No runtime config.js found, using build-time VITE_API_URL.')"></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
