@@ -8,6 +8,7 @@ import MetricsGrid from './components/MetricsGrid';
 import AdminDashboard from './components/AdminDashboard';
 import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate } from 'lucide-react';
 import { getApiUrl } from './utils/getApiUrl';
+import Dashboard from './components/Dashboard';
 import { calculateDistanceKm } from './utils/haversine';
 
 const API_URL = getApiUrl();
@@ -38,6 +39,7 @@ export default function App() {
   const [showEvacuation, setShowEvacuation] = useState(false);
   const [evacuationRoute, setEvacuationRoute] = useState(null); // GeoJSON LineString
   const [allZones, setAllZones] = useState([]); // all zone_status for LOW tier
+  const [showDashboard, setShowDashboard] = useState(false);
   const [safePois, setSafePois] = useState([]);
 
   // Fetch safe POIs when disruptions are active in user radius
@@ -488,6 +490,14 @@ export default function App() {
                 className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all text-xs font-semibold"
               >
                 <span>ℹ️ About</span>
+              </button>
+
+              <button
+                onClick={() => setShowDashboard(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600/30 hover:text-indigo-300 transition-all text-xs font-semibold"
+                title="Threat Intelligence Dashboard"
+              >
+                <span>📊 Dashboard</span>
               </button>
 
               <button 
@@ -1048,6 +1058,13 @@ export default function App() {
               </div>
             </div>
           </div>
-        )}    </div>
+        )}
+      {/* Dashboard full-screen overlay */}
+      <Dashboard
+        isOpen={showDashboard}
+        onClose={() => setShowDashboard(false)}
+        allZones={allZones}
+      />
+    </div>
   );
 }
