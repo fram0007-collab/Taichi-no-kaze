@@ -1019,7 +1019,7 @@ export default function MapView({
                   circles.push(
                     <Circle
                       key={`${zone.zone_id}-low`}
-                      center={center} radius={r}
+                      center={center} radius={radius}
                       pathOptions={{ fillColor: '#00E676', color: '#00E676', weight: 1.5, opacity: 0.2, fillOpacity: 0.03 }}
                       interactive={false}
                     />
