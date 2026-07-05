@@ -3,9 +3,9 @@ GET /api/rivers
 Returns waterway/river data for the map overlay.
 """
 import json, sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.dirname(__file__))
 
-from api._db import get_db, cors_response, error_response
+from _db import get_db, cors_response, error_response
 from sqlalchemy import text
 
 
