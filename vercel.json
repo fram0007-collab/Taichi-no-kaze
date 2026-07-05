@@ -16,11 +16,5 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/frontend/$1" }
-  ],
-  "env": {
-    "DATABASE_URL": "@database_url",
-    "TOMTOM_API_KEY": "@tomtom_api_key",
-    "DISPLAY_ALL_EARTHQUAKES": "false",
-    "FRONTEND_URL": "@frontend_url"
-  }
+  ]
 }
