@@ -767,7 +767,11 @@ export default function MapView({
         zoom={10} 
         zoomControl={true}
         scrollWheelZoom={true}
+        touchZoom={true}
+        dragging={true}
+        tap={true}
         className="w-full h-full"
+        style={{ touchAction: 'none' }}
       >
         {/* Tiles */}
         <TileLayer

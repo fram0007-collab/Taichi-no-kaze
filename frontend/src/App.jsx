@@ -6,7 +6,7 @@ import BottomSheet from './components/BottomSheet';
 import EvacuationPanel from './components/EvacuationPanel';
 import MetricsGrid from './components/MetricsGrid';
 import AdminDashboard from './components/AdminDashboard';
-import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity } from 'lucide-react';
 import { getApiUrl } from './utils/getApiUrl';
 import Dashboard from './components/Dashboard';
 import { calculateDistanceKm } from './utils/haversine';
@@ -846,28 +846,35 @@ export default function App() {
           >
             <button 
               onClick={() => setMobileTab('map')}
-              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/3 transition-all ${
+              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all ${
                 mobileTab === 'map' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'
               }`}
             >
               <Shield className="w-5 h-5" />
-              <span className="text-[10px] font-bold tracking-wider uppercase">Map View</span>
+              <span className="text-[10px] font-bold tracking-wider uppercase">Map</span>
             </button>
             <button 
               onClick={() => setMobileTab('feed')}
-              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/3 transition-all relative ${
+              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all relative ${
                 mobileTab === 'feed' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'
               }`}
             >
               <Bell className="w-5 h-5" />
               <span className="text-[10px] font-bold tracking-wider uppercase">Feed</span>
               {filteredPredictions.length > 0 && (
-                <span className="absolute top-1 right-[30%] w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                <span className="absolute top-1 right-[25%] w-2 h-2 bg-red-500 rounded-full animate-ping" />
               )}
+            </button>
+            <button
+              onClick={() => setShowDashboard(true)}
+              className="flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all text-slate-400 hover:text-indigo-400"
+            >
+              <Activity className="w-5 h-5" />
+              <span className="text-[10px] font-bold tracking-wider uppercase">Dash</span>
             </button>
             <button 
               onClick={() => setMobileTab('settings')}
-              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/3 transition-all ${
+              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all ${
                 mobileTab === 'settings' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'
               }`}
             >
