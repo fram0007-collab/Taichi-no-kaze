@@ -1010,10 +1010,22 @@ export default function MapView({
               dimOrder.forEach((dim, idx) => {
                 const score = dimScores[dim];
                 if (!activeLayers[threatLayerMap[dim]]) return;
-                // Only draw a circle for this dimension if it has an OPEN risk_alert.
-                // zone_status scores persist after an alert closes, so without this
-                // check, closed-alert zones would still show a "ghost" threat circle.
-                if (!openDims.has(dim)) return;
+                // OPEN alert → draw full threat circle.
+                // No OPEN alert on this dim → draw faint green LOW indicator
+                // (only on traffic dim to avoid stacking circles per zone).
+                if (!openDims.has(dim)) {
+                  if (dim !== 'traffic') return;
+                  if (score < 5) return;
+                  circles.push(
+                    <Circle
+                      key={`${zone.zone_id}-low`}
+                      center={center} radius={r}
+                      pathOptions={{ fillColor: '#00E676', color: '#00E676', weight: 1.5, opacity: 0.2, fillOpacity: 0.03 }}
+                      interactive={false}
+                    />
+                  );
+                  return;
+                }
                 // Show any zone with a real OPEN alert, even LOW severity (score > 0).
                 // Previously filtered score < 10, which silently hid genuine LOW alerts
                 // that the database marked OPEN — misleading since "no circle" looked

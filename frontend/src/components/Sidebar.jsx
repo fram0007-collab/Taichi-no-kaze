@@ -26,6 +26,7 @@ export default function Sidebar({
   earthquakes = [],
   selectedEarthquake = null,
   onSelectEarthquake,
+  allZones = [],
   nearMeFilterActive = false,
   nearMeRadius = 5,
   onClearNearMeFilter,
@@ -36,6 +37,16 @@ export default function Sidebar({
   const [poiFilter, setPoiFilter] = useState('all');
   const [showAllWarnings, setShowAllWarnings] = useState(false);
   const [severityFilter, setSeverityFilter] = useState('all');
+
+  // LOW tier: zones monitored with no OPEN alert
+  const activeZoneIds = new Set(
+    predictions.map(p => p.zone?.zone_id ?? p.zone?.id).filter(Boolean)
+  );
+  const lowZones = allZones.filter(zs =>
+    !activeZoneIds.has(zs.zone_id) && zs.zone &&
+    (zs.overall_risk_score > 0 || zs.traffic_score > 0 || zs.crowd_score > 0)
+  );
+  const showingLowTier = severityFilter === 'Low';
   
   // Format dates to human-readable strings (treating naive timestamps as UTC and using 24h format)
   const formatTime = (timeStr) => {
@@ -83,16 +94,18 @@ export default function Sidebar({
   const now = new Date();
   const sixHoursFromNow = new Date(now.getTime() + 6 * 60 * 60 * 1000);
   
-  const displayedWarnings = (showAllWarnings 
-    ? predictions 
-    : predictions.filter(pred => {
-        const peakTime = new Date(pred.estimated_time_to_peak);
-        return peakTime >= now && peakTime <= sixHoursFromNow;
-      })
-  ).filter(pred => {
-    if (severityFilter === 'all') return true;
-    return pred.risk_level.toLowerCase() === severityFilter.toLowerCase();
-  });
+  const displayedWarnings = showingLowTier
+    ? []
+    : (showAllWarnings
+        ? predictions
+        : predictions.filter(pred => {
+            const peakTime = new Date(pred.estimated_time_to_peak);
+            return peakTime >= now && peakTime <= sixHoursFromNow;
+          })
+      ).filter(pred => {
+        if (severityFilter === 'all') return true;
+        return pred.risk_level.toLowerCase() === severityFilter.toLowerCase();
+      });
 
   const nowLabel = timelineData?.timeline?.[0] ? formatTime(timelineData.timeline[0].timestamp) : null;
 
@@ -166,7 +179,26 @@ export default function Sidebar({
         </div>
         
         <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-          {displayedWarnings.length === 0 ? (
+          {showingLowTier ? (
+            lowZones.length === 0 ? (
+              <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
+                <p className="text-xs text-slate-500 font-medium">All zones have active alerts or no data yet.</p>
+              </div>
+            ) : (
+              lowZones.map(zs => (
+                <div key={zs.zone_id} className="p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-emerald-400">{zs.zone?.name ?? `Zone ${zs.zone_id}`}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">No active alerts — being monitored</p>
+                    {zs.overall_risk_score > 0 && (
+                      <p className="text-[10px] text-slate-500">Risk score: {Number(zs.overall_risk_score).toFixed(1)}</p>
+                    )}
+                  </div>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded font-bold border border-emerald-500/20 text-emerald-400 bg-emerald-500/5 shrink-0">LOW</span>
+                </div>
+              ))
+            )
+          ) : displayedWarnings.length === 0 ? (
             <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
               <p className="text-xs text-slate-500 font-medium">No warnings match this filter.</p>
             </div>

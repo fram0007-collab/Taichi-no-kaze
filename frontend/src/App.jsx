@@ -37,6 +37,7 @@ export default function App() {
   const [nearMeFilterActive, setNearMeFilterActive] = useState(false);
   const [showEvacuation, setShowEvacuation] = useState(false);
   const [evacuationRoute, setEvacuationRoute] = useState(null); // GeoJSON LineString
+  const [allZones, setAllZones] = useState([]); // all zone_status for LOW tier
   const [safePois, setSafePois] = useState([]);
 
   // Fetch safe POIs when disruptions are active in user radius
@@ -94,6 +95,19 @@ export default function App() {
     refresh();
     fetchEarthquakes();
   };
+
+  // Fetch all zone statuses — used by Sidebar LOW tier
+  useEffect(() => {
+    const fetchAllZones = async () => {
+      try {
+        const res = await fetch(`${API_URL}/zone-status/all`);
+        if (res.ok) setAllZones(await res.json());
+      } catch (e) { console.warn('[App] allZones fetch failed:', e); }
+    };
+    fetchAllZones();
+    const id = setInterval(fetchAllZones, 60000);
+    return () => clearInterval(id);
+  }, [API_URL]);
 
 
   const locateUser = () => {
@@ -918,6 +932,7 @@ export default function App() {
               nearMeFilterActive={nearMeFilterActive}
               nearMeRadius={nearMeRadius}
               onClearNearMeFilter={() => setNearMeFilterActive(false)}
+              allZones={allZones}
               onGetEvacuation={() => setShowEvacuation(true)}
               showEvacuationPanel={showEvacuation}
               evacuationPanelNode={
