@@ -4,6 +4,7 @@
     { "source": "/api/predictions/active", "destination": "/api/predictions_active" },
     { "source": "/api/zone-status/all",    "destination": "/api/zone_status_all" },
     { "source": "/api/safe-zones",         "destination": "/api/safe_zones" },
-    { "source": "/api/admin/status",       "destination": "/api/admin_status" }
+    { "source": "/api/admin/status",       "destination": "/api/admin_status" },
+    { "source": "/api/predictions/zone/:zoneId", "destination": "/api/predictions_zone"}
   ]
 }
