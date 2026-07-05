@@ -3,6 +3,7 @@ import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { 
   ResponsiveContainer, 
   ComposedChart, 
+  BarChart,
   Area, 
   Bar, 
   Line, 
@@ -47,6 +48,51 @@ export default function Sidebar({
     (zs.overall_risk_score > 0 || zs.traffic_score > 0 || zs.crowd_score > 0)
   );
   const showingLowTier = severityFilter === 'Low';
+
+  // Dashboard tab state
+  const [mainTab, setMainTab] = useState('feed');
+  const [historicalAlerts, setHistoricalAlerts] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState('all');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState('all');
+
+  // Fetch history when dashboard tab opens
+  useEffect(() => {
+    if (mainTab !== 'dashboard') return;
+    if (historicalAlerts.length > 0) return;
+    setHistoryLoading(true);
+    fetch(`${getApiUrl()}/alerts/history?days=7`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setHistoricalAlerts(data); setHistoryLoading(false); })
+      .catch(() => setHistoryLoading(false));
+  }, [mainTab]);
+
+  // Severity breakdown chart data
+  const breakdownData = (() => {
+    const types = ['traffic', 'crowd', 'waterway', 'weather', 'earthquake'];
+    const byType = {};
+    types.forEach(t => { byType[t] = { type: t.charAt(0).toUpperCase() + t.slice(1), HIGH: 0, MEDIUM: 0 }; });
+    predictions.forEach(p => {
+      const t = (p.disruption_type || '').toLowerCase();
+      if (byType[t]) {
+        const sev = (p.risk_level || p.severity || '').toUpperCase();
+        if (sev === 'HIGH' || sev === 'MEDIUM') byType[t][sev]++;
+      }
+    });
+    return types.filter(t => byType[t].HIGH + byType[t].MEDIUM > 0).map(t => byType[t]);
+  })();
+
+  const filteredHistory = historicalAlerts.filter(a => {
+    if (historyFilter !== 'all' && a.status !== historyFilter) return false;
+    if (historyTypeFilter !== 'all' && a.disruption_type !== historyTypeFilter) return false;
+    return true;
+  });
+
+  const formatDate = (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+    return d.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+  };
   
   // Format dates to human-readable strings (treating naive timestamps as UTC and using 24h format)
   const formatTime = (timeStr) => {
@@ -94,23 +140,45 @@ export default function Sidebar({
   const now = new Date();
   const sixHoursFromNow = new Date(now.getTime() + 6 * 60 * 60 * 1000);
   
-  const displayedWarnings = showingLowTier
+  const PREVIEW_COUNT = 5;
+  const filteredByType = showingLowTier
     ? []
-    : (showAllWarnings
-        ? predictions
-        : predictions.filter(pred => {
-            const peakTime = new Date(pred.estimated_time_to_peak);
-            return peakTime >= now && peakTime <= sixHoursFromNow;
-          })
-      ).filter(pred => {
+    : predictions.filter(pred => {
         if (severityFilter === 'all') return true;
         return pred.risk_level.toLowerCase() === severityFilter.toLowerCase();
       });
+  const displayedWarnings = showAllWarnings
+    ? filteredByType
+    : filteredByType.slice(0, PREVIEW_COUNT);
 
   const nowLabel = timelineData?.timeline?.[0] ? formatTime(timelineData.timeline[0].timestamp) : null;
 
   return (
-    <div className="w-full flex flex-col h-full bg-brand-elevated border-l border-slate-800 p-6 space-y-6 overflow-y-auto">
+    <div className="w-full flex flex-col h-full bg-brand-elevated border-l border-slate-800 overflow-hidden">
+
+      {/* ── Main Tab Switcher ── */}
+      <div className="flex border-b border-slate-800 shrink-0">
+        {[
+          { id: 'feed', label: '⚡ Live Feed' },
+          { id: 'dashboard', label: '📊 Dashboard' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setMainTab(tab.id)}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all ${
+              mainTab === tab.id
+                ? 'text-indigo-400 border-b-2 border-indigo-500 bg-indigo-500/5'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── LIVE FEED TAB ── */}
+      {mainTab === 'feed' && (
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
       {/* Active Notifications Block */}
       <div>
         <div className="flex items-center space-x-2 text-slate-100 font-bold text-lg mb-2">
@@ -243,7 +311,7 @@ export default function Sidebar({
           )}
         </div>
 
-        {predictions.length > displayedWarnings.length && !showAllWarnings && severityFilter === 'all' && (
+        {filteredByType.length > PREVIEW_COUNT && !showAllWarnings && (
           <button 
             onClick={() => setShowAllWarnings(true)}
             className="w-full text-center text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold py-2 mt-3 bg-slate-900/40 border border-slate-800/80 rounded-xl hover:bg-slate-900/70 transition-all duration-200"
@@ -251,7 +319,7 @@ export default function Sidebar({
             See More
           </button>
         )}
-        {showAllWarnings && predictions.length > 0 && severityFilter === 'all' && (
+        {showAllWarnings && filteredByType.length > PREVIEW_COUNT && (
           <button 
             onClick={() => setShowAllWarnings(false)}
             className="w-full text-center text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold py-2 mt-3 bg-slate-900/40 border border-slate-800/80 rounded-xl hover:bg-slate-900/70 transition-all duration-200"
@@ -522,6 +590,122 @@ export default function Sidebar({
           </p>
         </div>
       )}
+      </div>
+      )}
+
+      {/* ── DASHBOARD TAB ── */}
+      {mainTab === 'dashboard' && (
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+          {/* Severity Breakdown Chart */}
+          {breakdownData.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
+                <span>📊</span> Active Severity Breakdown
+              </h3>
+              <div className="h-44 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-3">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={breakdownData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                    <XAxis dataKey="type" stroke="#475569" fontSize={9} />
+                    <YAxis stroke="#475569" fontSize={9} allowDecimals={false} />
+                    <ChartTooltip
+                      contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                      labelStyle={{ color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
+                      itemStyle={{ fontSize: '10px' }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '10px', color: '#94a3b8' }} />
+                    <Bar dataKey="HIGH" name="High" fill="#ef4444" radius={[3,3,0,0]} stackId="a" />
+                    <Bar dataKey="MEDIUM" name="Medium" fill="#eab308" radius={[3,3,0,0]} stackId="a" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+          {breakdownData.length === 0 && (
+            <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
+              <p className="text-xs text-slate-500">No active alerts to chart.</p>
+            </div>
+          )}
+
+          {/* Historical Alerts */}
+          <div>
+            <h3 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
+              <span>🕐</span> Threat History (7 days)
+            </h3>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {['all','OPEN','CLOSED'].map(f => (
+                <button key={f} onClick={() => setHistoryFilter(f)}
+                  className={`text-[9px] px-2 py-0.5 rounded font-semibold border transition-all ${
+                    historyFilter === f
+                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
+                      : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
+                  }`}>
+                  {f === 'all' ? 'All Status' : f}
+                </button>
+              ))}
+              <span className="text-slate-700 text-[9px] flex items-center">|</span>
+              {['all','traffic','crowd','waterway','weather','earthquake'].map(f => (
+                <button key={f} onClick={() => setHistoryTypeFilter(f)}
+                  className={`text-[9px] px-2 py-0.5 rounded font-semibold border transition-all capitalize ${
+                    historyTypeFilter === f
+                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
+                      : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
+                  }`}>
+                  {f === 'all' ? 'All Types' : f}
+                </button>
+              ))}
+            </div>
+
+            <div className="text-[10px] text-slate-500 mb-2">
+              {filteredHistory.length} alert{filteredHistory.length !== 1 ? 's' : ''}
+              {historyFilter !== 'all' || historyTypeFilter !== 'all' ? ' (filtered)' : ' in last 7 days'}
+            </div>
+
+            {historyLoading ? (
+              <div className="text-center py-8 text-slate-500 text-xs">Loading history...</div>
+            ) : filteredHistory.length === 0 ? (
+              <div className="text-center py-8 border border-dashed border-slate-800 rounded-xl">
+                <p className="text-xs text-slate-500">No alerts match this filter.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                {filteredHistory.map(a => (
+                  <div key={a.alert_id}
+                    className={`p-2.5 rounded-xl border text-[10px] ${
+                      a.status === 'OPEN'
+                        ? 'border-orange-500/20 bg-orange-500/5'
+                        : 'border-slate-800/60 bg-slate-900/30'
+                    }`}>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${
+                          a.severity === 'HIGH' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'
+                        }`}>{a.severity}</span>
+                        <span className="text-slate-300 capitalize font-semibold">{a.disruption_type}</span>
+                        <span className="text-slate-500">·</span>
+                        <span className="text-slate-400 font-medium">{a.zone?.name}</span>
+                      </div>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 font-bold ${
+                        a.status === 'OPEN' ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500 bg-slate-800/50'
+                      }`}>{a.status}</span>
+                    </div>
+                    <div className="text-slate-500 flex items-center gap-2 flex-wrap">
+                      <span>🕐 {formatDate(a.alert_timestamp)}</span>
+                      {a.probability_percentage > 0 && (
+                        <span>· Score: {a.probability_percentage.toFixed(1)}%</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 }

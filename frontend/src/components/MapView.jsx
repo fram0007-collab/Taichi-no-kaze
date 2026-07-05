@@ -765,13 +765,14 @@ export default function MapView({
       <MapContainer 
         center={JABODETABEK_CENTER} 
         zoom={10} 
-        zoomControl={true}
+        zoomControl={false}
         scrollWheelZoom={true}
         touchZoom={true}
         dragging={true}
-        tap={true}
+        tap={false}
+        doubleClickZoom={true}
         className="w-full h-full"
-        style={{ touchAction: 'none' }}
+        style={{ touchAction: 'none', WebkitTapHighlightColor: 'transparent' }}
       >
         {/* Tiles */}
         <TileLayer
