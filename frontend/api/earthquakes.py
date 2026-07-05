@@ -17,7 +17,7 @@ class handler(BaseHTTPRequestHandler):
             limit = "" if display_all else "LIMIT 5"
             cur.execute(f"""
                 SELECT event_id, magnitude, depth_km, latitude, longitude,
-                       event_timestamp, location, impact_radius_km, wilayah, potensi, depth, datetime
+                       event_timestamp, location, impact_radius_km
                 FROM earthquake_events ORDER BY event_timestamp DESC {limit}
             """)
             rows = cur.fetchall()
@@ -31,9 +31,11 @@ class handler(BaseHTTPRequestHandler):
                     "latitude": float(q["latitude"]) if q["latitude"] else None,
                     "longitude": float(q["longitude"]) if q["longitude"] else None,
                     "event_timestamp": q["event_timestamp"].isoformat() if q["event_timestamp"] else None,
-                    "location": q["location"], "wilayah": q["wilayah"], "potensi": q["potensi"],
-                    "depth": q["depth"],
-                    "datetime": q["datetime"].isoformat() if q["datetime"] else None,
+                    "location": q["location"],
+                    "wilayah": q["location"],
+                    "potensi": "Tidak berpotensi tsunami",
+                    "depth": f"{q['depth_km']} km" if q["depth_km"] else None,
+                    "datetime": q["event_timestamp"].isoformat() if q["event_timestamp"] else None,
                     "impact_radius_km": float(q["impact_radius_km"]) if q["impact_radius_km"] else None,
                 })
             send_json(self, result)

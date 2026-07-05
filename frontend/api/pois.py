@@ -15,7 +15,7 @@ class handler(BaseHTTPRequestHandler):
             cur = conn.cursor()
             cur.execute("""
                 SELECT p.poi_id, p.name, p.category, p.latitude, p.longitude,
-                       p.is_safe_zone, p.is_suppressed, pcs.crowd_score
+                       p.is_safe_zone, pcs.crowd_score
                 FROM poi_master p
                 LEFT JOIN poi_crowd_status pcs ON p.poi_id = pcs.poi_id
                 WHERE p.latitude IS NOT NULL AND p.longitude IS NOT NULL
@@ -25,7 +25,7 @@ class handler(BaseHTTPRequestHandler):
             cur.close(); conn.close()
             result = [{"poi_id": r["poi_id"], "name": r["name"], "category": r["category"],
                        "lat": float(r["latitude"]), "lon": float(r["longitude"]),
-                       "is_safe_zone": r["is_safe_zone"], "is_suppressed": bool(r["is_suppressed"]),
+                       "is_safe_zone": r["is_safe_zone"], "is_suppressed": False,
                        "crowd_score": float(r["crowd_score"]) if r["crowd_score"] else None}
                       for r in rows]
             send_json(self, result)
