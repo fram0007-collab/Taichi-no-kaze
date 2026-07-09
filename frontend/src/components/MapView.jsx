@@ -300,6 +300,21 @@ function MapClickListener({ onClearSelectedEarthquake }) {
 }
 
 /**
+ * Fixes the Leaflet "only responds in bottom-left corner" bug on mobile.
+ * Caused by the map not knowing its actual container size after flexbox layout.
+ * invalidateSize() forces Leaflet to recalculate.
+ */
+function MapSizeInvalidator() {
+  const map = useMap();
+  useEffect(() => {
+    // Small delay lets the flex layout settle before measuring
+    const t = setTimeout(() => map.invalidateSize(), 100);
+    return () => clearTimeout(t);
+  }, [map]);
+  return null;
+}
+
+/**
  * RouteController — auto-pans and zooms the map to fit the evacuation route
  * whenever evacuationRoute changes. Works like a navigation app: as soon as
  * a route is calculated, the map adjusts to show the full path.
@@ -930,7 +945,8 @@ export default function MapView({
               pathOptions={pathOptions}
               interactive={!isOutOfRadius}
               eventHandlers={{
-                click: () => onSelectZone(pred)
+                click: () => !isOutOfRadius && onSelectZone(pred),
+                touchend: () => !isOutOfRadius && onSelectZone(pred),
               }}
             >
               <Tooltip sticky>
@@ -1392,6 +1408,9 @@ export default function MapView({
  
         {/* Auto-fit map to evacuation route when route is ready */}
         <RouteController evacuationRoute={evacuationRoute} />
+
+        {/* Fix Leaflet container size on mobile */}
+        <MapSizeInvalidator />
 
         {/* Listen for selected zone changes and reposition camera */}
         <MapController selectedZone={selectedZone?.zone} selectedEarthquake={selectedEarthquake} />
