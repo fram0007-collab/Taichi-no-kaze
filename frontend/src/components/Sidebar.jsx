@@ -67,17 +67,7 @@ export default function Sidebar({
     return types.filter(t => byType[t].HIGH + byType[t].MEDIUM > 0).map(t => byType[t]);
   })();
 
-  const filteredHistory = historicalAlerts.filter(a => {
-    if (historyFilter !== 'all' && a.status !== historyFilter) return false;
-    if (historyTypeFilter !== 'all' && a.disruption_type !== historyTypeFilter) return false;
-    return true;
-  });
 
-  const formatDate = (iso) => {
-    if (!iso) return '—';
-    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
-    return d.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
-  };
   
   // Format dates to human-readable strings (treating naive timestamps as UTC and using 24h format)
   const formatTime = (timeStr) => {
