@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getApiUrl } from '../utils/getApiUrl';
+import { calculateDistanceKm } from '../utils/haversine';
 import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { 
   ResponsiveContainer, 
@@ -48,6 +50,28 @@ export default function Sidebar({
     (zs.overall_risk_score > 0 || zs.traffic_score > 0 || zs.crowd_score > 0)
   );
   const showingLowTier = severityFilter === 'Low';
+
+  // Fetch global POIs for Nearby Infrastructure section
+  const [globalPois, setGlobalPois] = useState([]);
+  useEffect(() => {
+    fetch(`${getApiUrl()}/pois`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setGlobalPois(data))
+      .catch(() => {});
+  }, []);
+
+  // Filter POIs near the selected zone (within zone radius + 500m buffer)
+  const nearbyPois = useMemo(() => {
+    if (!selectedPrediction?.zone || globalPois.length === 0) return [];
+    const z = selectedPrediction.zone;
+    const lat = z.latitude ?? z.geometry?.coordinates?.[0]?.[0]?.[1];
+    const lon = z.longitude ?? z.geometry?.coordinates?.[0]?.[0]?.[0];
+    if (!lat || !lon) return [];
+    const radiusKm = ((z.radius_m ?? 1000) + 500) / 1000;
+    return globalPois.filter(poi =>
+      calculateDistanceKm(lat, lon, poi.lat, poi.lon) <= radiusKm
+    );
+  }, [selectedPrediction, globalPois]);
 
   // Dashboard tab state
 
@@ -99,18 +123,22 @@ export default function Sidebar({
 
   const getPoiIcon = (category) => {
     switch (category) {
-      case 'mall': return <ShoppingBag className="w-4 h-4 text-pink-400" />;
-      case 'station': return <Train className="w-4 h-4 text-blue-400" />;
+      case 'hospital':        return <span className="text-base">🏥</span>;
+      case 'police':          return <span className="text-base">🚔</span>;
+      case 'university':      return <span className="text-base">🎓</span>;
+      case 'mall':            return <ShoppingBag className="w-4 h-4 text-pink-400" />;
+      case 'market':          return <Store className="w-4 h-4 text-amber-400" />;
+      case 'station':         return <Train className="w-4 h-4 text-blue-400" />;
       case 'unique_building': return <Building className="w-4 h-4 text-purple-400" />;
-      case 'small_business': return <Store className="w-4 h-4 text-amber-400" />;
-      default: return <MapPin className="w-4 h-4 text-indigo-400" />;
+      case 'small_business':  return <Store className="w-4 h-4 text-amber-400" />;
+      default:                return <MapPin className="w-4 h-4 text-indigo-400" />;
     }
   };
 
-  const filteredPois = selectedPrediction?.zone?.pois?.filter(poi => {
-    if (poiFilter === 'all') return true;
-    return poi.category === poiFilter;
-  }) || [];
+  const filteredPois = (poiFilter === 'all'
+    ? nearbyPois
+    : nearbyPois.filter(poi => poi.category === poiFilter)
+  );
 
   const now = new Date();
   const sixHoursFromNow = new Date(now.getTime() + 6 * 60 * 60 * 1000);
@@ -372,10 +400,11 @@ export default function Sidebar({
             <div className="flex flex-wrap gap-1.5 pb-2">
               {[
                 { id: 'all', label: 'All' },
-                { id: 'mall', label: 'Malls' },
-                { id: 'station', label: 'Stations' },
-                { id: 'unique_building', label: 'Gov' },
-                { id: 'small_business', label: 'UMKM' }
+                { id: 'hospital', label: '🏥 Hospital' },
+                { id: 'police', label: '🚔 Police' },
+                { id: 'university', label: '🎓 University' },
+                { id: 'mall', label: '🏬 Mall' },
+                { id: 'station', label: '🚉 Station' },
               ].map(tab => (
                 <button
                   key={tab.id}
