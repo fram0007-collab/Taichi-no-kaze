@@ -301,16 +301,44 @@ function MapClickListener({ onClearSelectedEarthquake }) {
 
 /**
  * Fixes the Leaflet "only responds in bottom-left corner" bug on mobile.
- * Caused by the map not knowing its actual container size after flexbox layout.
- * invalidateSize() forces Leaflet to recalculate.
+ *
+ * Root cause: Leaflet caches the map container's page offset (offsetTop/Left)
+ * at init time. On mobile with flexbox layouts, the container settles AFTER
+ * Leaflet has already cached wrong values. Touch events are then mapped to
+ * wrong coordinates — only the top-left region (where offset≈0) works.
+ *
+ * Fix: Use ResizeObserver to detect when the container actually gets its
+ * real size, then call invalidateSize() to force Leaflet to remeasure.
+ * Also call on multiple delays as a safety net.
  */
 function MapSizeInvalidator() {
   const map = useMap();
+
   useEffect(() => {
-    // Small delay lets the flex layout settle before measuring
-    const t = setTimeout(() => map.invalidateSize(), 100);
-    return () => clearTimeout(t);
+    const container = map.getContainer();
+
+    // Multiple delayed calls — catches different layout phases
+    const timers = [
+      setTimeout(() => map.invalidateSize({ pan: false }), 50),
+      setTimeout(() => map.invalidateSize({ pan: false }), 200),
+      setTimeout(() => map.invalidateSize({ pan: false }), 500),
+    ];
+
+    // ResizeObserver: invalidate whenever container size actually changes
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => {
+        map.invalidateSize({ pan: false });
+      });
+      ro.observe(container);
+    }
+
+    return () => {
+      timers.forEach(clearTimeout);
+      if (ro) ro.disconnect();
+    };
   }, [map]);
+
   return null;
 }
 
