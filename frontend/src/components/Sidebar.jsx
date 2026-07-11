@@ -424,14 +424,41 @@ export default function Sidebar({
             <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
               {filteredPois.length > 0 ? (
                 filteredPois.map((poi, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
-                    <div className="flex items-center space-x-2 min-w-0">
-                      {getPoiIcon(poi.category)}
-                      <span className="font-semibold text-slate-200 truncate">{poi.name}</span>
+                  <div key={idx} className="p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        {getPoiIcon(poi.category)}
+                        <span className="font-semibold text-slate-200 truncate">{poi.name}</span>
+                      </div>
+                      <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950/60 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                        {poi.category.replace('_', ' ')}
+                      </span>
                     </div>
-                    <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950/60 px-1.5 py-0.5 rounded">
-                      {poi.category.replace('_', ' ')}
-                    </span>
+                    {poi.crowd_score != null ? (
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[9px] text-slate-500 font-semibold">👥 Crowd</span>
+                          <span className={`text-[9px] font-bold ${
+                            poi.crowd_score >= 65 ? 'text-red-400' :
+                            poi.crowd_score >= 35 ? 'text-amber-400' : 'text-emerald-400'
+                          }`}>
+                            {poi.crowd_score >= 65 ? 'High' : poi.crowd_score >= 35 ? 'Moderate' : 'Low'}
+                            <span className="font-normal text-slate-500 ml-1">({Math.round(poi.crowd_score)})</span>
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
+                          <div
+                            className={`h-1 rounded-full transition-all ${
+                              poi.crowd_score >= 65 ? 'bg-red-500' :
+                              poi.crowd_score >= 35 ? 'bg-amber-400' : 'bg-emerald-400'
+                            }`}
+                            style={{ width: `${Math.min(100, poi.crowd_score)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[9px] text-slate-600">No crowd data</span>
+                    )}
                   </div>
                 ))
               ) : (
