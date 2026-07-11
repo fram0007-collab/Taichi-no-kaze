@@ -538,7 +538,7 @@ export default function App() {
           
           {/* Active View Selector */}
           {mobileTab === 'map' && (
-            <div className="flex-1 relative w-full min-h-0 flex flex-col">
+            <div className="flex-1 relative w-full min-h-0">
               {/* Status Overlay Banner for Mobile fallbacks */}
               {isFallback && (
                 <div className="absolute top-4 left-4 right-4 z-[999] glass-panel px-3 py-2 rounded-xl flex items-center justify-between border border-amber-500/20 text-amber-400 text-xs">
@@ -556,7 +556,7 @@ export default function App() {
               )}
 
               {/* Interactive Leaflet Map */}
-              <div className="flex-1 w-full min-h-0" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
+              <div className="absolute inset-0" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none', zIndex: 0 }}>
                 <MapView 
                   predictions={predictions} 
                   selectedZone={selectedPrediction}
@@ -588,9 +588,9 @@ export default function App() {
                 setSelectedHours={setSelectedHours}
               />
 
-              {/* Evacuation guidance trigger — shown when threats exist in radius */}
+              {/* Evacuation guidance trigger — floats above map */}
               {filteredPredictions.length > 0 && !showEvacuation && (
-                <div className="px-3 pb-3 shrink-0">
+                <div className="absolute bottom-4 left-3 right-3 z-[500] pointer-events-auto">
                   <button
                     onClick={() => setShowEvacuation(true)}
                     className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
@@ -601,9 +601,9 @@ export default function App() {
                 </div>
               )}
 
-              {/* Evacuation panel */}
+              {/* Evacuation panel — overlays map */}
               {showEvacuation && (
-                <div className="flex-1 overflow-hidden border-t border-slate-800">
+                <div className="absolute inset-0 z-[600] bg-brand-elevated overflow-hidden border-t border-slate-800">
                   <EvacuationPanel
                     userLocation={userLocation}
                     predictions={filteredPredictions}
