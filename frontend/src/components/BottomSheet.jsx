@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getApiUrl } from '../utils/getApiUrl';
+import { calculateDistanceKm } from '../utils/haversine';
 import { 
    ResponsiveContainer, 
    ComposedChart, 
@@ -23,6 +25,26 @@ export default function BottomSheet({
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const [poiFilter, setPoiFilter] = useState('all');
+  const [globalPois, setGlobalPois] = useState([]);
+
+  useEffect(() => {
+    fetch(`${getApiUrl()}/pois`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setGlobalPois(data))
+      .catch(() => {});
+  }, []);
+
+  const nearbyPois = useMemo(() => {
+    if (!selectedPrediction?.zone || globalPois.length === 0) return [];
+    const z = selectedPrediction.zone;
+    const lat = z.latitude;
+    const lon = z.longitude;
+    if (!lat || !lon) return [];
+    const radiusKm = ((z.radius_m ?? 1000) + 500) / 1000;
+    return globalPois.filter(poi =>
+      calculateDistanceKm(lat, lon, poi.lat, poi.lon) <= radiusKm
+    );
+  }, [selectedPrediction, globalPois]);
 
   if (!selectedPrediction) return null;
 
@@ -50,16 +72,19 @@ export default function BottomSheet({
     switch (category) {
       case 'mall': return <ShoppingBag className="w-3.5 h-3.5 text-pink-400" />;
       case 'station': return <Train className="w-3.5 h-3.5 text-blue-400" />;
+      case 'hospital':        return <span className="text-sm">🏥</span>;
+      case 'police':          return <span className="text-sm">🚔</span>;
+      case 'university':      return <span className="text-sm">🎓</span>;
+      case 'market':          return <Store className="w-3.5 h-3.5 text-amber-400" />;
       case 'unique_building': return <Building className="w-3.5 h-3.5 text-purple-400" />;
-      case 'small_business': return <Store className="w-3.5 h-3.5 text-amber-400" />;
+      case 'small_business':  return <Store className="w-3.5 h-3.5 text-amber-400" />;
       default: return <MapPin className="w-3.5 h-3.5 text-indigo-400" />;
     }
   };
 
-  const filteredPois = selectedPrediction?.zone?.pois?.filter(poi => {
-    if (poiFilter === 'all') return true;
-    return poi.category === poiFilter;
-  }) || [];
+  const filteredPois = poiFilter === 'all'
+    ? nearbyPois
+    : nearbyPois.filter(poi => poi.category === poiFilter);
 
   return (
     <div 
@@ -119,10 +144,11 @@ export default function BottomSheet({
             <div className="flex flex-wrap gap-1">
               {[
                 { id: 'all', label: 'All' },
-                { id: 'mall', label: 'Malls' },
-                { id: 'station', label: 'Stations' },
-                { id: 'unique_building', label: 'Gov' },
-                { id: 'small_business', label: 'UMKM' }
+                { id: 'hospital', label: '🏥' },
+                { id: 'police', label: '🚔' },
+                { id: 'university', label: '🎓' },
+                { id: 'mall', label: '🏬' },
+                { id: 'station', label: '🚉' }
               ].map(tab => (
                 <button
                   key={tab.id}
