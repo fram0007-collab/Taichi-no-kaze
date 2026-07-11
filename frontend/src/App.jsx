@@ -23,6 +23,7 @@ export default function App() {
   const [timelineData, setTimelineData] = useState(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [mapHeight, setMapHeight] = useState('100%');
   const [selectedHours, setSelectedHours] = useState(12);
 
   // User location state
@@ -244,12 +245,23 @@ export default function App() {
 
   // 1. Detect screen size dynamically for responsive switching
   useEffect(() => {
+    const NAV_HEIGHT = 64; // 4rem bottom nav
     const checkViewport = () => {
-      setIsMobile(window.innerWidth < 768);
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        // Explicit pixel height so Leaflet measures correctly on all orientations
+        const h = window.innerHeight - NAV_HEIGHT;
+        setMapHeight(`${h}px`);
+      }
     };
     checkViewport();
     window.addEventListener('resize', checkViewport);
-    return () => window.removeEventListener('resize', checkViewport);
+    window.addEventListener('orientationchange', () => setTimeout(checkViewport, 300));
+    return () => {
+      window.removeEventListener('resize', checkViewport);
+      window.removeEventListener('orientationchange', checkViewport);
+    };
   }, []);
 
   // 2. Clear selected prediction if it was an active warning and is no longer in the updated active list
@@ -538,7 +550,7 @@ export default function App() {
           
           {/* Active View Selector */}
           {mobileTab === 'map' && (
-            <div className="flex-1 relative w-full min-h-0">
+            <div className="flex flex-col w-full" style={{ height: mapHeight }}>
               {/* Status Overlay Banner for Mobile fallbacks */}
               {isFallback && (
                 <div className="absolute top-4 left-4 right-4 z-[999] glass-panel px-3 py-2 rounded-xl flex items-center justify-between border border-amber-500/20 text-amber-400 text-xs">
@@ -555,8 +567,8 @@ export default function App() {
                 </div>
               )}
 
-              {/* Interactive Leaflet Map */}
-              <div className="absolute inset-0" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none', zIndex: 0 }}>
+              {/* Interactive Leaflet Map — explicit pixel height prevents Leaflet offset bug */}
+              <div style={{ width: '100%', height: mapHeight, touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
                 <MapView 
                   predictions={predictions} 
                   selectedZone={selectedPrediction}
@@ -588,9 +600,9 @@ export default function App() {
                 setSelectedHours={setSelectedHours}
               />
 
-              {/* Evacuation guidance trigger — floats above map */}
+              {/* Evacuation guidance trigger */}
               {filteredPredictions.length > 0 && !showEvacuation && (
-                <div className="absolute bottom-4 left-3 right-3 z-[500] pointer-events-auto">
+                <div className="px-3 py-2 shrink-0">
                   <button
                     onClick={() => setShowEvacuation(true)}
                     className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
@@ -601,9 +613,9 @@ export default function App() {
                 </div>
               )}
 
-              {/* Evacuation panel — overlays map */}
+              {/* Evacuation panel */}
               {showEvacuation && (
-                <div className="absolute inset-0 z-[600] bg-brand-elevated overflow-hidden border-t border-slate-800">
+                <div className="w-full overflow-hidden border-t border-slate-800" style={{ height: mapHeight }}>
                   <EvacuationPanel
                     userLocation={userLocation}
                     predictions={filteredPredictions}
