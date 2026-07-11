@@ -23,7 +23,9 @@ export default function App() {
   const [timelineData, setTimelineData] = useState(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [mapHeight, setMapHeight] = useState('100%');
+  const [mapHeight, setMapHeight] = useState(0);
+  const [mapWidth, setMapWidth] = useState(0);
+  const [mapKey, setMapKey] = useState('mobile-0');
   const [selectedHours, setSelectedHours] = useState(12);
 
   // User location state
@@ -246,21 +248,26 @@ export default function App() {
   // 1. Detect screen size dynamically for responsive switching
   useEffect(() => {
     const NAV_HEIGHT = 64; // 4rem bottom nav
-    const checkViewport = () => {
+    const updateDimensions = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
       if (mobile) {
-        // Explicit pixel height so Leaflet measures correctly on all orientations
+        const w = window.innerWidth;
         const h = window.innerHeight - NAV_HEIGHT;
-        setMapHeight(`${h}px`);
+        setMapWidth(w);
+        setMapHeight(h);
+        // Force new MapContainer instance on resize/orientation so Leaflet
+        // measures fresh dimensions — prevents stale offset cache
+        setMapKey(`mobile-${w}x${h}`);
       }
     };
-    checkViewport();
-    window.addEventListener('resize', checkViewport);
-    window.addEventListener('orientationchange', () => setTimeout(checkViewport, 300));
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    const onOrient = () => setTimeout(updateDimensions, 350);
+    window.addEventListener('orientationchange', onOrient);
     return () => {
-      window.removeEventListener('resize', checkViewport);
-      window.removeEventListener('orientationchange', checkViewport);
+      window.removeEventListener('resize', updateDimensions);
+      window.removeEventListener('orientationchange', onOrient);
     };
   }, []);
 
@@ -568,8 +575,9 @@ export default function App() {
               )}
 
               {/* Interactive Leaflet Map — explicit pixel height prevents Leaflet offset bug */}
-              <div style={{ width: '100%', height: mapHeight, touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
+              <div style={{ width: mapWidth || '100%', height: mapHeight || '100%', touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none', flexShrink: 0 }}>
                 <MapView 
+                  key={mapKey}
                   predictions={predictions} 
                   selectedZone={selectedPrediction}
                   onSelectZone={handleSelectZone}
