@@ -259,7 +259,11 @@ function ZoneDetailView({ zone, allZones, onBack }) {
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={timeline.timeline}
+                data={timeline.timeline.map(d => ({
+                  ...d,
+                  // congestion is 0-1 ratio from TomTom raw snapshot — scale to 0-100
+                  traffic_pct: d.congestion != null ? Math.min(100, Math.round(d.congestion * 100)) : null,
+                }))}
                 margin={{ top: 4, right: 8, left: -28, bottom: 0 }}
               >
                 <XAxis
@@ -293,7 +297,7 @@ function ZoneDetailView({ zone, allZones, onBack }) {
                   <Line type="monotone" dataKey="weather_score" stroke="#3b82f6" strokeWidth={2} dot={false} activeDot={false} connectNulls={true} name="Humidity %" />
                 )}
                 {timeline.timeline.some(t => t.congestion != null) && (
-                  <Line type="monotone" dataKey="congestion" stroke="#f97316" strokeWidth={2} dot={false} activeDot={false} connectNulls={true} name="Traffic" />
+                  <Line type="monotone" dataKey="traffic_pct" stroke="#f97316" strokeWidth={2} dot={false} activeDot={false} connectNulls={true} name="Traffic %" />
                 )}
               </LineChart>
             </ResponsiveContainer>
