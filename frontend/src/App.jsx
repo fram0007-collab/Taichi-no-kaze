@@ -9,9 +9,28 @@ import AdminDashboard from './components/AdminDashboard';
 import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity } from 'lucide-react';
 import { getApiUrl } from './utils/getApiUrl';
 import Dashboard from './components/Dashboard';
+import NotificationPreferences from './components/NotificationPreferences';
 import { calculateDistanceKm } from './utils/haversine';
+import {
+  getExistingPushSubscription,
+  registerServiceWorker,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from './utils/pushNotifications';
 
 const API_URL = getApiUrl();
+const NOTIFICATION_PREFERENCES_KEY = 'notificationPreferences';
+const DEFAULT_NOTIFICATION_PREFERENCES = {
+  enabled: false,
+  radiusKm: 5,
+  types: {
+    traffic: true,
+    weather: true,
+    flood: true,
+    crowd: true,
+    earthquake: true,
+  },
+};
 
 export default function App() {
   const { predictions, loading, error, isFallback, refresh } = usePredictions();
@@ -222,8 +241,121 @@ export default function App() {
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'light';
   });
+
+  const [notificationPreferences, setNotificationPreferences] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem(NOTIFICATION_PREFERENCES_KEY);
+      if (!raw) return DEFAULT_NOTIFICATION_PREFERENCES;
+      const parsed = JSON.parse(raw);
+      return {
+        ...DEFAULT_NOTIFICATION_PREFERENCES,
+        ...parsed,
+        types: {
+          ...DEFAULT_NOTIFICATION_PREFERENCES.types,
+          ...(parsed.types || {}),
+        },
+      };
+    } catch {
+      return DEFAULT_NOTIFICATION_PREFERENCES;
+    }
+  });
+  const [showNotificationPreferences, setShowNotificationPreferences] = useState(false);
+  const [alertPreview, setAlertPreview] = useState(null);
+  const [alertPreviewLoading, setAlertPreviewLoading] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+    return window.Notification.permission;
+  });
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [pushSubscriptionActive, setPushSubscriptionActive] = useState(false);
+  const [pushStatus, setPushStatus] = useState('idle');
+  const [pushStatusMessage, setPushStatusMessage] = useState('');
+  const [pendingDeepLink, setPendingDeepLink] = useState(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [mobileTab, setMobileTab] = useState('map'); // 'map', 'feed', 'settings'
+
+  useEffect(() => {
+    let active = true;
+
+    const syncPushStatus = async () => {
+      if (typeof window === 'undefined' || !('Notification' in window)) {
+        if (active) {
+          setPushStatus('unsupported');
+          setPushStatusMessage('Browser notifications are not supported on this device.');
+        }
+        return;
+      }
+
+      try {
+        const registration = await registerServiceWorker();
+        if (!active) return;
+
+        if (!registration) {
+          setPushStatus('unsupported');
+          setPushStatusMessage('The service worker could not be registered.');
+          return;
+        }
+
+        const existingSubscription = await getExistingPushSubscription();
+        if (!active) return;
+
+        if (existingSubscription) {
+          setPushSubscriptionActive(true);
+          setPushStatus('active');
+          setPushStatusMessage('Push alerts are enabled and your browser subscription is active.');
+        } else {
+          setPushSubscriptionActive(false);
+          setPushStatus(notificationPreferences.enabled ? 'ready' : 'idle');
+          setPushStatusMessage(notificationPreferences.enabled
+            ? 'Browser permission is on, but the push subscription has not been set up yet.'
+            : 'Push subscriptions are not active yet.');
+        }
+      } catch (error) {
+        if (active) {
+          setPushStatus('failed');
+          setPushStatusMessage(error.message || 'Push setup could not be completed.');
+        }
+      }
+    };
+
+    syncPushStatus();
+    return () => {
+      active = false;
+    };
+  }, [notificationPreferences.enabled]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const alertId = params.get('alert_id');
+    const zoneId = params.get('zone_id');
+    if (!alertId && !zoneId) {
+      setPendingDeepLink(null);
+      return;
+    }
+    setPendingDeepLink({ alertId, zoneId });
+  }, []);
+
+  useEffect(() => {
+    if (!pendingDeepLink || loading) return;
+
+    const targetZoneId = pendingDeepLink.zoneId;
+    const match = predictions.find((prediction) => {
+      const candidateIds = [
+        prediction?.zone?.id,
+        prediction?.zone?.zone_id,
+        prediction?.id,
+        prediction?.alert_id,
+      ];
+      return candidateIds.some((id) => String(id) === String(targetZoneId));
+    });
+
+    if (match) {
+      setSelectedPrediction(match);
+      setView('map');
+      setPendingDeepLink(null);
+    }
+  }, [pendingDeepLink, predictions, loading]);
 
   // Sync theme selection to document element classes
   useEffect(() => {
@@ -237,6 +369,155 @@ export default function App() {
       root.classList.remove('light-mode');
     }
   }, [theme]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(NOTIFICATION_PREFERENCES_KEY, JSON.stringify(notificationPreferences));
+    } catch {
+      // ignore storage failures
+    }
+  }, [notificationPreferences]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+    setNotificationPermission(window.Notification.permission);
+    if (notificationPreferences.enabled && window.Notification.permission !== 'granted') {
+      setNotificationMessage('Saved locally. Allow browser notifications to receive alerts.');
+      setPushStatus('pending');
+      setPushStatusMessage('Enable browser permission to complete push setup.');
+    }
+  }, [notificationPreferences.enabled]);
+
+  useEffect(() => {
+    if (!showNotificationPreferences) {
+      setAlertPreview(null);
+      return;
+    }
+
+    const selectedType = Object.entries(notificationPreferences.types).find(([, enabled]) => enabled)?.[0] || 'traffic';
+    const previewAlert = {
+      alert_id: 999,
+      disruption_type: selectedType,
+      severity: 'HIGH',
+      zone_name: 'Pondok Aren',
+      distance_km: 3.2,
+      current_speed: 18,
+      normal_speed: 42,
+      congestion_level: 'heavy',
+      weather_type: 'Heavy rain',
+      rainfall_intensity_mm: 16,
+      wind_speed_kmh: 27,
+      humidity_pct: 82,
+      weather_risk_level: 'MEDIUM',
+      water_level_cm: 180,
+      river_name: 'Ciliwung',
+      alert_level: 'Siaga 3',
+      magnitude: 4.8,
+      location: 'Pondok Aren',
+      impact_radius_km: 8,
+      event_time: '2026-07-10T12:30:00Z',
+    };
+
+    let active = true;
+    setAlertPreviewLoading(true);
+    fetch(`${API_URL}/alerts/notification-preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        alert: previewAlert,
+        preferences: notificationPreferences,
+        safe_areas: [{ name: 'RS Jakarta Medical Center', distance_km: 1.4, category: 'hospital' }],
+      }),
+    })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (active) setAlertPreview(data);
+      })
+      .catch(() => {
+        if (active) setAlertPreview(null);
+      })
+      .finally(() => {
+        if (active) setAlertPreviewLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [showNotificationPreferences, notificationPreferences.enabled, notificationPreferences.radiusKm, notificationPreferences.types, API_URL]);
+
+  const handleNotificationToggle = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotificationMessage('This browser does not support web notifications.');
+      setNotificationPermission('unsupported');
+      setNotificationPreferences(prev => ({ ...prev, enabled: false }));
+      setPushStatus('unsupported');
+      setPushStatusMessage('Browser notifications are not supported on this device.');
+      return;
+    }
+
+    if (notificationPreferences.enabled) {
+      try {
+        const unsubscribed = await unsubscribeFromPush(API_URL);
+        setPushSubscriptionActive(false);
+        setPushStatus(unsubscribed ? 'inactive' : 'failed');
+        setPushStatusMessage(unsubscribed ? 'Push alerts turned off for this browser.' : 'Unable to disable push alerts right now.');
+      } catch (error) {
+        setPushStatus('failed');
+        setPushStatusMessage(error.message || 'Unable to disable push alerts right now.');
+      }
+
+      setNotificationPreferences(prev => ({ ...prev, enabled: false }));
+      setNotificationMessage('Push alerts turned off for this browser.');
+      return;
+    }
+
+    if (window.Notification.permission === 'denied') {
+      setNotificationPreferences(prev => ({ ...prev, enabled: false }));
+      setNotificationPermission('denied');
+      setNotificationMessage('Browser notifications are blocked. Please allow them in your browser settings.');
+      setPushStatus('blocked');
+      setPushStatusMessage('Browser notifications are blocked. Please allow them in your browser settings.');
+      return;
+    }
+
+    try {
+      const permission = window.Notification.permission === 'granted' ? 'granted' : await window.Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission === 'granted') {
+        try {
+          const subscription = await subscribeToPush(
+            import.meta.env.VITE_VAPID_PUBLIC_KEY || '',
+            API_URL,
+            notificationPreferences,
+          );
+          setPushSubscriptionActive(Boolean(subscription));
+          setPushStatus('active');
+          setPushStatusMessage('Push alerts are enabled and your browser subscription is active.');
+          setNotificationPreferences(prev => ({ ...prev, enabled: true }));
+          setNotificationMessage('Notifications enabled. Browser alerts can now appear when available.');
+        } catch (error) {
+          setPushSubscriptionActive(false);
+          setPushStatus('failed');
+          setPushStatusMessage(error.message || 'Unable to enable push alerts right now.');
+          setNotificationPreferences(prev => ({ ...prev, enabled: false }));
+          setNotificationMessage('Unable to enable push alerts right now.');
+        }
+      } else {
+        setNotificationPreferences(prev => ({ ...prev, enabled: false }));
+        setNotificationMessage('Notification permission was not granted.');
+        setPushStatus('pending');
+        setPushStatusMessage('Browser permission is still required to receive push alerts.');
+      }
+    } catch {
+      setNotificationPreferences(prev => ({ ...prev, enabled: false }));
+      setNotificationMessage('Unable to request notification permission right now.');
+      setPushStatus('failed');
+      setPushStatusMessage('Unable to request notification permission right now.');
+    }
+  };
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -500,6 +781,15 @@ export default function App() {
                 <span>📊 Dashboard</span>
               </button>
 
+              <button
+                onClick={() => setShowNotificationPreferences(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all text-xs font-semibold"
+                title="Notification preferences"
+              >
+                <Bell className="w-4 h-4 text-indigo-400" />
+                <span>Alerts</span>
+              </button>
+
               <button 
                 onClick={handlePollTelemetry}
                 className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all text-xs font-semibold"
@@ -525,6 +815,43 @@ export default function App() {
           )}
         </div>
       </header>
+
+      {showNotificationPreferences && (
+        <div
+          className="fixed inset-0 z-[999] overflow-y-auto bg-black/40 backdrop-blur-sm p-3 sm:p-4 md:p-6"
+          onClick={() => setShowNotificationPreferences(false)}
+        >
+          <div className="mx-auto flex min-h-full w-full max-w-lg items-center justify-center py-4 sm:items-start sm:justify-end sm:py-6">
+            <div
+              className={`w-full max-h-[90vh] overflow-hidden rounded-[28px] border shadow-2xl ${theme === 'dark' ? 'border-slate-800 bg-slate-950/95 text-slate-100' : 'border-slate-200 bg-white/95 text-slate-900'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <NotificationPreferences
+                preferences={notificationPreferences}
+                onToggleEnabled={handleNotificationToggle}
+                onRadiusChange={(value) => setNotificationPreferences(prev => ({ ...prev, radiusKm: value }))}
+                onToggleType={(type) => setNotificationPreferences(prev => ({
+                  ...prev,
+                  types: {
+                    ...prev.types,
+                    [type]: !prev.types[type],
+                  },
+                }))}
+                onClose={() => setShowNotificationPreferences(false)}
+                permissionStatus={notificationPermission}
+                message={notificationMessage}
+                messageTone={notificationMessage.includes('blocked') || notificationMessage.includes('not granted') || notificationMessage.includes('does not support') ? 'error' : notificationMessage.includes('enabled') || notificationMessage.includes('can now appear') ? 'success' : 'info'}
+                pushStatus={pushStatus}
+                pushStatusMessage={pushStatusMessage}
+                pushSubscriptionActive={pushSubscriptionActive}
+                previewPayload={alertPreview}
+                previewLoading={alertPreviewLoading}
+                theme={theme}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Layout Area */}
       {view === 'admin' ? (
@@ -752,6 +1079,29 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              <NotificationPreferences
+                preferences={notificationPreferences}
+                onToggleEnabled={handleNotificationToggle}
+                onRadiusChange={(value) => setNotificationPreferences(prev => ({ ...prev, radiusKm: value }))}
+                onToggleType={(type) => setNotificationPreferences(prev => ({
+                  ...prev,
+                  types: {
+                    ...prev.types,
+                    [type]: !prev.types[type],
+                  },
+                }))}
+                isEmbedded
+                permissionStatus={notificationPermission}
+                message={notificationMessage}
+                messageTone={notificationMessage.includes('blocked') || notificationMessage.includes('not granted') || notificationMessage.includes('does not support') ? 'error' : notificationMessage.includes('enabled') || notificationMessage.includes('can now appear') ? 'success' : 'info'}
+                pushStatus={pushStatus}
+                pushStatusMessage={pushStatusMessage}
+                pushSubscriptionActive={pushSubscriptionActive}
+                previewPayload={alertPreview}
+                previewLoading={alertPreviewLoading}
+                theme={theme}
+              />
 
               {/* Waterway Buffer Configuration (Mobile settings block) */}
               <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-4">

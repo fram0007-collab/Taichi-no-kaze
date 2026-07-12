@@ -34,6 +34,26 @@ from models import (
     JabodetabekWaterway, PoiCrowdStatus,
 )
 
+try:
+    from .alert_notifications import build_alert_notification_payload
+except ImportError:  # pragma: no cover - allows direct script execution
+    from alert_notifications import build_alert_notification_payload
+
+try:
+    from .push_notifications import (
+        build_push_payload,
+        remove_subscription,
+        save_subscription,
+        send_push_notification,
+    )
+except ImportError:  # pragma: no cover - allows direct script execution
+    from push_notifications import (
+        build_push_payload,
+        remove_subscription,
+        save_subscription,
+        send_push_notification,
+    )
+
 # ── Logging ─────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("backend")
@@ -192,6 +212,69 @@ async def stats_refresh_loop():
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "db": "neon-postgresql"}
+
+
+@app.post("/alerts/notification-preview")
+async def alert_notification_preview(payload: dict[str, Any]):
+    alert = payload.get("alert") or {}
+    preferences = payload.get("preferences") or {}
+    safe_areas = payload.get("safe_areas") or []
+    return build_alert_notification_payload(alert, preferences, safe_areas=safe_areas)
+
+
+@app.post("/push/subscribe")
+async def push_subscribe(payload: dict[str, Any]):
+    subscription_payload = payload.get("subscription") or payload
+    preferences = payload.get("preferences") or {}
+
+    if not isinstance(subscription_payload, dict):
+        raise HTTPException(status_code=400, detail="A subscription payload is required.")
+
+    saved = save_subscription(subscription_payload, preferences=preferences)
+    if not saved:
+        raise HTTPException(status_code=400, detail="Unable to save push subscription.")
+
+    return {"ok": True, "subscription": saved}
+
+
+@app.post("/push/unsubscribe")
+async def push_unsubscribe(payload: dict[str, Any]):
+    subscription_payload = payload.get("subscription") if isinstance(payload.get("subscription"), dict) else payload
+    removed = remove_subscription(subscription_payload)
+    return {"ok": True, "removed": removed}
+
+
+@app.post("/push/test")
+async def push_test(payload: dict[str, Any]):
+    subscription_payload = payload.get("subscription") or payload
+    preferences = payload.get("preferences") or {}
+
+    if not isinstance(subscription_payload, dict):
+        raise HTTPException(status_code=400, detail="A subscription payload is required.")
+
+    saved_subscription = save_subscription(subscription_payload, preferences=preferences)
+    if not saved_subscription:
+        raise HTTPException(status_code=400, detail="Unable to save push subscription.")
+
+    test_alert = {
+        "alert_id": 999,
+        "zone_id": 1,
+        "disruption_type": "flood",
+        "severity": "HIGH",
+        "zone_name": "Pondok Aren",
+        "distance_km": 3.2,
+        "water_level_cm": 180,
+        "alert_level": "Siaga 3",
+        "river_name": "Ciliwung",
+    }
+    push_payload = build_push_payload(test_alert, preferences=preferences, safe_areas=[{
+        "name": "RS Jakarta Medical Center",
+        "distance_km": 1.4,
+        "category": "hospital",
+    }])
+
+    result = send_push_notification(saved_subscription, push_payload)
+    return {"ok": True, "result": result}
 
 
 # ── Earthquakes ──────────────────────────────────────────────────────────────

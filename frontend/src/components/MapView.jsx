@@ -637,6 +637,40 @@ export default function MapView({
           </div>
         </div>
 
+        {/* Size Legend */}
+        <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">
+          Size Legend
+        </div>
+
+        <div className="space-y-1.5 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full border border-white"></div>
+            <span> Small = Small affected area</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full border border-white"></div>
+            <span>Large = Large affected area</span>
+          </div>
+        </div>
+
+        {/* Density Legend */}
+        <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">
+          Disruption Intensity
+        </div>
+
+        <div className="space-y-1.5 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full bg-[#FF2A2A]"></div>
+            <span>Solid = Strong disruption</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full bg-[#FF2A2A] opacity-30"></div>
+            <span>Faded = Lower disruption</span>
+          </div>
+        </div>
+
       </div>
     </div>
       {/* Floating Layer Toggle Panel */}
