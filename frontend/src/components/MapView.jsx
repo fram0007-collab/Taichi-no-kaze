@@ -317,18 +317,27 @@ function MapSizeInvalidator() {
   useEffect(() => {
     const container = map.getContainer();
 
-    // Multiple delayed calls — catches different layout phases
+    const measure = (label) => {
+      const rect = container.getBoundingClientRect();
+      const size = map.getSize();
+      console.log(`[Leaflet ${label}] container rect:`, 
+        `left=${rect.left.toFixed(0)} top=${rect.top.toFixed(0)}`,
+        `w=${rect.width.toFixed(0)} h=${rect.height.toFixed(0)}`,
+        `| map.getSize(): ${size.x}x${size.y}`
+      );
+      map.invalidateSize({ pan: false });
+    };
+
     const timers = [
-      setTimeout(() => map.invalidateSize({ pan: false }), 50),
-      setTimeout(() => map.invalidateSize({ pan: false }), 200),
-      setTimeout(() => map.invalidateSize({ pan: false }), 500),
+      setTimeout(() => measure('50ms'), 50),
+      setTimeout(() => measure('300ms'), 300),
+      setTimeout(() => measure('800ms'), 800),
     ];
 
-    // ResizeObserver: invalidate whenever container size actually changes
     let ro;
     if (typeof ResizeObserver !== 'undefined') {
       ro = new ResizeObserver(() => {
-        map.invalidateSize({ pan: false });
+        measure('ResizeObserver');
       });
       ro.observe(container);
     }

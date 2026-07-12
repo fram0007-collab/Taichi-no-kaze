@@ -501,7 +501,7 @@ export default function Sidebar({
               <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
                 Analyzing spatial indexes and streaming API updates...
               </div>
-            ) : timelineData && timelineData.timeline ? (
+            ) : timelineData && timelineData.timeline && timelineData.timeline.length > 0 ? (
               <div className="space-y-6 flex-1">
                 {/* Weather Chart */}
                 <div className="h-44 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-3 flex flex-col">
@@ -509,13 +509,10 @@ export default function Sidebar({
                   <div className="flex-1 min-h-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart 
-                        data={timelineData.timeline.map(d => ({
+                        data={timelineData.timeline.filter(d => d.humidity != null || d.rainfall != null).map(d => ({
                           time: formatTime(d.timestamp),
-                          // Backend returns `rainfall` (mm) and `humidity` (%) — there is
-                          // no separate precipitation_probability field. Humidity is the
-                          // closest proxy for "chance of rain" on the left axis.
-                          probability: d.humidity,
-                          rain: d.rainfall
+                          probability: d.humidity ?? null,
+                          rain: d.rainfall ?? null
                         }))}
                         margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
                       >
@@ -553,9 +550,9 @@ export default function Sidebar({
                   <div className="flex-1 min-h-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart 
-                        data={(timelineData?.timeline || []).map(d => ({
+                        data={(timelineData?.timeline || []).filter(d => d.speed != null).map(d => ({
                           time: formatTime(d.timestamp),
-                          speed: d.expected_speed,
+                          speed: d.speed,
                           baseline: selectedPrediction?.zone?.traffic_speed_baseline ?? 0
                         }))}
                         margin={{ top: 5, right: 5, left: -25, bottom: 0 }}

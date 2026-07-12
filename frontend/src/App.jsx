@@ -553,7 +553,7 @@ export default function App() {
         }} />
       ) : isMobile ? (
         // Mobile Layout: Pinned content container + fixed bottom nav bar
-        <main className="flex-1 flex flex-col relative w-full min-h-0" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+        <main className="flex-1 flex flex-col relative w-full min-h-0">
           
           {/* Active View Selector */}
           {mobileTab === 'map' && (

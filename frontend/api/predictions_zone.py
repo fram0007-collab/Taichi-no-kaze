@@ -84,7 +84,7 @@ class handler(BaseHTTPRequestHandler):
                     "congestion": float(t['congestion']) if t and t['congestion'] else None,
                     "rainfall": float(w['rainfall']) if w and w['rainfall'] else None,
                     "humidity": float(w['humidity']) if w and w['humidity'] else None,
-                    "weather_score": float(w['wind_speed']) if w and w['wind_speed'] else None,
+                    "weather_score": float(w['humidity']) if w and w['humidity'] else None,
                     "crowd_score": float(c['crowd_score']) if c and c['crowd_score'] else None,
                 })
 
