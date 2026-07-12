@@ -259,11 +259,43 @@ function ZoneDetailView({ zone, allZones, onBack }) {
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={timeline.timeline.map(d => ({
-                  ...d,
-                  // congestion is 0-1 ratio from TomTom raw snapshot — scale to 0-100
-                  traffic_pct: d.congestion != null ? Math.min(100, Math.round(d.congestion * 100)) : null,
-                }))}
+                data={(() => {
+                  // 1. Normalize congestion 0-1 → 0-100
+                  const pts = timeline.timeline.map(d => ({
+                    ...d,
+                    traffic_pct: d.congestion != null ? Math.min(100, Math.round(d.congestion * 100)) : null,
+                  }));
+
+                  // 2. Forward-fill last known values so lines extend to "now"
+                  //    instead of abruptly stopping when snapshots end
+                  let lastCrowd = null, lastHumidity = null, lastTraffic = null;
+                  const filled = pts.map(d => {
+                    if (d.crowd_score != null) lastCrowd = d.crowd_score;
+                    if (d.weather_score != null) lastHumidity = d.weather_score;
+                    if (d.traffic_pct != null) lastTraffic = d.traffic_pct;
+                    return {
+                      ...d,
+                      crowd_score: d.crowd_score ?? lastCrowd,
+                      weather_score: d.weather_score ?? lastHumidity,
+                      traffic_pct: d.traffic_pct ?? lastTraffic,
+                    };
+                  });
+
+                  // 3. Append a synthetic "now" point if the last timestamp
+                  //    is more than 30 min old, so the line reaches the present
+                  const last = filled[filled.length - 1];
+                  if (last) {
+                    const lastTime = new Date(last.timestamp.endsWith('Z') ? last.timestamp : last.timestamp + 'Z');
+                    const now = new Date();
+                    if (now - lastTime > 30 * 60 * 1000) {
+                      filled.push({
+                        ...last,
+                        timestamp: now.toISOString(),
+                      });
+                    }
+                  }
+                  return filled;
+                })()}
                 margin={{ top: 4, right: 8, left: -28, bottom: 0 }}
               >
                 <XAxis
