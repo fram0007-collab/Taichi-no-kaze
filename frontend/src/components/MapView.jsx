@@ -410,10 +410,12 @@ export default function MapView({
   const [allZones, setAllZones] = useState([]);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState({
+    hospital: false,
+    police: false,
+    university: false,
     mall: false,
+    market: false,
     station: false,
-    unique_building: false,
-    small_business: false,
     waterways: false,
     earthquakes: false,
     safe_zones: true,
@@ -729,10 +731,12 @@ export default function MapView({
           {[
             { id: 'waterways', label: 'Waterways & Canals 🗺️', color: 'text-sky-400' },
             { id: 'earthquakes', label: 'Earthquake Rings 🌋', color: 'text-red-400' },
-            { id: 'mall', label: 'Shopping Malls 🛍️', color: 'text-rose-400' },
-            { id: 'station', label: 'Train Stations 🚆', color: 'text-blue-400' },
-            { id: 'unique_building', label: 'Gov Buildings 🏛️', color: 'text-purple-400' },
-            { id: 'small_business', label: 'UMKM Foods 🍱', color: 'text-amber-400' },
+            { id: 'hospital', label: 'Hospitals 🏥', color: 'text-red-400' },
+            { id: 'police', label: 'Police 🚔', color: 'text-blue-400' },
+            { id: 'university', label: 'Universities 🎓', color: 'text-purple-400' },
+            { id: 'mall', label: 'Malls 🏬', color: 'text-rose-400' },
+            { id: 'market', label: 'Markets 🏪', color: 'text-amber-400' },
+            { id: 'station', label: 'Stations 🚉', color: 'text-green-400' },
             { id: 'safe_zones', label: 'Safe Zones 🛟', color: 'text-emerald-400' },
           ].map(layer => (
             <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">

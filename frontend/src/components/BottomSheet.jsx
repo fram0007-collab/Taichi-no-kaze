@@ -120,7 +120,7 @@ export default function BottomSheet({
 
       {/* Expandable Content Panel */}
       {isOpen && (
-        <div className="w-full overflow-y-auto p-5 space-y-5 scrollbar-thin" style={{ height: "calc(72vh - 3.5rem)" }}>
+        <div className="w-full overflow-y-auto p-5 space-y-5 scrollbar-thin" style={{ height: "calc(72vh - 3.5rem)", paddingBottom: "5rem" }}>
           {/* Metadata Cards */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-slate-950/40 border border-slate-900 rounded-lg p-2.5 flex flex-col justify-center">
