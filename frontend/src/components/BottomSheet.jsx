@@ -89,7 +89,7 @@ export default function BottomSheet({
   return (
     <div 
       className={`fixed bottom-0 left-0 right-0 z-[1000] glass-panel rounded-t-2xl shadow-2xl transition-all duration-300 bottom-sheet-transition ${
-        isOpen ? 'h-[65vh]' : 'h-14'
+        isOpen ? 'h-[85vh]' : 'h-14'
       }`}
     >
       {/* Drawer Drag Handle Bar */}
@@ -120,7 +120,7 @@ export default function BottomSheet({
 
       {/* Expandable Content Panel */}
       {isOpen && (
-        <div className="w-full h-[calc(65vh-3.5rem)] overflow-y-auto p-5 space-y-5 scrollbar-thin">
+        <div className="w-full overflow-y-auto p-5 space-y-5 scrollbar-thin" style={{ height: "calc(85vh - 3.5rem)" }}>
           {/* Metadata Cards */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-slate-950/40 border border-slate-900 rounded-lg p-2.5 flex flex-col justify-center">
@@ -250,15 +250,15 @@ export default function BottomSheet({
               return (
                 <div className="space-y-4">
                   {/* Weather Chart */}
-                  <div className="h-36 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-2.5 flex flex-col">
+                  <div className="h-44 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-2.5 flex flex-col">
                     <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Precipitation & Rain</span>
                     <div className="flex-1 min-h-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart 
-                          data={timelineData.timeline.map(d => ({
+                          data={timelineData.timeline.filter(d => d.humidity != null || d.rainfall != null).map(d => ({
                             time: formatTime(d.timestamp),
-                            probability: d.humidity,
-                            rain: d.rainfall
+                            probability: d.humidity ?? null,
+                            rain: d.rainfall ?? null
                           }))}
                           margin={{ top: 5, right: -5, left: -35, bottom: 0 }}
                         >
@@ -288,15 +288,15 @@ export default function BottomSheet({
                   </div>
 
                   {/* Speed Line Chart */}
-                  <div className="h-36 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-2.5 flex flex-col">
+                  <div className="h-44 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-2.5 flex flex-col">
                     <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Speed Degradation Curve</span>
                     <div className="flex-1 min-h-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart 
-                          data={timelineData.timeline.map(d => ({
+                          data={timelineData.timeline.filter(d => d.speed != null).map(d => ({
                             time: formatTime(d.timestamp),
                             speed: d.speed,
-                            baseline: selectedPrediction.zone.traffic_speed_baseline
+                            baseline: selectedPrediction.zone.traffic_speed_baseline ?? 40
                           }))}
                           margin={{ top: 5, right: 0, left: -35, bottom: 0 }}
                         >
@@ -307,8 +307,8 @@ export default function BottomSheet({
                             labelStyle={{ color: '#e2e8f0', fontSize: '9px', fontWeight: 'bold' }}
                             itemStyle={{ fontSize: '9px' }}
                           />
-                          <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2} dot={{ r: 1 }} name="Expected Speed" />
-                          <Line type="dashed" dataKey="baseline" stroke="#64748b" strokeWidth={1} strokeDasharray="3 3" dot={false} name="Baseline" />
+                          <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2} dot={false} connectNulls={true} name="Expected Speed" />
+                          <Line type="monotone" dataKey="baseline" stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls={true} name="Baseline" />
                           {nowLabel && (
                             <ReferenceLine 
                               x={nowLabel} 

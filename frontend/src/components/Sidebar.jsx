@@ -564,8 +564,8 @@ export default function Sidebar({
                           labelStyle={{ color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
                           itemStyle={{ fontSize: '10px' }}
                         />
-                        <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2.5} activeDot={{ r: 4 }} name="Expected Speed" />
-                        <Line type="dashed" dataKey="baseline" stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Baseline Speed" />
+                        <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2.5} dot={false} connectNulls={true} activeDot={{ r: 4 }} name="Expected Speed" />
+                        <Line type="monotone" dataKey="baseline" stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls={true} name="Baseline Speed" />
                         {nowLabel && (
                           <ReferenceLine 
                             x={nowLabel} 
