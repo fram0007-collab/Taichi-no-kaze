@@ -71,13 +71,18 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
   if (!time || conf === 0) return null;
 
   const { text } = confColor(conf);
+  const uncertain = conf < 60;
 
   return (
     <div className={`flex items-center gap-1.5 text-[10px] ${text}`}>
       <span>🕐</span>
       <span>
-        Est. clear <span className="font-bold">{time}</span>
-        <span className="opacity-70 ml-1">({conf}% confidence)</span>
+        Est. clear{' '}
+        <span className="font-bold">
+          {uncertain ? 'Estimate uncertain' : time}
+        </span>
+        {!uncertain && <span className="opacity-70 ml-1">({conf}% confidence)</span>}
+        {uncertain && <span className="opacity-70 ml-1">(confidence &lt;60%)</span>}
       </span>
     </div>
   );
@@ -110,7 +115,9 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
           <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
             Estimated Resolution
           </p>
-          <p className={`font-bold text-sm ${text}`}>{time}</p>
+          <p className={`font-bold text-sm ${text}`}>
+            {conf < 60 ? 'Estimate uncertain' : time}
+          </p>
         </div>
       </div>
 
@@ -126,6 +133,11 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
             style={{ width: `${conf}%` }}
           />
         </div>
+        {conf < 60 && (
+          <p className="text-[9px] text-slate-500 mt-1 italic">
+            Confidence below 60% — specific timestamp suppressed to avoid false precision.
+          </p>
+        )}
       </div>
 
       <p className="text-[10px] text-slate-500 leading-relaxed">{disclaimer}</p>
