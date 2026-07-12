@@ -42,6 +42,9 @@ export default function App() {
   const [timelineData, setTimelineData] = useState(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [mapHeight, setMapHeight] = useState(0);
+  const [mapWidth, setMapWidth] = useState(0);
+  const [mapKey, setMapKey] = useState('mobile-0');
   const [selectedHours, setSelectedHours] = useState(12);
 
   // User location state
@@ -525,12 +528,28 @@ export default function App() {
 
   // 1. Detect screen size dynamically for responsive switching
   useEffect(() => {
-    const checkViewport = () => {
-      setIsMobile(window.innerWidth < 768);
+    const NAV_HEIGHT = 64; // 4rem bottom nav
+    const updateDimensions = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        const w = window.innerWidth;
+        const h = window.innerHeight - NAV_HEIGHT;
+        setMapWidth(w);
+        setMapHeight(h);
+        // Force new MapContainer instance on resize/orientation so Leaflet
+        // measures fresh dimensions — prevents stale offset cache
+        setMapKey(`mobile-${w}x${h}`);
+      }
     };
-    checkViewport();
-    window.addEventListener('resize', checkViewport);
-    return () => window.removeEventListener('resize', checkViewport);
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    const onOrient = () => setTimeout(updateDimensions, 350);
+    window.addEventListener('orientationchange', onOrient);
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+      window.removeEventListener('orientationchange', onOrient);
+    };
   }, []);
 
   // 2. Clear selected prediction if it was an active warning and is no longer in the updated active list
@@ -861,11 +880,11 @@ export default function App() {
         }} />
       ) : isMobile ? (
         // Mobile Layout: Pinned content container + fixed bottom nav bar
-        <main className="flex-1 flex flex-col relative w-full min-h-0" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+        <main className="flex-1 flex flex-col relative w-full min-h-0">
           
           {/* Active View Selector */}
           {mobileTab === 'map' && (
-            <div className="flex-1 relative w-full min-h-0 flex flex-col">
+            <div className="flex flex-col w-full" style={{ height: mapHeight }}>
               {/* Status Overlay Banner for Mobile fallbacks */}
               {isFallback && (
                 <div className="absolute top-4 left-4 right-4 z-[999] glass-panel px-3 py-2 rounded-xl flex items-center justify-between border border-amber-500/20 text-amber-400 text-xs">
@@ -882,9 +901,10 @@ export default function App() {
                 </div>
               )}
 
-              {/* Interactive Leaflet Map */}
-              <div className="flex-1 w-full min-h-0" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
+              {/* Interactive Leaflet Map — explicit pixel height prevents Leaflet offset bug */}
+              <div style={{ width: mapWidth || '100%', height: mapHeight || '100%', touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none', flexShrink: 0 }}>
                 <MapView 
+                  key={mapKey}
                   predictions={predictions} 
                   selectedZone={selectedPrediction}
                   onSelectZone={handleSelectZone}
@@ -915,9 +935,9 @@ export default function App() {
                 setSelectedHours={setSelectedHours}
               />
 
-              {/* Evacuation guidance trigger — shown when threats exist in radius */}
+              {/* Evacuation guidance trigger */}
               {filteredPredictions.length > 0 && !showEvacuation && (
-                <div className="px-3 pb-3 shrink-0">
+                <div className="px-3 py-2 shrink-0">
                   <button
                     onClick={() => setShowEvacuation(true)}
                     className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
@@ -930,7 +950,7 @@ export default function App() {
 
               {/* Evacuation panel */}
               {showEvacuation && (
-                <div className="flex-1 overflow-hidden border-t border-slate-800">
+                <div className="w-full overflow-hidden border-t border-slate-800" style={{ height: mapHeight }}>
                   <EvacuationPanel
                     userLocation={userLocation}
                     predictions={filteredPredictions}
@@ -953,7 +973,7 @@ export default function App() {
           )}
 
           {mobileTab === 'feed' && (
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-brand-dark text-slate-100 scrollbar-thin">
+            <div className="overflow-y-auto p-4 space-y-4 bg-brand-dark text-slate-100 scrollbar-thin" style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}>
               <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                 <div className="flex items-center space-x-2">
                   <Bell className="w-5 h-5 text-indigo-400" />
@@ -1045,7 +1065,7 @@ export default function App() {
           )}
 
           {mobileTab === 'settings' && (
-            <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-brand-dark text-slate-100 scrollbar-thin">
+            <div className="overflow-y-auto p-5 space-y-6 bg-brand-dark text-slate-100 scrollbar-thin" style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}>
               <div className="flex items-center space-x-2 pb-2 border-b border-slate-800">
                 <Settings className="w-5 h-5 text-indigo-400" />
                 <h2 className="text-base font-bold text-slate-200">Mobile Command Center</h2>

@@ -1,0 +1,48 @@
+{
+  "name": "DIS-RUPTURE Early Warning",
+  "short_name": "DIS-RUPTURE",
+  "description": "Predictive Early Warning Command Center for Jabodetabek disruptions",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0f1e",
+  "theme_color": "#6366f1",
+  "categories": ["utilities", "emergency", "navigation"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icons/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "DIS-RUPTURE Mobile View"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Live Feed",
+      "short_name": "Feed",
+      "description": "View active threat alerts",
+      "url": "/?tab=feed",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

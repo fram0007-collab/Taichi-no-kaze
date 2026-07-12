@@ -301,16 +301,53 @@ function MapClickListener({ onClearSelectedEarthquake }) {
 
 /**
  * Fixes the Leaflet "only responds in bottom-left corner" bug on mobile.
- * Caused by the map not knowing its actual container size after flexbox layout.
- * invalidateSize() forces Leaflet to recalculate.
+ *
+ * Root cause: Leaflet caches the map container's page offset (offsetTop/Left)
+ * at init time. On mobile with flexbox layouts, the container settles AFTER
+ * Leaflet has already cached wrong values. Touch events are then mapped to
+ * wrong coordinates — only the top-left region (where offset≈0) works.
+ *
+ * Fix: Use ResizeObserver to detect when the container actually gets its
+ * real size, then call invalidateSize() to force Leaflet to remeasure.
+ * Also call on multiple delays as a safety net.
  */
 function MapSizeInvalidator() {
   const map = useMap();
+
   useEffect(() => {
-    // Small delay lets the flex layout settle before measuring
-    const t = setTimeout(() => map.invalidateSize(), 100);
-    return () => clearTimeout(t);
+    const container = map.getContainer();
+
+    const measure = (label) => {
+      const rect = container.getBoundingClientRect();
+      const size = map.getSize();
+      console.log(`[Leaflet ${label}] container rect:`, 
+        `left=${rect.left.toFixed(0)} top=${rect.top.toFixed(0)}`,
+        `w=${rect.width.toFixed(0)} h=${rect.height.toFixed(0)}`,
+        `| map.getSize(): ${size.x}x${size.y}`
+      );
+      map.invalidateSize({ pan: false });
+    };
+
+    const timers = [
+      setTimeout(() => measure('50ms'), 50),
+      setTimeout(() => measure('300ms'), 300),
+      setTimeout(() => measure('800ms'), 800),
+    ];
+
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => {
+        measure('ResizeObserver');
+      });
+      ro.observe(container);
+    }
+
+    return () => {
+      timers.forEach(clearTimeout);
+      if (ro) ro.disconnect();
+    };
   }, [map]);
+
   return null;
 }
 
@@ -373,10 +410,12 @@ export default function MapView({
   const [allZones, setAllZones] = useState([]);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState({
+    hospital: false,
+    police: false,
+    university: false,
     mall: false,
+    market: false,
     station: false,
-    unique_building: false,
-    small_business: false,
     waterways: false,
     earthquakes: false,
     safe_zones: true,
@@ -674,17 +713,19 @@ export default function MapView({
       </div>
     </div>
       {/* Floating Layer Toggle Panel */}
-      <div className="absolute top-6 right-6 z-[999] pointer-events-auto">
+      {/* pointer-events-none on container prevents the invisible panel from
+           intercepting touches on the right half of the map on mobile */}
+      <div className="absolute top-6 right-6 z-[999] pointer-events-none">
  
   <button
     onClick={() => setShowLayerPanel(!showLayerPanel)}
-    className="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all font-bold"
+    className="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all font-bold pointer-events-auto"
   >
     ⚙️ Layers
   </button>
  
   <div
-    className={`glass-panel mt-2 p-2.5 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-1 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0 pointer-events-none'}`}
+    className={`glass-panel mt-2 p-2.5 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-1 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-6 opacity-0 pointer-events-none'}`}
     aria-hidden={!showLayerPanel}
   >
     <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
@@ -724,10 +765,12 @@ export default function MapView({
           {[
             { id: 'waterways', label: 'Waterways & Canals 🗺️', color: 'text-sky-400' },
             { id: 'earthquakes', label: 'Earthquake Rings 🌋', color: 'text-red-400' },
-            { id: 'mall', label: 'Shopping Malls 🛍️', color: 'text-rose-400' },
-            { id: 'station', label: 'Train Stations 🚆', color: 'text-blue-400' },
-            { id: 'unique_building', label: 'Gov Buildings 🏛️', color: 'text-purple-400' },
-            { id: 'small_business', label: 'UMKM Foods 🍱', color: 'text-amber-400' },
+            { id: 'hospital', label: 'Hospitals 🏥', color: 'text-red-400' },
+            { id: 'police', label: 'Police 🚔', color: 'text-blue-400' },
+            { id: 'university', label: 'Universities 🎓', color: 'text-purple-400' },
+            { id: 'mall', label: 'Malls 🏬', color: 'text-rose-400' },
+            { id: 'market', label: 'Markets 🏪', color: 'text-amber-400' },
+            { id: 'station', label: 'Stations 🚉', color: 'text-green-400' },
             { id: 'safe_zones', label: 'Safe Zones 🛟', color: 'text-emerald-400' },
           ].map(layer => (
             <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">

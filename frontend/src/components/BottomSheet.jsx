@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getApiUrl } from '../utils/getApiUrl';
+import { calculateDistanceKm } from '../utils/haversine';
 import { 
    ResponsiveContainer, 
    ComposedChart, 
@@ -23,6 +25,26 @@ export default function BottomSheet({
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const [poiFilter, setPoiFilter] = useState('all');
+  const [globalPois, setGlobalPois] = useState([]);
+
+  useEffect(() => {
+    fetch(`${getApiUrl()}/pois`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setGlobalPois(data))
+      .catch(() => {});
+  }, []);
+
+  const nearbyPois = useMemo(() => {
+    if (!selectedPrediction?.zone || globalPois.length === 0) return [];
+    const z = selectedPrediction.zone;
+    const lat = z.latitude;
+    const lon = z.longitude;
+    if (!lat || !lon) return [];
+    const radiusKm = ((z.radius_m ?? 1000) + 500) / 1000;
+    return globalPois.filter(poi =>
+      calculateDistanceKm(lat, lon, poi.lat, poi.lon) <= radiusKm
+    );
+  }, [selectedPrediction, globalPois]);
 
   if (!selectedPrediction) return null;
 
@@ -50,21 +72,24 @@ export default function BottomSheet({
     switch (category) {
       case 'mall': return <ShoppingBag className="w-3.5 h-3.5 text-pink-400" />;
       case 'station': return <Train className="w-3.5 h-3.5 text-blue-400" />;
+      case 'hospital':        return <span className="text-sm">🏥</span>;
+      case 'police':          return <span className="text-sm">🚔</span>;
+      case 'university':      return <span className="text-sm">🎓</span>;
+      case 'market':          return <Store className="w-3.5 h-3.5 text-amber-400" />;
       case 'unique_building': return <Building className="w-3.5 h-3.5 text-purple-400" />;
-      case 'small_business': return <Store className="w-3.5 h-3.5 text-amber-400" />;
+      case 'small_business':  return <Store className="w-3.5 h-3.5 text-amber-400" />;
       default: return <MapPin className="w-3.5 h-3.5 text-indigo-400" />;
     }
   };
 
-  const filteredPois = selectedPrediction?.zone?.pois?.filter(poi => {
-    if (poiFilter === 'all') return true;
-    return poi.category === poiFilter;
-  }) || [];
+  const filteredPois = poiFilter === 'all'
+    ? nearbyPois
+    : nearbyPois.filter(poi => poi.category === poiFilter);
 
   return (
     <div 
       className={`fixed bottom-0 left-0 right-0 z-[1000] glass-panel rounded-t-2xl shadow-2xl transition-all duration-300 bottom-sheet-transition ${
-        isOpen ? 'h-[65vh]' : 'h-14'
+        isOpen ? 'h-[72vh]' : 'h-14'
       }`}
     >
       {/* Drawer Drag Handle Bar */}
@@ -95,7 +120,7 @@ export default function BottomSheet({
 
       {/* Expandable Content Panel */}
       {isOpen && (
-        <div className="w-full h-[calc(65vh-3.5rem)] overflow-y-auto p-5 space-y-5 scrollbar-thin">
+        <div className="w-full overflow-y-auto p-5 space-y-5 scrollbar-thin" style={{ height: "calc(72vh - 3.5rem)", paddingBottom: "5rem" }}>
           {/* Metadata Cards */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-slate-950/40 border border-slate-900 rounded-lg p-2.5 flex flex-col justify-center">
@@ -119,10 +144,11 @@ export default function BottomSheet({
             <div className="flex flex-wrap gap-1">
               {[
                 { id: 'all', label: 'All' },
-                { id: 'mall', label: 'Malls' },
-                { id: 'station', label: 'Stations' },
-                { id: 'unique_building', label: 'Gov' },
-                { id: 'small_business', label: 'UMKM' }
+                { id: 'hospital', label: '🏥' },
+                { id: 'police', label: '🚔' },
+                { id: 'university', label: '🎓' },
+                { id: 'mall', label: '🏬' },
+                { id: 'station', label: '🚉' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -139,17 +165,44 @@ export default function BottomSheet({
             </div>
 
             {/* POI Scroll Container */}
-            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1">
               {filteredPois.length > 0 ? (
                 filteredPois.map((poi, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
-                    <div className="flex items-center space-x-2 min-w-0">
-                      {getPoiIcon(poi.category)}
-                      <span className="font-semibold text-slate-200 truncate">{poi.name}</span>
+                  <div key={idx} className="p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        {getPoiIcon(poi.category)}
+                        <span className="font-semibold text-slate-200 truncate">{poi.name}</span>
+                      </div>
+                      <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950/60 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                        {poi.category.replace('_', ' ')}
+                      </span>
                     </div>
-                    <span className="text-[8px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950/60 px-1 py-0.5 rounded">
-                      {poi.category.replace('_', ' ')}
-                    </span>
+                    {poi.crowd_score != null ? (
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[9px] text-slate-500 font-semibold">👥 Crowd</span>
+                          <span className={`text-[9px] font-bold ${
+                            poi.crowd_score >= 65 ? 'text-red-400' :
+                            poi.crowd_score >= 35 ? 'text-amber-400' : 'text-emerald-400'
+                          }`}>
+                            {poi.crowd_score >= 65 ? 'High' : poi.crowd_score >= 35 ? 'Moderate' : 'Low'}
+                            <span className="font-normal text-slate-500 ml-1">({Math.round(poi.crowd_score)})</span>
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
+                          <div
+                            className={`h-1 rounded-full transition-all ${
+                              poi.crowd_score >= 65 ? 'bg-red-500' :
+                              poi.crowd_score >= 35 ? 'bg-amber-400' : 'bg-emerald-400'
+                            }`}
+                            style={{ width: `${Math.min(100, poi.crowd_score)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[9px] text-slate-600">No crowd data</span>
+                    )}
                   </div>
                 ))
               ) : (
@@ -202,10 +255,10 @@ export default function BottomSheet({
                     <div className="flex-1 min-h-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart 
-                          data={timelineData.timeline.map(d => ({
+                          data={timelineData.timeline.filter(d => d.humidity != null || d.rainfall != null).map(d => ({
                             time: formatTime(d.timestamp),
-                            probability: d.precipitation_probability,
-                            rain: d.rain_accumulation
+                            probability: d.humidity ?? null,
+                            rain: d.rainfall ?? null
                           }))}
                           margin={{ top: 5, right: -5, left: -35, bottom: 0 }}
                         >
@@ -240,10 +293,9 @@ export default function BottomSheet({
                     <div className="flex-1 min-h-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart 
-                          data={timelineData.timeline.map(d => ({
+                          data={timelineData.timeline.filter(d => d.speed != null).map(d => ({
                             time: formatTime(d.timestamp),
-                            speed: d.expected_speed,
-                            baseline: selectedPrediction.zone.traffic_speed_baseline
+                            speed: d.speed,
                           }))}
                           margin={{ top: 5, right: 0, left: -35, bottom: 0 }}
                         >
@@ -254,8 +306,14 @@ export default function BottomSheet({
                             labelStyle={{ color: '#e2e8f0', fontSize: '9px', fontWeight: 'bold' }}
                             itemStyle={{ fontSize: '9px' }}
                           />
-                          <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2} dot={{ r: 1 }} name="Expected Speed" />
-                          <Line type="dashed" dataKey="baseline" stroke="#64748b" strokeWidth={1} strokeDasharray="3 3" dot={false} name="Baseline" />
+                          {timelineData.timeline.filter(d => d.speed != null).length >= 2 ? (
+                            <>
+                              <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2} dot={false} activeDot={false} name="Speed" />
+                              <ReferenceLine y={selectedPrediction?.zone?.traffic_speed_baseline ?? 40} stroke="#64748b" strokeWidth={1} strokeDasharray="3 3" />
+                            </>
+                          ) : (
+                            <text x="50%" y="50%" textAnchor="middle" fill="#475569" fontSize={10}>No traffic data</text>
+                          )}
                           {nowLabel && (
                             <ReferenceLine 
                               x={nowLabel} 

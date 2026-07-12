@@ -258,15 +258,79 @@ function ZoneDetailView({ zone, allZones, onBack }) {
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">📈 24h Trend</p>
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={timeline.timeline} margin={{ top: 4, right: 8, left: -28, bottom: 0 }}>
-                <XAxis dataKey="timestamp" stroke="#475569" fontSize={8}
-                  tickFormatter={t => t ? new Date(t.endsWith('Z') ? t : t + 'Z').toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }) : ''} />
+              <LineChart
+                data={(() => {
+                  // 1. Normalize congestion 0-1 → 0-100
+                  const pts = timeline.timeline.map(d => ({
+                    ...d,
+                    traffic_pct: d.congestion != null ? Math.min(100, Math.round(d.congestion * 100)) : null,
+                  }));
+
+                  // 2. Forward-fill last known values so lines extend to "now"
+                  //    instead of abruptly stopping when snapshots end
+                  let lastCrowd = null, lastHumidity = null, lastTraffic = null;
+                  const filled = pts.map(d => {
+                    if (d.crowd_score != null) lastCrowd = d.crowd_score;
+                    if (d.weather_score != null) lastHumidity = d.weather_score;
+                    if (d.traffic_pct != null) lastTraffic = d.traffic_pct;
+                    return {
+                      ...d,
+                      crowd_score: d.crowd_score ?? lastCrowd,
+                      weather_score: d.weather_score ?? lastHumidity,
+                      traffic_pct: d.traffic_pct ?? lastTraffic,
+                    };
+                  });
+
+                  // 3. Append a synthetic "now" point if the last timestamp
+                  //    is more than 30 min old, so the line reaches the present
+                  const last = filled[filled.length - 1];
+                  if (last) {
+                    const lastTime = new Date(last.timestamp.endsWith('Z') ? last.timestamp : last.timestamp + 'Z');
+                    const now = new Date();
+                    if (now - lastTime > 30 * 60 * 1000) {
+                      filled.push({
+                        ...last,
+                        timestamp: now.toISOString(),
+                      });
+                    }
+                  }
+                  return filled;
+                })()}
+                margin={{ top: 4, right: 8, left: -28, bottom: 0 }}
+              >
+                <XAxis
+                  dataKey="timestamp"
+                  stroke="#475569"
+                  fontSize={8}
+                  interval="preserveStartEnd"
+                  tickFormatter={t => {
+                    if (!t) return '';
+                    try {
+                      const d = new Date(t.endsWith('Z') ? t : t + 'Z');
+                      return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' });
+                    } catch { return ''; }
+                  }}
+                />
                 <YAxis stroke="#475569" fontSize={9} domain={[0, 100]} />
-                <ChartTooltip contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '10px' }} />
+                <ChartTooltip
+                  contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '10px' }}
+                  labelFormatter={t => {
+                    try {
+                      const d = new Date(t.endsWith('Z') ? t : t + 'Z');
+                      return d.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+                    } catch { return t; }
+                  }}
+                />
                 <Legend wrapperStyle={{ fontSize: '10px', color: '#94a3b8' }} />
-                {timeline.timeline.some(t => t.crowd_score != null) && <Line type="monotone" dataKey="crowd_score" stroke="#eab308" strokeWidth={1.5} dot={false} name="Crowd" />}
-                {timeline.timeline.some(t => t.weather_score != null) && <Line type="monotone" dataKey="weather_score" stroke="#3b82f6" strokeWidth={1.5} dot={false} name="Weather" />}
-                {timeline.timeline.some(t => t.congestion != null) && <Line type="monotone" dataKey="congestion" stroke="#f97316" strokeWidth={1.5} dot={false} name="Traffic" />}
+                {timeline.timeline.some(t => t.crowd_score != null) && (
+                  <Line type="monotone" dataKey="crowd_score" stroke="#eab308" strokeWidth={2} dot={false} activeDot={false} connectNulls={true} name="Crowd" />
+                )}
+                {timeline.timeline.some(t => t.weather_score != null) && (
+                  <Line type="monotone" dataKey="weather_score" stroke="#3b82f6" strokeWidth={2} dot={false} activeDot={false} connectNulls={true} name="Humidity %" />
+                )}
+                {timeline.timeline.some(t => t.congestion != null) && (
+                  <Line type="monotone" dataKey="traffic_pct" stroke="#f97316" strokeWidth={2} dot={false} activeDot={false} connectNulls={true} name="Traffic %" />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>

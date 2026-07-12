@@ -424,14 +424,41 @@ export default function Sidebar({
             <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
               {filteredPois.length > 0 ? (
                 filteredPois.map((poi, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
-                    <div className="flex items-center space-x-2 min-w-0">
-                      {getPoiIcon(poi.category)}
-                      <span className="font-semibold text-slate-200 truncate">{poi.name}</span>
+                  <div key={idx} className="p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        {getPoiIcon(poi.category)}
+                        <span className="font-semibold text-slate-200 truncate">{poi.name}</span>
+                      </div>
+                      <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950/60 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                        {poi.category.replace('_', ' ')}
+                      </span>
                     </div>
-                    <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950/60 px-1.5 py-0.5 rounded">
-                      {poi.category.replace('_', ' ')}
-                    </span>
+                    {poi.crowd_score != null ? (
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[9px] text-slate-500 font-semibold">👥 Crowd</span>
+                          <span className={`text-[9px] font-bold ${
+                            poi.crowd_score >= 65 ? 'text-red-400' :
+                            poi.crowd_score >= 35 ? 'text-amber-400' : 'text-emerald-400'
+                          }`}>
+                            {poi.crowd_score >= 65 ? 'High' : poi.crowd_score >= 35 ? 'Moderate' : 'Low'}
+                            <span className="font-normal text-slate-500 ml-1">({Math.round(poi.crowd_score)})</span>
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
+                          <div
+                            className={`h-1 rounded-full transition-all ${
+                              poi.crowd_score >= 65 ? 'bg-red-500' :
+                              poi.crowd_score >= 35 ? 'bg-amber-400' : 'bg-emerald-400'
+                            }`}
+                            style={{ width: `${Math.min(100, poi.crowd_score)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[9px] text-slate-600">No crowd data</span>
+                    )}
                   </div>
                 ))
               ) : (
@@ -474,7 +501,7 @@ export default function Sidebar({
               <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
                 Analyzing spatial indexes and streaming API updates...
               </div>
-            ) : timelineData && timelineData.timeline ? (
+            ) : timelineData && timelineData.timeline && timelineData.timeline.length > 0 ? (
               <div className="space-y-6 flex-1">
                 {/* Weather Chart */}
                 <div className="h-44 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-3 flex flex-col">
@@ -482,13 +509,10 @@ export default function Sidebar({
                   <div className="flex-1 min-h-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart 
-                        data={timelineData.timeline.map(d => ({
+                        data={timelineData.timeline.filter(d => d.humidity != null || d.rainfall != null).map(d => ({
                           time: formatTime(d.timestamp),
-                          // Backend returns `rainfall` (mm) and `humidity` (%) — there is
-                          // no separate precipitation_probability field. Humidity is the
-                          // closest proxy for "chance of rain" on the left axis.
-                          probability: d.humidity,
-                          rain: d.rainfall
+                          probability: d.humidity ?? null,
+                          rain: d.rainfall ?? null
                         }))}
                         margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
                       >
@@ -526,11 +550,13 @@ export default function Sidebar({
                   <div className="flex-1 min-h-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart 
-                        data={(timelineData?.timeline || []).map(d => ({
-                          time: formatTime(d.timestamp),
-                          speed: d.expected_speed,
-                          baseline: selectedPrediction?.zone?.traffic_speed_baseline ?? 0
-                        }))}
+                        data={(() => {
+                          const pts = (timelineData?.timeline || []).filter(d => d.speed != null);
+                          return pts.map(d => ({
+                            time: formatTime(d.timestamp),
+                            speed: d.speed,
+                          }));
+                        })()}
                         margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
                       >
                         <XAxis dataKey="time" stroke="#475569" fontSize={9} />
@@ -540,8 +566,14 @@ export default function Sidebar({
                           labelStyle={{ color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
                           itemStyle={{ fontSize: '10px' }}
                         />
-                        <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2.5} activeDot={{ r: 4 }} name="Expected Speed" />
-                        <Line type="dashed" dataKey="baseline" stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Baseline Speed" />
+                        {(timelineData?.timeline || []).filter(d => d.speed != null).length >= 2 ? (
+                          <>
+                            <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2.5} dot={false} activeDot={false} name="Expected Speed" />
+                            <ReferenceLine y={selectedPrediction?.zone?.traffic_speed_baseline ?? 40} stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 4" label={{ value: 'Baseline', position: 'insideBottomRight', fill: '#64748b', fontSize: 8 }} />
+                          </>
+                        ) : (
+                          <text x="50%" y="50%" textAnchor="middle" fill="#475569" fontSize={11}>No traffic snapshot data</text>
+                        )}
                         {nowLabel && (
                           <ReferenceLine 
                             x={nowLabel} 
