@@ -550,11 +550,13 @@ export default function Sidebar({
                   <div className="flex-1 min-h-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart 
-                        data={(timelineData?.timeline || []).filter(d => d.speed != null).map(d => ({
-                          time: formatTime(d.timestamp),
-                          speed: d.speed,
-                          baseline: selectedPrediction?.zone?.traffic_speed_baseline ?? 0
-                        }))}
+                        data={(() => {
+                          const pts = (timelineData?.timeline || []).filter(d => d.speed != null);
+                          return pts.map(d => ({
+                            time: formatTime(d.timestamp),
+                            speed: d.speed,
+                          }));
+                        })()}
                         margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
                       >
                         <XAxis dataKey="time" stroke="#475569" fontSize={9} />
@@ -564,8 +566,14 @@ export default function Sidebar({
                           labelStyle={{ color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
                           itemStyle={{ fontSize: '10px' }}
                         />
-                        <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2.5} dot={false} connectNulls={true} activeDot={{ r: 4 }} name="Expected Speed" />
-                        <Line type="monotone" dataKey="baseline" stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls={true} name="Baseline Speed" />
+                        {(timelineData?.timeline || []).filter(d => d.speed != null).length >= 2 ? (
+                          <>
+                            <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2.5} dot={false} activeDot={false} name="Expected Speed" />
+                            <ReferenceLine y={selectedPrediction?.zone?.traffic_speed_baseline ?? 40} stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 4" label={{ value: 'Baseline', position: 'insideBottomRight', fill: '#64748b', fontSize: 8 }} />
+                          </>
+                        ) : (
+                          <text x="50%" y="50%" textAnchor="middle" fill="#475569" fontSize={11}>No traffic snapshot data</text>
+                        )}
                         {nowLabel && (
                           <ReferenceLine 
                             x={nowLabel} 
