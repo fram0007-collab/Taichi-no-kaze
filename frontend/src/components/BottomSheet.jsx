@@ -257,8 +257,8 @@ export default function BottomSheet({
                         <ComposedChart 
                           data={timelineData.timeline.map(d => ({
                             time: formatTime(d.timestamp),
-                            probability: d.precipitation_probability,
-                            rain: d.rain_accumulation
+                            probability: d.humidity,
+                            rain: d.rainfall
                           }))}
                           margin={{ top: 5, right: -5, left: -35, bottom: 0 }}
                         >
@@ -295,7 +295,7 @@ export default function BottomSheet({
                         <LineChart 
                           data={timelineData.timeline.map(d => ({
                             time: formatTime(d.timestamp),
-                            speed: d.expected_speed,
+                            speed: d.speed,
                             baseline: selectedPrediction.zone.traffic_speed_baseline
                           }))}
                           margin={{ top: 5, right: 0, left: -35, bottom: 0 }}

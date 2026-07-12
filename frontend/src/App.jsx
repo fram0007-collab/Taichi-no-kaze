@@ -646,7 +646,7 @@ export default function App() {
           )}
 
           {mobileTab === 'feed' && (
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-brand-dark text-slate-100 scrollbar-thin" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 16px))' }}>
+            <div className="overflow-y-auto p-4 space-y-4 bg-brand-dark text-slate-100 scrollbar-thin" style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}>
               <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                 <div className="flex items-center space-x-2">
                   <Bell className="w-5 h-5 text-indigo-400" />
@@ -738,7 +738,7 @@ export default function App() {
           )}
 
           {mobileTab === 'settings' && (
-            <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-brand-dark text-slate-100 scrollbar-thin" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 16px))' }}>
+            <div className="overflow-y-auto p-5 space-y-6 bg-brand-dark text-slate-100 scrollbar-thin" style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}>
               <div className="flex items-center space-x-2 pb-2 border-b border-slate-800">
                 <Settings className="w-5 h-5 text-indigo-400" />
                 <h2 className="text-base font-bold text-slate-200">Mobile Command Center</h2>

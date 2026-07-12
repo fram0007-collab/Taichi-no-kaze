@@ -677,17 +677,19 @@ export default function MapView({
       </div>
     </div>
       {/* Floating Layer Toggle Panel */}
-      <div className="absolute top-6 right-6 z-[999] pointer-events-auto">
+      {/* pointer-events-none on container prevents the invisible panel from
+           intercepting touches on the right half of the map on mobile */}
+      <div className="absolute top-6 right-6 z-[999] pointer-events-none">
  
   <button
     onClick={() => setShowLayerPanel(!showLayerPanel)}
-    className="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all font-bold"
+    className="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all font-bold pointer-events-auto"
   >
     ⚙️ Layers
   </button>
  
   <div
-    className={`glass-panel mt-2 p-2.5 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-1 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100' : 'translate-x-6 opacity-0 pointer-events-none'}`}
+    className={`glass-panel mt-2 p-2.5 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-1 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-6 opacity-0 pointer-events-none'}`}
     aria-hidden={!showLayerPanel}
   >
     <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
