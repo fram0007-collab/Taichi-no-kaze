@@ -21,6 +21,13 @@ import {
 import { ResolutionBadgeExpanded } from './ResolutionBadge';
 
 // ── i18n-ready content block ────────────────────────────────────────────────
+const COMMON_EMERGENCY_HOTLINES = [
+  { name: 'BPBD Jakarta', number: '021-1123', role: 'City disaster management' },
+  { name: 'Basarnas (SAR)', number: '115', role: 'Search & rescue operations' },
+  { name: 'PMI', number: '021-7992325', role: 'Emergency support & relief' },
+  { name: 'Ambulance', number: '119', role: 'Medical emergency' },
+];
+
 const CONTENT = {
   // Step-by-step guides per disruption type
   guides: {
@@ -189,8 +196,11 @@ export default function EvacuationPanel({
 
   // Derive the primary disruption type from active predictions
   const primaryDisruption = predictions?.[0]?.disruption_type?.toLowerCase() ?? 'traffic';
-  const guide   = CONTENT.guides[primaryDisruption]   ?? CONTENT.guides.traffic;
-  const hotlines = CONTENT.hotlines[primaryDisruption] ?? CONTENT.hotlines.traffic;
+  const guide = CONTENT.guides[primaryDisruption] ?? CONTENT.guides.traffic;
+  const hotlines = [
+    ...COMMON_EMERGENCY_HOTLINES,
+    ...(CONTENT.hotlines[primaryDisruption] ?? CONTENT.hotlines.traffic),
+  ];
 
   // ── Route calculation ──────────────────────────────────────────────────────
   const calculateRoute = useCallback(async () => {

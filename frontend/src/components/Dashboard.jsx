@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, Tooltip as ChartTooltip, Legend,
   PieChart, Pie, Cell
 } from 'recharts';
-import { X, ArrowLeft, AlertTriangle, Activity, TrendingUp, MapPin } from 'lucide-react';
+import { X, ArrowLeft, AlertTriangle, Activity, TrendingUp, MapPin, Download } from 'lucide-react';
 import { getApiUrl } from '../utils/getApiUrl';
 
 const TYPE_EMOJI = { traffic: '🚗', crowd: '👥', weather: '⛈️', waterway: '🌊', earthquake: '🌍' };
@@ -49,8 +49,380 @@ function AlertCard({ alert }) {
   );
 }
 
+// ── Coverage Impact Helper ─────────────────────────────────────────
+function calculateCoverageImpact(summary, allZones = []) {
+  const { zone_rankings, severity_breakdown } = summary;
+  const affectedZones = zone_rankings?.length || 0;
+  const hotspotZone = zone_rankings?.[0]?.name || 'N/A';
+  
+  let highSeverityZones = 0;
+  let mediumSeverityZones = 0;
+  
+  zone_rankings?.forEach(z => {
+    if (z.high_alerts > 0) highSeverityZones++;
+    if (z.medium_alerts > 0) mediumSeverityZones++;
+  });
+
+  return {
+    affectedZones,
+    hotspotZone,
+    highSeverityZones,
+    mediumSeverityZones,
+  };
+}
+
+// ── Emergency Service Estimation Helper ────────────────────────────
+function calculateEmergencyServices(summary) {
+  const services = [];
+  const { dominant_type, severity_breakdown = [], zone_rankings = [] } = summary;
+  
+  // Count HIGH severity alerts by type
+  const highByType = {};
+  severity_breakdown.forEach(s => {
+    if (s.HIGH > 0) {
+      highByType[s.type] = s.HIGH;
+    }
+  });
+
+  // Flood/waterway incidents
+  if (highByType.flood || highByType.waterway || (dominant_type === 'flood' || dominant_type === 'waterway')) {
+    const count = (highByType.flood || 0) + (highByType.waterway || 0);
+    if (count > 0) {
+      services.push({
+        type: 'Search & Rescue Team',
+        priority: 'High',
+        reason: `Flood/waterway events require immediate rescue capability for trapped or affected persons`,
+        disruptionType: 'Flood/Waterway'
+      });
+      services.push({
+        type: 'Ambulance Support',
+        priority: 'High',
+        reason: `Medical standby for flood-related injuries and hypothermia cases`,
+        disruptionType: 'Flood/Waterway'
+      });
+      services.push({
+        type: 'Shelter/High-ground Support',
+        priority: 'High',
+        reason: `Evacuees need temporary shelter and relocation to safe areas`,
+        disruptionType: 'Flood/Waterway'
+      });
+    }
+  }
+
+  // Earthquake incidents
+  if (highByType.earthquake || dominant_type === 'earthquake') {
+    services.push({
+      type: 'Ambulance Support',
+      priority: 'High',
+      reason: `Medical response for earthquake casualties and injuries`,
+      disruptionType: 'Earthquake'
+    });
+    services.push({
+      type: 'Search & Rescue Team',
+      priority: 'High',
+      reason: `Structural collapse rescue and person location in debris`,
+      disruptionType: 'Earthquake'
+    });
+    services.push({
+      type: 'Police Coordination',
+      priority: 'High',
+      reason: `Perimeter security and traffic control in affected areas`,
+      disruptionType: 'Earthquake'
+    });
+  }
+
+  // Crowd incidents
+  if (highByType.crowd || dominant_type === 'crowd') {
+    services.push({
+      type: 'Police/Crowd Control',
+      priority: 'High',
+      reason: `Immediate crowd management and dispersal capability`,
+      disruptionType: 'Crowd'
+    });
+    services.push({
+      type: 'Ambulance Standby',
+      priority: 'Medium',
+      reason: `Medical support for injuries from crowd-related incidents`,
+      disruptionType: 'Crowd'
+    });
+  }
+
+  // Traffic incidents
+  if (highByType.traffic || dominant_type === 'traffic') {
+    services.push({
+      type: 'Traffic Police',
+      priority: 'High',
+      reason: `Traffic management and alternate route coordination`,
+      disruptionType: 'Traffic'
+    });
+    services.push({
+      type: 'Road Safety Monitoring',
+      priority: 'Medium',
+      reason: `Monitoring and coordination for vehicle incident response`,
+      disruptionType: 'Traffic'
+    });
+  }
+
+  // Weather incidents
+  if (highByType.weather || dominant_type === 'weather') {
+    services.push({
+      type: 'Shelter/Covered-area Guidance',
+      priority: 'Medium',
+      reason: `Public safety messaging and emergency shelter coordination`,
+      disruptionType: 'Weather'
+    });
+    services.push({
+      type: 'Road Safety Monitoring',
+      priority: 'Medium',
+      reason: `Monitoring hazardous weather-related road conditions`,
+      disruptionType: 'Weather'
+    });
+  }
+
+  return services.length > 0 ? services : [];
+}
+
+// ── Report Generation Helper ───────────────────────────────────────
+function generateReportHTML(summary, days, allZones = []) {
+  const timestamp = new Date();
+  const formattedDate = timestamp.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+  const { totals, dominant_type, hotspot, daily_trend, severity_breakdown, zone_rankings } = summary;
+  
+  const coverage = calculateCoverageImpact(summary, allZones);
+  const emergencyServices = calculateEmergencyServices(summary);
+  
+  const daysText = days === 1 ? 'Last 24 hours' : days === 3 ? 'Last 3 days' : 'Last 7 days';
+
+  // Executive summary
+  const executiveSummary = `During the selected period, ${totals.total} disruption alerts were recorded across Jabodetabek. ${
+    totals.open > 0 ? `${totals.open} alert(s) currently require attention.` : 'All recorded alerts have been resolved.'
+  } The most common disruption type was ${dominant_type || 'unidentified'}, and ${hotspot?.name || 'various zones'} was the most affected area. We recommend continued monitoring and readiness for additional response if needed.`;
+
+  // Trend summary
+  const maxDaily = Math.max(...daily_trend.map(d => d.count || 0), 0);
+  const lastDaily = daily_trend[daily_trend.length - 1]?.count || 0;
+  const trendSummary = lastDaily > maxDaily * 0.8 
+    ? 'Alert volume increased toward the end of the selected period, indicating rising disruption activity. Response readiness is recommended.'
+    : lastDaily < maxDaily * 0.3
+    ? 'Alert volume has decreased toward the end of the selected period, suggesting reduced disruption activity.'
+    : 'Alert volume has remained relatively stable during the selected period.';
+
+  const highCount = severity_breakdown.reduce((sum, s) => sum + (s.HIGH || 0), 0);
+  const mediumCount = severity_breakdown.reduce((sum, s) => sum + (s.MEDIUM || 0), 0);
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DIS-RUPTURE Disruption Analytics Report</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.6; max-width: 900px; margin: 0 auto; padding: 20px; }
+    .report-header { border-bottom: 3px solid #4f46e5; padding-bottom: 15px; margin-bottom: 25px; }
+    .report-title { font-size: 28px; font-weight: bold; color: #1e293b; margin: 0; }
+    .report-subtitle { font-size: 14px; color: #64748b; margin: 5px 0 0 0; }
+    .report-meta { font-size: 12px; color: #94a3b8; margin-top: 10px; }
+    .section { margin-bottom: 25px; page-break-inside: avoid; }
+    .section-title { font-size: 16px; font-weight: bold; color: #1e293b; border-left: 4px solid #4f46e5; padding-left: 10px; margin-bottom: 12px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 15px; }
+    .summary-item { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; }
+    .summary-label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; }
+    .summary-value { font-size: 24px; font-weight: bold; color: #4f46e5; margin: 5px 0; }
+    .summary-sub { font-size: 12px; color: #64748b; }
+    ul { margin: 10px 0; padding-left: 20px; }
+    li { margin: 8px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+    th { background: #e2e8f0; padding: 10px; text-align: left; font-weight: bold; color: #1e293b; border: 1px solid #cbd5e1; }
+    td { padding: 10px; border: 1px solid #e2e8f0; }
+    tr:nth-child(even) { background: #f8fafc; }
+    .severity-high { color: #dc2626; font-weight: bold; }
+    .severity-medium { color: #ea8b08; font-weight: bold; }
+    .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+    .badge-high { background: #fee2e2; color: #dc2626; }
+    .badge-medium { background: #fef3c7; color: #d97706; }
+    .badge-open { background: #dcfce7; color: #16a34a; }
+    .footnote { font-size: 11px; color: #64748b; margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0; }
+    .footer { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+    @media print {
+      body { padding: 0; }
+      .section { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="report-header">
+    <h1 class="report-title">DIS-RUPTURE Disruption Analytics Report</h1>
+    <p class="report-subtitle">Jabodetabek Early Warning and Disruption Monitoring</p>
+    <div class="report-meta">
+      <div>Generated: ${formattedDate}</div>
+      <div>Reporting Period: ${daysText}</div>
+    </div>
+  </div>
+
+  <!-- Executive Summary -->
+  <div class="section">
+    <div class="section-title">Executive Summary</div>
+    <p>${executiveSummary}</p>
+  </div>
+
+  <!-- Key Metrics -->
+  <div class="section">
+    <div class="section-title">Key Metrics</div>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="summary-label">Total Alerts</div>
+        <div class="summary-value">${totals.total}</div>
+        <div class="summary-sub">${daysText}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Active Disruptions</div>
+        <div class="summary-value">${totals.open}</div>
+        <div class="summary-sub">${totals.closed} resolved</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Most Common Disruption Type</div>
+        <div class="summary-value" style="font-size: 18px;">${dominant_type ? dominant_type.charAt(0).toUpperCase() + dominant_type.slice(1) : '—'}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Most Affected Area</div>
+        <div class="summary-value" style="font-size: 18px;">${hotspot?.name || '—'}</div>
+        <div class="summary-sub">${hotspot ? hotspot.total_alerts + ' alerts' : 'N/A'}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Disruption Trend -->
+  <div class="section">
+    <div class="section-title">Disruption Trend</div>
+    <p>${trendSummary}</p>
+  </div>
+
+  <!-- Severity and Type Breakdown -->
+  <div class="section">
+    <div class="section-title">Severity and Type Breakdown</div>
+    <p><strong>Understanding severity levels:</strong></p>
+    <ul>
+      <li><span class="severity-high">HIGH severity</span> incidents need immediate attention and response preparation. These represent serious disruptions requiring coordinated response.</li>
+      <li><span class="severity-medium">MEDIUM severity</span> incidents should be monitored closely and may require local caution or precautions by affected communities.</li>
+    </ul>
+    <table>
+      <tr>
+        <th>Disruption Type</th>
+        <th><span class="badge badge-high">HIGH</span></th>
+        <th><span class="badge badge-medium">MEDIUM</span></th>
+      </tr>
+      ${severity_breakdown.map(s => `
+      <tr>
+        <td><strong>${s.type.charAt(0).toUpperCase() + s.type.slice(1)}</strong></td>
+        <td><span class="severity-high">${s.HIGH || 0}</span></td>
+        <td><span class="severity-medium">${s.MEDIUM || 0}</span></td>
+      </tr>
+      `).join('')}
+    </table>
+  </div>
+
+  <!-- Coverage Impact -->
+  <div class="section">
+    <div class="section-title">Coverage Impact</div>
+    <p>This section describes the geographic spread and severity distribution of disruptions across monitored zones.</p>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="summary-label">Affected Zones</div>
+        <div class="summary-value">${coverage.affectedZones}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Hotspot Zone</div>
+        <div class="summary-value" style="font-size: 18px;">${coverage.hotspotZone}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">High Severity Areas</div>
+        <div class="summary-value">${coverage.highSeverityZones}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Medium Severity Areas</div>
+        <div class="summary-value">${coverage.mediumSeverityZones}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Emergency Service Estimation -->
+  ${emergencyServices.length > 0 ? `
+  <div class="section">
+    <div class="section-title">Emergency Service Estimation</div>
+    <p>Based on current alert patterns, the following emergency resources and capabilities are recommended:</p>
+    <table>
+      <tr>
+        <th>Resource Type</th>
+        <th>Suggested Priority</th>
+        <th>Reason</th>
+      </tr>
+      ${emergencyServices.map(s => `
+      <tr>
+        <td><strong>${s.type}</strong></td>
+        <td><span class="badge ${s.priority === 'High' ? 'badge-high' : 'badge-medium'}">${s.priority}</span></td>
+        <td>${s.reason} (Related: ${s.disruptionType})</td>
+      </tr>
+      `).join('')}
+    </table>
+  </div>
+  ` : ''}
+
+  <!-- Zone Ranking -->
+  <div class="section">
+    <div class="section-title">Zone Alert Rankings</div>
+    <p>Most affected zones in the monitored area:</p>
+    <table>
+      <tr>
+        <th>Rank</th>
+        <th>Zone Name</th>
+        <th>Total Alerts</th>
+        <th>Active</th>
+      </tr>
+      ${zone_rankings.map((z, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td><strong>${z.name}</strong></td>
+        <td>${z.total_alerts}</td>
+        <td><span class="badge ${z.open_alerts > 0 ? 'badge-open' : 'badge-medium'}">${z.open_alerts} open</span></td>
+      </tr>
+      `).join('')}
+    </table>
+  </div>
+
+  <!-- Notes and Limitations -->
+  <div class="section footnote">
+    <strong>Notes and Limitations:</strong>
+    <p>This report is generated from available disruption monitoring data. It is intended to support situational awareness and response planning. Official emergency decisions should follow guidance from authorized agencies such as BMKG, local government, and national disaster management authorities.</p>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p>Generated by DIS-RUPTURE | ${formattedDate}</p>
+  </div>
+</body>
+</html>
+  `;
+  return html;
+}
+
+// ── Export Report Handler ──────────────────────────────────────────
+function exportReport(summary, days, allZones = []) {
+  const html = generateReportHTML(summary, days, allZones);
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `DIS-RUPTURE-Report-${new Date().toISOString().split('T')[0]}.html`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 // ── Overall View ───────────────────────────────────────────────────
-function OverallView({ onSelectZone }) {
+function OverallView({ onSelectZone, allZones = [], onExport }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
@@ -183,6 +555,58 @@ function OverallView({ onSelectZone }) {
           </div>
         </div>
       </div>
+
+      {/* Coverage Impact */}
+      {(() => {
+        const coverage = calculateCoverageImpact(summary, allZones);
+        return (
+          <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+            <p className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">📍 Coverage Impact</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-2.5 text-center">
+                <p className="text-[9px] text-slate-500 font-semibold uppercase mb-1">Affected Zones</p>
+                <p className="text-xl font-bold text-indigo-400">{coverage.affectedZones}</p>
+              </div>
+              <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-2.5 text-center">
+                <p className="text-[9px] text-slate-500 font-semibold uppercase mb-1">Hotspot Zone</p>
+                <p className="text-sm font-bold text-red-400 line-clamp-2">{coverage.hotspotZone}</p>
+              </div>
+              <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-2.5 text-center">
+                <p className="text-[9px] text-slate-500 font-semibold uppercase mb-1">High Severity Areas</p>
+                <p className="text-xl font-bold text-red-400">{coverage.highSeverityZones}</p>
+              </div>
+              <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-2.5 text-center">
+                <p className="text-[9px] text-slate-500 font-semibold uppercase mb-1">Medium Severity Areas</p>
+                <p className="text-xl font-bold text-yellow-400">{coverage.mediumSeverityZones}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Emergency Service Estimation */}
+      {(() => {
+        const services = calculateEmergencyServices(summary);
+        return services.length > 0 ? (
+          <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+            <p className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">🚑 Emergency Service Estimation</p>
+            <div className="space-y-2">
+              {services.map((s, i) => (
+                <div key={i} className={`p-2.5 rounded-lg border ${s.priority === 'High' ? 'border-red-500/30 bg-red-500/5' : 'border-yellow-500/30 bg-yellow-500/5'}`}>
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-200">{s.type}</p>
+                      <p className="text-[9px] text-slate-400 mt-0.5">{s.reason}</p>
+                    </div>
+                    <span className={`text-[9px] px-2 py-0.5 rounded font-bold shrink-0 ${s.priority === 'High' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{s.priority}</span>
+                  </div>
+                  <p className="text-[9px] text-slate-500">Related: {s.disruptionType}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null;
+      })()}
     </div>
   );
 }
@@ -369,11 +793,28 @@ function ZoneDetailView({ zone, allZones, onBack }) {
 // ── Main Dashboard Component ───────────────────────────────────────
 export default function Dashboard({ isOpen, onClose, allZones = [] }) {
   const [selectedZone, setSelectedZone] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [days, setDays] = useState(7);
 
   // Reset to overall view when dashboard closes
   useEffect(() => {
     if (!isOpen) setSelectedZone(null);
   }, [isOpen]);
+
+  // Fetch summary for export button
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch(`${getApiUrl()}/dashboard/summary?days=${days}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setSummary(data))
+      .catch(() => {});
+  }, [isOpen, days]);
+
+  const handleExport = () => {
+    if (summary) {
+      exportReport(summary, days, allZones);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -394,10 +835,22 @@ export default function Dashboard({ isOpen, onClose, allZones = [] }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose}
-            className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-all">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {!selectedZone && (
+              <button
+                onClick={handleExport}
+                disabled={!summary}
+                title="Export report as HTML"
+                className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+            )}
+            <button onClick={onClose}
+              className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-all">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -409,7 +862,7 @@ export default function Dashboard({ isOpen, onClose, allZones = [] }) {
               onBack={() => setSelectedZone(null)}
             />
           ) : (
-            <OverallView onSelectZone={setSelectedZone} />
+            <OverallView onSelectZone={setSelectedZone} allZones={allZones} onExport={handleExport} />
           )}
         </div>
 
