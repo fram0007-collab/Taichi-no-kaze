@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { MapContainer, TileLayer, Tooltip, useMap, useMapEvents, Marker, Popup, Polyline, Circle } from 'react-leaflet';
 import L from 'leaflet';
-import { Layers } from 'lucide-react';
+import { Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
 
@@ -409,6 +409,7 @@ export default function MapView({
   const [waterways, setWaterways] = useState([]);
   const [allZones, setAllZones] = useState([]);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
+  const [isLegendMinimized, setIsLegendMinimized] = useState(false);
   const [activeLayers, setActiveLayers] = useState({
     hospital: false,
     police: false,
@@ -647,71 +648,92 @@ export default function MapView({
   return (
     <div className="relative w-full h-full overflow-hidden">
       {/* Risk Legend */}
-    <div className="absolute top-32 left-4 z-[999]">
-      <div className="glass-panel rounded-xl px-3 py-3 border border-slate-700/40 shadow-lg">
-        
-        <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">
-          Risk Levels
-        </div>
+      <div className="absolute left-4 top-4 z-[40]">
+        {isLegendMinimized ? (
+          <button
+            type="button"
+            onClick={() => setIsLegendMinimized(false)}
+            className="glass-panel flex items-center gap-2 rounded-full border border-slate-700/40 bg-white/80 px-3 py-2 text-sm font-semibold text-slate-700 shadow-lg transition hover:bg-white dark:bg-slate-900/80 dark:text-slate-100"
+          >
+            <ChevronDown className="h-4 w-4" />
+            <span>Legend</span>
+          </button>
+        ) : (
+          <div className="glass-panel rounded-xl border border-slate-700/40 px-3 py-3 shadow-lg">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">
+                Legend
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLegendMinimized(true)}
+                className="rounded-full p-1 text-slate-600 transition hover:bg-slate-200/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                aria-label="Minimize legend"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+            </div>
 
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#FF2A2A]"></span>
-            <span className="text-[11px]">Critical (80+)</span>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+              Risk Levels
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-[#FF2A2A]"></span>
+                <span className="text-[11px] text-slate-900 dark:text-slate-100">Critical (80+)</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-[#FF7A00]"></span>
+                <span className="text-[11px] text-slate-900 dark:text-slate-100">High (65-79)</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-[#FFD600]"></span>
+                <span className="text-[11px] text-slate-900 dark:text-slate-100">Medium (35-64)</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-[#00E676]"></span>
+                <span className="text-[11px] text-slate-900 dark:text-slate-100">Low (0-34)</span>
+              </div>
+            </div>
+
+            <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+              Size Legend
+            </div>
+
+            <div className="space-y-1.5 text-xs text-slate-900 dark:text-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full border border-slate-700 bg-white/80 dark:border-slate-200 dark:bg-slate-800/80"></div>
+                <span>Small circle = smaller affected area</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-6 rounded-full border border-slate-700 bg-white/80 dark:border-slate-200 dark:bg-slate-800/80"></div>
+                <span>Large circle = larger affected area</span>
+              </div>
+            </div>
+
+            <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+              Disruption Intensity
+            </div>
+
+            <div className="space-y-1.5 text-xs text-slate-900 dark:text-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded-full bg-[#FF2A2A]"></div>
+                <span>Solid = Strong disruption</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded-full bg-[#FF2A2A] opacity-30"></div>
+                <span>Faded = Lower disruption</span>
+              </div>
+            </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#FF7A00]"></span>
-            <span className="text-[11px]">High (65-79)</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#FFD600]"></span>
-            <span className="text-[11px]">Medium (35-64)</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#00E676]"></span>
-            <span className="text-[11px]">Low (0-34)</span>
-          </div>
-        </div>
-
-        {/* Size Legend */}
-        <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">
-          Size Legend
-        </div>
-
-        <div className="space-y-1.5 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full border border-white"></div>
-            <span> Small = Small affected area</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full border border-white"></div>
-            <span>Large = Large affected area</span>
-          </div>
-        </div>
-
-        {/* Density Legend */}
-        <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">
-          Disruption Intensity
-        </div>
-
-        <div className="space-y-1.5 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-[#FF2A2A]"></div>
-            <span>Solid = Strong disruption</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-[#FF2A2A] opacity-30"></div>
-            <span>Faded = Lower disruption</span>
-          </div>
-        </div>
-
+        )}
       </div>
-    </div>
       {/* Floating Layer Toggle Panel */}
       {/* pointer-events-none on container prevents the invisible panel from
            intercepting touches on the right half of the map on mobile */}

@@ -32,6 +32,33 @@ const DEFAULT_NOTIFICATION_PREFERENCES = {
   },
 };
 
+function getPredictionZoneCenter(prediction) {
+  const zone = prediction?.zone ?? {};
+  if (typeof zone.latitude === 'number' && typeof zone.longitude === 'number') {
+    return { lat: zone.latitude, lon: zone.longitude };
+  }
+
+  const geometry = zone?.geometry;
+  const coordinates = geometry?.coordinates;
+  if (Array.isArray(coordinates) && coordinates.length > 0) {
+    const firstRing = Array.isArray(coordinates[0]) ? coordinates[0] : coordinates;
+    const firstPoint = Array.isArray(firstRing[0]) ? firstRing[0] : null;
+    if (Array.isArray(firstPoint) && firstPoint.length >= 2) {
+      const [lon, lat] = firstPoint;
+      return { lat, lon };
+    }
+  }
+
+  return null;
+}
+
+function getPredictionKey(prediction) {
+  const zone = prediction?.zone ?? {};
+  const ids = [prediction?.id, prediction?.alert_id, zone?.id, zone?.zone_id];
+  const key = ids.find((value) => value !== undefined && value !== null && value !== '');
+  return key ? String(key) : 'unknown';
+}
+
 export default function App() {
   const { predictions, loading, error, isFallback, refresh } = usePredictions();
 
@@ -276,6 +303,8 @@ export default function App() {
   const [pendingDeepLink, setPendingDeepLink] = useState(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [mobileTab, setMobileTab] = useState('map'); // 'map', 'feed', 'settings'
+  const [dismissedAutoEvacuationKeys, setDismissedAutoEvacuationKeys] = useState(() => new Set());
+  const [activeAutoEvacuationKey, setActiveAutoEvacuationKey] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -342,6 +371,7 @@ export default function App() {
   useEffect(() => {
     if (!pendingDeepLink || loading) return;
 
+    const targetAlertId = pendingDeepLink.alertId;
     const targetZoneId = pendingDeepLink.zoneId;
     const match = predictions.find((prediction) => {
       const candidateIds = [
@@ -350,15 +380,72 @@ export default function App() {
         prediction?.id,
         prediction?.alert_id,
       ];
-      return candidateIds.some((id) => String(id) === String(targetZoneId));
+      const zoneMatches = targetZoneId
+        ? candidateIds.some((id) => String(id) === String(targetZoneId))
+        : false;
+      const alertMatches = targetAlertId
+        ? [prediction?.id, prediction?.alert_id].some((id) => String(id) === String(targetAlertId))
+        : false;
+
+      return zoneMatches || alertMatches;
     });
 
     if (match) {
       setSelectedPrediction(match);
       setView('map');
+      setMobileTab('map');
       setPendingDeepLink(null);
+      return;
     }
+
+    setPendingDeepLink(null);
   }, [pendingDeepLink, predictions, loading]);
+
+  useEffect(() => {
+    if (!userLocation || showEvacuation || !predictions?.length) return;
+
+    const matchedPrediction = predictions.find((prediction) => {
+      const key = getPredictionKey(prediction);
+      if (dismissedAutoEvacuationKeys.has(key)) return false;
+
+      const zoneCenter = getPredictionZoneCenter(prediction);
+      if (!zoneCenter) return false;
+
+      const distanceKm = calculateDistanceKm(
+        userLocation.lat,
+        userLocation.lon,
+        zoneCenter.lat,
+        zoneCenter.lon,
+      );
+      const disruptionType = String(prediction?.disruption_type || '').toLowerCase();
+      const riskLevel = String(
+        prediction?.risk_level || prediction?.severity || prediction?.alert_level || ''
+      ).toLowerCase();
+      const isFloodLike = disruptionType.includes('flood') || disruptionType.includes('river') || disruptionType.includes('waterway');
+      const isHighRisk =
+        riskLevel.includes('high') ||
+        riskLevel.includes('critical') ||
+        riskLevel.includes('siaga 3') ||
+        prediction?.probability_percentage >= 80;
+
+      if (isFloodLike && isHighRisk && distanceKm <= 1) {
+        return true;
+      }
+
+      const impactRadiusKm = Number(
+        prediction?.impact_radius_km ??
+          prediction?.zone?.impact_radius_km ??
+          (prediction?.zone?.radius_m ? prediction.zone.radius_m / 1000 : 0)
+      );
+
+      return disruptionType.includes('earthquake') && impactRadiusKm > 0 && distanceKm <= impactRadiusKm;
+    });
+
+    if (matchedPrediction) {
+      setActiveAutoEvacuationKey(getPredictionKey(matchedPrediction));
+      setShowEvacuation(true);
+    }
+  }, [userLocation, predictions, showEvacuation, dismissedAutoEvacuationKeys]);
 
   // Sync theme selection to document element classes
   useEffect(() => {
@@ -502,11 +589,21 @@ export default function App() {
           setNotificationPreferences(prev => ({ ...prev, enabled: true }));
           setNotificationMessage('Notifications enabled. Browser alerts can now appear when available.');
         } catch (error) {
+          const message = error?.message || '';
+          const missingVapidKey = /VAPID public key/i.test(message);
           setPushSubscriptionActive(false);
           setPushStatus('failed');
-          setPushStatusMessage(error.message || 'Unable to enable push alerts right now.');
+          setPushStatusMessage(
+            missingVapidKey
+              ? 'Push setup is missing VITE_VAPID_PUBLIC_KEY, so browser alerts cannot be enabled.'
+              : message || 'Unable to enable push alerts right now.'
+          );
           setNotificationPreferences(prev => ({ ...prev, enabled: false }));
-          setNotificationMessage('Unable to enable push alerts right now.');
+          setNotificationMessage(
+            missingVapidKey
+              ? 'Push alerts could not be enabled because the VAPID public key is missing.'
+              : 'Unable to enable push alerts right now.'
+          );
         }
       } else {
         setNotificationPreferences(prev => ({ ...prev, enabled: false }));
@@ -519,6 +616,21 @@ export default function App() {
       setNotificationMessage('Unable to request notification permission right now.');
       setPushStatus('failed');
       setPushStatusMessage('Unable to request notification permission right now.');
+    }
+  };
+
+  const openEvacuationPanel = (prediction = null) => {
+    const targetPrediction = prediction ?? filteredPredictions?.[0] ?? null;
+    setActiveAutoEvacuationKey(getPredictionKey(targetPrediction));
+    setShowEvacuation(true);
+  };
+
+  const closeEvacuationPanel = () => {
+    setShowEvacuation(false);
+    setEvacuationRoute(null);
+    if (activeAutoEvacuationKey) {
+      setDismissedAutoEvacuationKeys(prev => new Set(prev).add(activeAutoEvacuationKey));
+      setActiveAutoEvacuationKey(null);
     }
   };
 
@@ -922,6 +1034,7 @@ export default function App() {
                   nearMeRadius={nearMeRadius}
                   setNearMeRadius={setNearMeRadius}
                   evacuationRoute={evacuationRoute}
+                  suppressMapControls={showNotificationPreferences}
                 />
               </div>
 
@@ -939,7 +1052,7 @@ export default function App() {
               {filteredPredictions.length > 0 && !showEvacuation && (
                 <div className="px-3 py-2 shrink-0">
                   <button
-                    onClick={() => setShowEvacuation(true)}
+                    onClick={() => openEvacuationPanel(filteredPredictions[0])}
                     className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
                   >
                     <span>🚨</span>
@@ -963,7 +1076,7 @@ export default function App() {
                     }))}
                     tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
                     onRouteReady={handleRouteReady}
-                    onClose={() => { setShowEvacuation(false); setEvacuationRoute(null); }}
+                    onClose={closeEvacuationPanel}
                     onRequestLocation={locateUser}
                     activePrediction={filteredPredictions[0] ?? null}
                   />
@@ -987,7 +1100,7 @@ export default function App() {
               {/* Evacuation button — mobile feed tab */}
               {filteredPredictions.length > 0 && !showEvacuation && (
                 <button
-                  onClick={() => { setShowEvacuation(true); setMobileTab('feed'); }}
+                  onClick={() => { openEvacuationPanel(filteredPredictions[0]); setMobileTab('feed'); }}
                   className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
                 >
                   <span>🚨</span>
@@ -1010,7 +1123,7 @@ export default function App() {
                     }))}
                     tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
                     onRouteReady={handleRouteReady}
-                    onClose={() => { setShowEvacuation(false); setEvacuationRoute(null); }}
+                    onClose={closeEvacuationPanel}
                     onRequestLocation={locateUser}
                     activePrediction={filteredPredictions[0] ?? null}
                   />
@@ -1300,6 +1413,7 @@ export default function App() {
                 nearMeRadius={nearMeRadius}
                 setNearMeRadius={setNearMeRadius}
                 evacuationRoute={evacuationRoute}
+                suppressMapControls={showNotificationPreferences}
               />
             </div>
           </div>
@@ -1321,7 +1435,7 @@ export default function App() {
               nearMeRadius={nearMeRadius}
               onClearNearMeFilter={() => setNearMeFilterActive(false)}
               allZones={allZones}
-              onGetEvacuation={() => setShowEvacuation(true)}
+              onGetEvacuation={() => openEvacuationPanel(selectedPrediction || filteredPredictions[0])}
               showEvacuationPanel={showEvacuation}
               evacuationPanelNode={
                 <EvacuationPanel
@@ -1336,7 +1450,7 @@ export default function App() {
                   }))}
                   tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
                   onRouteReady={handleRouteReady}
-                  onClose={() => { setShowEvacuation(false); setEvacuationRoute(null); }}
+                  onClose={closeEvacuationPanel}
                   onRequestLocation={locateUser}
                 />
               }
