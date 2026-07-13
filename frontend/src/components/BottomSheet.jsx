@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
 import { 
@@ -132,6 +133,17 @@ export default function BottomSheet({
               <span className="font-semibold text-sm text-indigo-400">{formatTime(selectedPrediction.estimated_time_to_peak)}</span>
             </div>
           </div>
+
+          {/* Resolution estimate — shows "Estimate uncertain" if confidence < 60% (AC 6.1.3) */}
+          {selectedPrediction.estimated_resolution_at && (
+            <div className="bg-slate-950/40 border border-slate-900 rounded-lg p-2.5">
+              <span className="text-[10px] text-slate-400 block mb-1">Resolution Estimate</span>
+              <ResolutionBadgeCompact
+                estimated_resolution_at={selectedPrediction.estimated_resolution_at}
+                resolution_confidence={selectedPrediction.resolution_confidence}
+              />
+            </div>
+          )}
 
           {/* Dynamic Infrastructure POI Section */}
           <div className="space-y-3 pt-2 border-t border-slate-800/40">
