@@ -18,8 +18,17 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // injectManifest: vite-plugin-pwa builds src/sw.js, injects the
+      // precache manifest into self.__WB_MANIFEST, and outputs dist/sw.js.
+      // This merges our Workbox caching with the push notification handlers
+      // without one overwriting the other.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png', 'manifest.json'],
+
       manifest: {
         name: 'DIS-RUPTURE Early Warning',
         short_name: 'DIS-RUPTURE',
@@ -34,37 +43,17 @@ export default defineConfig({
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
           { src: '/icons/icon-180.png', sizes: '180x180', type: 'image/png' },
         ],
-      },
-      workbox: {
-        runtimeCaching: [
+        shortcuts: [
           {
-            urlPattern: /^https:\/\/.*\.basemaps\.cartocdn\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'map-tiles',
-              expiration: { maxEntries: 200, maxAgeSeconds: 7 * 24 * 60 * 60 },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/taichi-no-kaze\.vercel\.app\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 30, maxAgeSeconds: 5 * 60 },
-              networkTimeoutSeconds: 8,
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts',
-              expiration: { maxEntries: 10, maxAgeSeconds: 365 * 24 * 60 * 60 },
-            },
+            name: 'Live Feed',
+            short_name: 'Feed',
+            description: 'View active threat alerts',
+            url: '/?tab=feed',
+            icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
           },
         ],
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
+
       devOptions: { enabled: false },
     }),
   ],

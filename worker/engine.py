@@ -42,6 +42,14 @@ from worker.models import (
 
 logger = logging.getLogger(__name__)
 
+try:
+    from .push_sender import send_push_for_alert
+except ImportError:
+    try:
+        from push_sender import send_push_for_alert
+    except ImportError:
+        def send_push_for_alert(alert, db_conn): return 0
+
 EARTH_RADIUS_KM = 6371.0
 SEVERITY_HIGH   = 65.0
 SEVERITY_MEDIUM = 35.0
@@ -693,6 +701,7 @@ class PredictiveDisruptionEngine:
         # every POI scored in this cycle, so they're all comparable to each other.
         cycle_density_factor = compute_density_factor(cycle_hour_wib)
 
+        new_alerts_to_push = []
         for zone in zones:
             zone_lat = float(zone.latitude)
             zone_lon = float(zone.longitude)
@@ -1031,6 +1040,35 @@ class PredictiveDisruptionEngine:
                         resolution_confidence=round(res_conf, 2),
                     ))
                     logger.info(f"[Alert] {dim_severity} {dim_name} alert fired for {zone.name} (score={dim_score:.1f})")
+                    new_alerts_to_push.append({
+                        "alert_id": None,  # filled after commit
+                        "zone_id": zone.zone_id,
+                        "zone_name": zone.name,
+                        "disruption_type": dim_name,
+                        "severity": dim_severity,
+                        "probability_percentage": round(dim_score, 2),
+                        "message": (
+                            f"{zone.name}: {dim_severity} {dim_name} risk - "
+                            f"score {dim_score:.1f}/100."
+                        ),
+                    })
 
         db.commit()
         logger.info("[Engine] Scoring cycle complete.")
+
+        # Send push notifications for newly fired alerts (after commit)
+        if new_alerts_to_push:
+            import psycopg2, psycopg2.extras, os
+            db_url = os.environ.get("DATABASE_URL", "").replace("postgresql+asyncpg://", "postgresql://")
+            try:
+                sync_conn = psycopg2.connect(
+                    db_url, sslmode="require",
+                    cursor_factory=psycopg2.extras.RealDictCursor
+                )
+                for alert in new_alerts_to_push:
+                    sent = send_push_for_alert(alert, sync_conn)
+                    if sent:
+                        logger.info(f"[Push] Sent {sent} notification(s) for {alert['zone_name']} {alert['disruption_type']}")
+                sync_conn.close()
+            except Exception as e:
+                logger.warning(f"[Push] Notification dispatch failed: {e}")

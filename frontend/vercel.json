@@ -1,19 +1,51 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/predictions/active",       "destination": "/api/predictions_active" },
-    { "source": "/api/predictions/zone/:zoneId", "destination": "/api/predictions_zone" },
-    { "source": "/api/zone-status/all",          "destination": "/api/zone_status_all" },
-    { "source": "/api/safe-zones",               "destination": "/api/safe_zones" },
-    { "source": "/api/admin/status",             "destination": "/api/admin_status" },
-    { "source": "/api/alerts/history",           "destination": "/api/alerts_history" },
-    { "source": "/api/dashboard/summary",        "destination": "/api/dashboard_summary" }
+    {
+      "source": "/api/predictions/active",
+      "destination": "/api/predictions_active"
+    },
+    {
+      "source": "/api/predictions/zone/:zoneId",
+      "destination": "/api/predictions_zone"
+    },
+    {
+      "source": "/api/zone-status/all",
+      "destination": "/api/zone_status_all"
+    },
+    {
+      "source": "/api/safe-zones",
+      "destination": "/api/safe_zones"
+    },
+    {
+      "source": "/api/admin/status",
+      "destination": "/api/admin_status"
+    },
+    {
+      "source": "/api/alerts/history",
+      "destination": "/api/alerts_history"
+    },
+    {
+      "source": "/api/dashboard/summary",
+      "destination": "/api/dashboard_summary"
+    },
+    {
+      "source": "/api/push/subscribe",
+      "destination": "/api/push_subscribe"
+    },
+    {
+      "source": "/api/push/unsubscribe",
+      "destination": "/api/push_unsubscribe"
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "x-vercel-skip-toolbar", "value": "1" }
+        {
+          "key": "x-vercel-skip-toolbar",
+          "value": "1"
+        }
       ]
     }
   ]
