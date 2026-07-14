@@ -63,6 +63,7 @@ class handler(BaseHTTPRequestHandler):
             RETURNING id
         """, (endpoint, keys.get('p256dh'), keys.get('auth'), json.dumps(preferences)))
         row = cur.fetchone()
+        cur.execute("DELETE FROM push_subscriptions WHERE updated_at < NOW() - INTERVAL '30 days'")
         conn.commit()
         cur.close()
         conn.close()

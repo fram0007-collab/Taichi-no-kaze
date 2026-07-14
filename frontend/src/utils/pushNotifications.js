@@ -99,10 +99,28 @@ export async function sendSubscriptionToBackend(subscription, preferences, apiUr
     return null;
   }
 
+  // PushSubscription keys are ArrayBuffers — must be converted to base64url strings
+  // JSON.stringify(subscription) serializes keys as empty objects otherwise
+  const p256dh = subscription.getKey ? btoa(
+    String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))
+  ).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') : '';
+
+  const auth = subscription.getKey ? btoa(
+    String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))
+  ).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') : '';
+
+  const payload = {
+    subscription: {
+      endpoint: subscription.endpoint,
+      keys: { p256dh, auth },
+    },
+    preferences,
+  };
+
   const response = await fetch(`${apiUrl}/push/subscribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscription, preferences }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
