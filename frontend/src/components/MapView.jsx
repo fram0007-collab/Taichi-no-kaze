@@ -648,7 +648,7 @@ export default function MapView({
   return (
     <div className="relative w-full h-full overflow-hidden">
       {/* Risk Legend */}
-      <div className="absolute left-4 top-4 z-[40]">
+      <div className="absolute left-4 top-4 z-[1100]">
         {isLegendMinimized ? (
           <button
             type="button"
