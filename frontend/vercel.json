@@ -36,6 +36,10 @@
     {
       "source": "/api/push/unsubscribe",
       "destination": "/api/push_unsubscribe"
+    },
+    {
+      "source": "/api/alerts/notification-preview",
+      "destination": "/api/alerts_notification_preview"
     }
   ],
   "headers": [
