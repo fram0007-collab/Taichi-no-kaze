@@ -1,7 +1,9 @@
 """
 POST /api/push/subscribe
 Saves a browser push subscription to Supabase.
-Body: { endpoint, keys: { p256dh, auth }, preferences? }
+Accepts both formats:
+  { endpoint, keys: { p256dh, auth }, preferences? }   ← flat
+  { subscription: { endpoint, keys }, preferences? }   ← nested (browser format)
 """
 from http.server import BaseHTTPRequestHandler
 import sys, os, json
@@ -19,9 +21,16 @@ class handler(BaseHTTPRequestHandler):
             length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(length)) if length else {}
 
-            endpoint = body.get('endpoint')
-            keys = body.get('keys') or {}
             preferences = body.get('preferences') or {}
+
+            # Support both flat and nested subscription formats
+            sub = body.get('subscription') or body
+            if isinstance(sub, dict) and 'endpoint' in sub:
+                endpoint = sub.get('endpoint')
+                keys = sub.get('keys') or {}
+            else:
+                endpoint = body.get('endpoint')
+                keys = body.get('keys') or {}
 
             if not endpoint:
                 send_json(self, {'error': 'endpoint required'}, 400)
@@ -49,7 +58,8 @@ class handler(BaseHTTPRequestHandler):
             cur.close()
             conn.close()
 
-            send_json(self, {'status': 'saved', 'id': row['id'] if row else None})
+            send_json(self, {'ok': True, 'id': row['id'] if row else None,
+                             'subscription': {'endpoint': endpoint}})
         except Exception as e:
             send_json(self, {'error': 'Internal server error'}, 500)
             print(f'[push/subscribe] Error: {e}')
