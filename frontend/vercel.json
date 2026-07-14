@@ -30,16 +30,16 @@
       "destination": "/api/dashboard_summary"
     },
     {
+      "source": "/api/alerts/notification-preview",
+      "destination": "/api/alerts_notification_preview"
+    },
+    {
       "source": "/api/push/subscribe",
-      "destination": "/api/push_subscribe"
+      "destination": "/api/push_handler"
     },
     {
       "source": "/api/push/unsubscribe",
-      "destination": "/api/push_unsubscribe"
-    },
-    {
-      "source": "/api/alerts/notification-preview",
-      "destination": "/api/alerts_notification_preview"
+      "destination": "/api/push_handler"
     }
   ],
   "headers": [
