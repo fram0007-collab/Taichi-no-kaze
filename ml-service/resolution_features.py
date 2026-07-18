@@ -58,19 +58,26 @@ def _alert_categorical_features(disruption_type: str, severity: str) -> dict:
 def build_resolution_training_dataset() -> pd.DataFrame:
     zones = run_query("SELECT * FROM zones")
     quakes = run_query("SELECT * FROM earthquake_events")
-    zones_by_id = {z["zone_id"]: z for z in zones}
+
+    # One query for ALL zones' closed alerts, grouped in Python — instead of
+    # one query per zone. Matters most right now, when most/all zones will
+    # have zero closed alerts (resolved_at only just started being
+    # populated), which previously still cost one full DB round-trip each.
+    all_closed = run_query(
+        """SELECT alert_id, zone_id, disruption_type, severity, alert_timestamp, resolved_at
+           FROM risk_alerts
+           WHERE resolved_at IS NOT NULL AND alert_timestamp IS NOT NULL
+           ORDER BY zone_id, alert_timestamp"""
+    )
+    closed_by_zone = {}
+    for alert in all_closed:
+        closed_by_zone.setdefault(alert["zone_id"], []).append(alert)
 
     rows = []
     for zone in zones:
         zid = zone["zone_id"]
 
-        closed_alerts = run_query(
-            """SELECT alert_id, disruption_type, severity, alert_timestamp, resolved_at
-               FROM risk_alerts
-               WHERE zone_id = :z AND resolved_at IS NOT NULL AND alert_timestamp IS NOT NULL
-               ORDER BY alert_timestamp""",
-            {"z": zid},
-        )
+        closed_alerts = closed_by_zone.get(zid, [])
         if not closed_alerts:
             continue
 

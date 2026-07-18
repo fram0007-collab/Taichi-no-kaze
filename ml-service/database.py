@@ -6,7 +6,6 @@ to train on, and reads the latest snapshot rows to make live predictions.
 import logging
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
 
 from config import DATABASE_URL
 
@@ -28,7 +27,20 @@ def _ensure_engine():
                 "the same database backend/worker use (sync driver, no +asyncpg)."
             )
         sync_url = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-        _engine = create_engine(sync_url, poolclass=NullPool, echo=False)
+        # Reuse connections across the many run_query() calls a single
+        # training run makes (build_resolution_training_dataset alone makes
+        # ~5 queries PER ZONE). A small reusable pool means only the first
+        # few queries pay the TCP+TLS+auth handshake cost — everything after
+        # reuses an existing connection. Without this (previously: NullPool),
+        # every single query paid that cost from scratch, which across many
+        # zones was slow enough to blow past the GitHub Actions job timeout.
+        _engine = create_engine(
+            sync_url,
+            pool_size=5,
+            max_overflow=5,
+            pool_pre_ping=True,  # detects a dropped/stale connection and reconnects rather than erroring
+            echo=False,
+        )
         _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
     return _engine
 
