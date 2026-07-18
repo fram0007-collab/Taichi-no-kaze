@@ -37,6 +37,7 @@ def time_features(ts: datetime) -> dict:
 
 
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
+    lat1, lon1, lat2, lon2 = float(lat1), float(lon1), float(lat2), float(lon2)
     R = 6371.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -52,10 +53,10 @@ def quake_energy_score(zone_lat, zone_lon, quakes: list, as_of: datetime) -> flo
     for eq in quakes:
         if eq["event_timestamp"] is None or eq["event_timestamp"] > as_of:
             continue
-        dist = haversine_km(zone_lat, zone_lon, eq["latitude"] or 0.0, eq["longitude"] or 0.0)
+        dist = haversine_km(zone_lat, zone_lon, float(eq["latitude"] or 0.0), float(eq["longitude"] or 0.0))
         if dist > 300.0:
             continue
-        mag = eq["magnitude"] or 0.0
+        mag = float(eq["magnitude"] or 0.0)
         dist_factor = max(0.0, 1.0 - dist / 300.0)
         mag_factor = max(0.0, min(1.0, (mag - 3.0) / 6.0))
         total += dist_factor * mag_factor * 100.0
@@ -152,5 +153,12 @@ def load_zone_series(run_query, zone_id: int) -> dict:
     for df in (traffic, weather, crowd, waterway):
         if not df.empty:
             df["timestamp"] = pd.to_datetime(df["timestamp"])
+            # Postgres NUMERIC columns come back as Decimal via psycopg2/
+            # SQLAlchemy — coerce to float64 here, once, so nothing downstream
+            # (asof_row, trend, build_signal_feature_row) can ever mix a
+            # Decimal into a float arithmetic op and blow up.
+            for col in df.columns:
+                if col != "timestamp":
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
 
     return {"traffic": traffic, "weather": weather, "crowd": crowd, "waterway": waterway}
