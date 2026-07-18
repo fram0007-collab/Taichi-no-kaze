@@ -64,17 +64,24 @@ def quake_energy_score(zone_lat, zone_lon, quakes: list, as_of: datetime) -> flo
 
 
 def asof_row(df: pd.DataFrame, ts_col: str, anchor: datetime, value_cols: list) -> dict:
-    """Most recent row at-or-before `anchor`. Returns NaNs if none exists yet."""
+    """Most recent row at-or-before `anchor`. Returns NaNs if none exists yet
+    (including when this zone has zero rows ever for this series — e.g. a
+    zone with no mapped waterway means an entirely columnless DataFrame)."""
+    if df.empty or ts_col not in df.columns:
+        return {c: np.nan for c in value_cols}
     past = df[df[ts_col] <= anchor]
     if past.empty:
         return {c: np.nan for c in value_cols}
     row = past.sort_values(ts_col).iloc[-1]
-    return {c: row[c] for c in value_cols}
+    return {c: row[c] if c in row else np.nan for c in value_cols}
 
 
 def trend(df: pd.DataFrame, ts_col: str, value_col: str, anchor: datetime, window_n: int = 3) -> float:
     """Simple slope over the last `window_n` readings at-or-before anchor.
-    Positive = rising. 0.0 if not enough history."""
+    Positive = rising. 0.0 if not enough history or the series doesn't exist
+    at all for this zone."""
+    if df.empty or ts_col not in df.columns or value_col not in df.columns:
+        return 0.0
     past = df[df[ts_col] <= anchor].sort_values(ts_col).tail(window_n)
     if len(past) < 2:
         return 0.0
