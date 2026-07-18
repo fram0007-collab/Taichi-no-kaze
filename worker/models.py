@@ -111,6 +111,7 @@ class RiskAlert(Base):
     estimated_time_to_peak = Column(DateTime, nullable=True)
     estimated_resolution_at = Column(DateTime, nullable=True)
     resolution_confidence = Column(Numeric(5, 2), nullable=True)
+    resolved_at = Column(DateTime, nullable=True)  # set when status flips to CLOSED — enables training on real durations
 
 
 class PoiMaster(Base):

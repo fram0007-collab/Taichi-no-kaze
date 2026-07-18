@@ -4,6 +4,10 @@
     { "source": "/api/predictions/active", "destination": "/api/predictions_active" },
     { "source": "/api/zone-status/all", "destination": "/api/zone_status_all" },
     { "source": "/api/safe-zones", "destination": "/api/safe_zones" },
-    { "source": "/api/admin/status", "destination": "/api/admin_status" }
+    { "source": "/api/admin/status", "destination": "/api/admin_status" },
+    { "source": "/api/predict/zone/:zoneId", "destination": "/api/ml_predict?type=zone&zoneId=:zoneId" },
+    { "source": "/api/predict/resolution/:alertId", "destination": "/api/ml_predict?type=resolution&alertId=:alertId" },
+    { "source": "/api/earthquakes", "destination": "/api/map_layers?type=earthquakes" },
+    { "source": "/api/rivers", "destination": "/api/map_layers?type=rivers" }
   ]
 }

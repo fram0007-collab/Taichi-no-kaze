@@ -19,6 +19,8 @@ import {
   AlertTriangle, MapPin, Loader2, ShieldCheck
 } from 'lucide-react';
 import { ResolutionBadgeExpanded } from './ResolutionBadge';
+import { MlRiskBadgeExpanded } from './MlRiskBadge';
+import { MlResolutionBadgeExpanded } from './MlResolutionBadge';
 
 // ── i18n-ready content block ────────────────────────────────────────────────
 const COMMON_EMERGENCY_HOTLINES = [
@@ -353,6 +355,16 @@ export default function EvacuationPanel({
             resolution_confidence={activePrediction.resolution_confidence}
             disruption_type={activePrediction.disruption_type}
           />
+        )}
+
+        {/* ML resolution-time estimate — sits next to the rule-based one above */}
+        {activePrediction?.id && (
+          <MlResolutionBadgeExpanded alertId={activePrediction.id} />
+        )}
+
+        {/* ML early-warning prediction */}
+        {(activePrediction?.zone?.zone_id ?? activePrediction?.zone?.id) && (
+          <MlRiskBadgeExpanded zoneId={activePrediction.zone?.zone_id ?? activePrediction.zone?.id} />
         )}
 
         {/* Route section */}

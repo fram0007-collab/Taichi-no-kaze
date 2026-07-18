@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
 import { ResolutionBadgeCompact } from './ResolutionBadge';
+import { MlRiskBadgeCompact } from './MlRiskBadge';
+import { MlResolutionBadgeCompact } from './MlResolutionBadge';
 import { 
   ResponsiveContainer, 
   ComposedChart, 
@@ -284,8 +286,14 @@ export default function Sidebar({
                         estimated_resolution_at={pred.estimated_resolution_at}
                         resolution_confidence={pred.resolution_confidence}
                       />
+                      <div className="mt-1">
+                        <MlResolutionBadgeCompact alertId={pred.id} />
+                      </div>
                     </div>
                   )}
+                  <div className="mt-1.5 pt-1.5 border-t border-slate-800/40">
+                    <MlRiskBadgeCompact zoneId={pred.zone?.zone_id ?? pred.zone?.id} />
+                  </div>
                 </div>
               );
             })

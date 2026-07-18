@@ -643,7 +643,7 @@ class PredictiveDisruptionEngine:
         db.query(RiskAlert).filter(
             RiskAlert.status == "OPEN",
             RiskAlert.alert_timestamp < now - timedelta(hours=12),
-        ).update({"status": "CLOSED"}, synchronize_session=False)
+        ).update({"status": "CLOSED", "resolved_at": now}, synchronize_session=False)
         db.commit()
 
         # ── Load all waterway segments ────────────────────────────────────────
@@ -984,7 +984,7 @@ class PredictiveDisruptionEngine:
                         RiskAlert.zone_id == zone.zone_id,
                         RiskAlert.status == "OPEN",
                         RiskAlert.disruption_type == dim_name,
-                    ).update({"status": "CLOSED"}, synchronize_session=False)
+                    ).update({"status": "CLOSED", "resolved_at": now}, synchronize_session=False)
                     continue
                 dim_severity = "HIGH" if dim_score >= high_thresh else "MEDIUM"
                 dim_action   = build_recommended_action(dim_name, dim_severity)
