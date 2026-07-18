@@ -46,6 +46,7 @@ def load_artifact() -> dict:
 
 
 def _haversine_km(lat1, lon1, lat2, lon2) -> float:
+    lat1, lon1, lat2, lon2 = float(lat1), float(lon1), float(lat2), float(lon2)
     R = 6371.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)

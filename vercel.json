@@ -2,12 +2,29 @@
   "version": 2,
   "rewrites": [
     { "source": "/api/predictions/active", "destination": "/api/predictions_active" },
+    { "source": "/api/predictions/zone/:zoneId", "destination": "/api/predictions_zone" },
     { "source": "/api/zone-status/all", "destination": "/api/zone_status_all" },
     { "source": "/api/safe-zones", "destination": "/api/safe_zones" },
     { "source": "/api/admin/status", "destination": "/api/admin_status" },
+    { "source": "/api/alerts/history", "destination": "/api/alerts_history" },
+    { "source": "/api/dashboard/summary", "destination": "/api/dashboard_summary" },
+    { "source": "/api/alerts/notification-preview", "destination": "/api/alerts_notification_preview" },
+    { "source": "/api/push/subscribe", "destination": "/api/push_handler" },
+    { "source": "/api/push/unsubscribe", "destination": "/api/push_handler" },
     { "source": "/api/predict/zone/:zoneId", "destination": "/api/ml_predict?type=zone&zoneId=:zoneId" },
     { "source": "/api/predict/resolution/:alertId", "destination": "/api/ml_predict?type=resolution&alertId=:alertId" },
     { "source": "/api/earthquakes", "destination": "/api/map_layers?type=earthquakes" },
     { "source": "/api/rivers", "destination": "/api/map_layers?type=rivers" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "x-vercel-skip-toolbar",
+          "value": "1"
+        }
+      ]
+    }
   ]
 }
