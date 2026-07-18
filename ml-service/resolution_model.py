@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.impute import SimpleImputer
+from sklearn.model_selection import GroupShuffleSplit
 from sklearn.pipeline import Pipeline
 
 from config import RESOLUTION_MODEL_PATH
@@ -44,6 +45,8 @@ class ResolutionTrainMetrics:
     n_alerts: int
     median_abs_error_hours: float
     coverage_within_interval: float  # fraction of true values that fell inside [low, high]
+    holdout_evaluated: bool
+    holdout_note: str | None = None
 
 
 @dataclass
@@ -58,26 +61,69 @@ class ResolutionPredictor:
     def fit(self, df: pd.DataFrame) -> ResolutionTrainMetrics:
         X = df[self.feature_columns].astype(float)
         y = df["label"].astype(float)  # remaining hours
+        groups = df["alert_id"] if "alert_id" in df.columns else None
+        n_groups = groups.nunique() if groups is not None else 0
 
+        # Held out by ALERT, not by random row: a single alert contributes
+        # MANY rows (one per signal reading during its whole open window),
+        # all describing the same event. A random row split would train and
+        # test on rows from the SAME alert — the model doesn't have to
+        # generalize at all, it just has to remember that alert. That's
+        # exactly what produced 0.0 error / 100% coverage before this fix:
+        # not genuine skill, just memorization made to look perfect.
+        holdout_evaluated = False
+        holdout_note = None
+        mae, coverage = None, None
+
+        if n_groups >= 5:
+            splitter = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+            train_idx, test_idx = next(splitter.split(X, y, groups=groups))
+            X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+            eval_low = Pipeline([step for step in self.low_pipeline.steps]).fit(X_train, y_train)
+            eval_med = Pipeline([step for step in self.median_pipeline.steps]).fit(X_train, y_train)
+            eval_high = Pipeline([step for step in self.high_pipeline.steps]).fit(X_train, y_train)
+
+            pred_low = eval_low.predict(X_test)
+            pred_med = eval_med.predict(X_test)
+            pred_high = eval_high.predict(X_test)
+
+            mae = float(np.median(np.abs(pred_med - y_test.values)))
+            lo = np.minimum(pred_low, pred_high)
+            hi = np.maximum(pred_low, pred_high)
+            coverage = float(((y_test.values >= lo) & (y_test.values <= hi)).mean())
+            holdout_evaluated = True
+            holdout_note = f"Evaluated on {groups.iloc[test_idx].nunique()} held-out alerts the model never trained on."
+        else:
+            holdout_note = (
+                f"Only {n_groups} closed alerts available — too few for a meaningful held-out split "
+                "(need >= 5). Metrics below are training-fit only and almost certainly overstate real "
+                "performance (a model this size can memorize a few dozen examples). Treat this model's "
+                "predictions as provisional until more alerts have closed."
+            )
+
+        # Final model shipped to production trains on ALL available data.
         self.low_pipeline.fit(X, y)
         self.median_pipeline.fit(X, y)
         self.high_pipeline.fit(X, y)
 
-        pred_low = self.low_pipeline.predict(X)
-        pred_med = self.median_pipeline.predict(X)
-        pred_high = self.high_pipeline.predict(X)
-
-        mae = float(np.median(np.abs(pred_med - y.values)))
-        # Guard against quantile crossover (low > high) before checking coverage
-        lo = np.minimum(pred_low, pred_high)
-        hi = np.maximum(pred_low, pred_high)
-        coverage = float(((y.values >= lo) & (y.values <= hi)).mean())
+        if not holdout_evaluated:
+            pred_low = self.low_pipeline.predict(X)
+            pred_med = self.median_pipeline.predict(X)
+            pred_high = self.high_pipeline.predict(X)
+            mae = float(np.median(np.abs(pred_med - y.values)))
+            lo = np.minimum(pred_low, pred_high)
+            hi = np.maximum(pred_low, pred_high)
+            coverage = float(((y.values >= lo) & (y.values <= hi)).mean())
 
         metrics = ResolutionTrainMetrics(
             n_samples=len(df),
             n_alerts=int(df["alert_id"].nunique()) if "alert_id" in df.columns else -1,
             median_abs_error_hours=round(mae, 2),
             coverage_within_interval=round(coverage, 3),
+            holdout_evaluated=holdout_evaluated,
+            holdout_note=holdout_note,
         )
         self.metrics = metrics.__dict__
         return metrics
