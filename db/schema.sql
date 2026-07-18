@@ -106,6 +106,9 @@ CREATE TABLE risk_alerts (
 	status VARCHAR(20), 
 	probability_percentage NUMERIC(5, 2), 
 	estimated_time_to_peak TIMESTAMP WITHOUT TIME ZONE, 
+	estimated_resolution_at TIMESTAMP WITHOUT TIME ZONE,
+	resolution_confidence NUMERIC(5, 2),
+	resolved_at TIMESTAMP WITHOUT TIME ZONE,
 	PRIMARY KEY (alert_id), 
 	FOREIGN KEY(zone_id) REFERENCES zones (zone_id)
 );

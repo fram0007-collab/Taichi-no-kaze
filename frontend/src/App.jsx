@@ -6,6 +6,9 @@ import BottomSheet from './components/BottomSheet';
 import EvacuationPanel from './components/EvacuationPanel';
 import MetricsGrid from './components/MetricsGrid';
 import AdminDashboard from './components/AdminDashboard';
+import { ResolutionBadgeCompact } from './components/ResolutionBadge';
+import { MlRiskBadgeCompact } from './components/MlRiskBadge';
+import { MlResolutionBadgeCompact } from './components/MlResolutionBadge';
 import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity } from 'lucide-react';
 import { getApiUrl } from './utils/getApiUrl';
 import Dashboard from './components/Dashboard';
@@ -1169,6 +1172,20 @@ export default function App() {
                       <div className="mt-2 text-xs text-slate-400 flex justify-between items-center">
                         <span>Threat: <span className="text-slate-200 font-semibold">{pred.disruption_type}</span></span>
                         <span>Confidence: <span className="text-indigo-400 font-semibold">{pred.probability_percentage}%</span></span>
+                      </div>
+                      {pred.estimated_resolution_at && (
+                        <div className="mt-1.5 pt-1.5 border-t border-slate-800/40">
+                          <ResolutionBadgeCompact
+                            estimated_resolution_at={pred.estimated_resolution_at}
+                            resolution_confidence={pred.resolution_confidence}
+                          />
+                          <div className="mt-1">
+                            <MlResolutionBadgeCompact alertId={pred.id} />
+                          </div>
+                        </div>
+                      )}
+                      <div className="mt-1.5 pt-1.5 border-t border-slate-800/40">
+                        <MlRiskBadgeCompact zoneId={pred.zone?.zone_id ?? pred.zone?.id} />
                       </div>
                     </div>
                   ))
