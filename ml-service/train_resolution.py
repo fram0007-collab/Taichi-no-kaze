@@ -40,6 +40,23 @@ def run_training() -> dict:
         )
 
     logger.info(f"Training on {len(df)} rows from {df['alert_id'].nunique()} closed alerts")
+
+    # Diversity check: perfect-looking metrics mean something different
+    # depending on how varied the underlying alerts actually are. A model
+    # that's 100% accurate across 5 disruption types and 3 severities at
+    # all hours of day is impressive; one that's 100% accurate because
+    # every alert so far has been "traffic, HIGH, evening rush hour" just
+    # hasn't been tested on anything hard yet.
+    type_cols = [c for c in df.columns if c.startswith("disruption_is_")]
+    types_seen = [c.replace("disruption_is_", "") for c in type_cols if df[c].sum() > 0]
+    severities_seen = sorted(df["severity_ordinal"].unique().tolist())
+    logger.info(
+        f"Diversity in training data — disruption types seen: {types_seen or ['none']}, "
+        f"severity levels seen: {severities_seen}. If this list is short, treat strong "
+        f"metrics as 'accurate on what we've seen so far,' not 'accurate in general' — "
+        f"there just hasn't been enough variety yet to know."
+    )
+
     predictor = ResolutionPredictor()
     metrics = predictor.fit(df)
     predictor.trained_at = datetime.now(timezone.utc).isoformat()
