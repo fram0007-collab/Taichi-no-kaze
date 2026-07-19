@@ -240,6 +240,14 @@ export default function EvacuationPanel({
     zoneGuidances.push({ disruption_type: primaryDisruption, guide, hotlines });
   }
 
+  // Shown in the panel header so it's always visible WHICH zone this guidance
+  // is actually for — previously there was no way to confirm this from the
+  // UI itself, which made "wrong disruption type showing" reports hard to
+  // diagnose (is it the wrong zone, or the right zone with a real bug?).
+  const zoneNameLabel = activePrediction?.zone?.name
+    ? `${activePrediction.zone.name}${zoneGuidances.length > 1 ? ` — ${zoneGuidances.length} active disruptions` : ''}`
+    : null;
+
   // ── Route calculation ──────────────────────────────────────────────────────
   const calculateRoute = useCallback(async () => {
     if (!userLocation) {
@@ -349,7 +357,7 @@ export default function EvacuationPanel({
   if (!userLocation) {
     return (
       <div className="flex flex-col h-full">
-        <PanelHeader onClose={onClose} title="Evacuation Guidance" />
+        <PanelHeader onClose={onClose} title="Evacuation Guidance" subtitle={zoneNameLabel} />
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
           <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
             <MapPin className="w-8 h-8 text-amber-400" />
@@ -387,7 +395,7 @@ export default function EvacuationPanel({
   // ── Main panel ─────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <PanelHeader onClose={onClose} title="Evacuation Guidance" />
+      <PanelHeader onClose={onClose} title="Evacuation Guidance" subtitle={zoneNameLabel} />
 
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-3 p-4">
 
@@ -527,16 +535,21 @@ export default function EvacuationPanel({
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function PanelHeader({ title, onClose }) {
+function PanelHeader({ title, subtitle, onClose }) {
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         <span className="text-lg">🚨</span>
-        <span className="font-bold text-slate-100 text-sm">{title}</span>
+        <div className="min-w-0">
+          <span className="font-bold text-slate-100 text-sm block">{title}</span>
+          {subtitle && (
+            <span className="text-[11px] text-slate-400 truncate block">{subtitle}</span>
+          )}
+        </div>
       </div>
       <button
         onClick={onClose}
-        className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+        className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0"
       >
         <X className="w-4 h-4" />
       </button>
