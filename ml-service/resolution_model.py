@@ -44,6 +44,8 @@ class ResolutionTrainMetrics:
     n_samples: int
     n_alerts: int
     median_abs_error_hours: float
+    mean_abs_error_hours: float
+    max_abs_error_hours: float
     coverage_within_interval: float  # fraction of true values that fell inside [low, high]
     holdout_evaluated: bool
     holdout_note: str | None = None
@@ -73,7 +75,7 @@ class ResolutionPredictor:
         # not genuine skill, just memorization made to look perfect.
         holdout_evaluated = False
         holdout_note = None
-        mae, coverage = None, None
+        mae, mean_ae, max_ae, coverage = None, None, None, None
 
         if n_groups >= 5:
             splitter = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
@@ -89,7 +91,10 @@ class ResolutionPredictor:
             pred_med = eval_med.predict(X_test)
             pred_high = eval_high.predict(X_test)
 
-            mae = float(np.median(np.abs(pred_med - y_test.values)))
+            abs_errors = np.abs(pred_med - y_test.values)
+            mae = float(np.median(abs_errors))
+            mean_ae = float(np.mean(abs_errors))
+            max_ae = float(np.max(abs_errors))
             lo = np.minimum(pred_low, pred_high)
             hi = np.maximum(pred_low, pred_high)
             coverage = float(((y_test.values >= lo) & (y_test.values <= hi)).mean())
@@ -112,7 +117,10 @@ class ResolutionPredictor:
             pred_low = self.low_pipeline.predict(X)
             pred_med = self.median_pipeline.predict(X)
             pred_high = self.high_pipeline.predict(X)
-            mae = float(np.median(np.abs(pred_med - y.values)))
+            abs_errors = np.abs(pred_med - y.values)
+            mae = float(np.median(abs_errors))
+            mean_ae = float(np.mean(abs_errors))
+            max_ae = float(np.max(abs_errors))
             lo = np.minimum(pred_low, pred_high)
             hi = np.maximum(pred_low, pred_high)
             coverage = float(((y.values >= lo) & (y.values <= hi)).mean())
@@ -120,7 +128,13 @@ class ResolutionPredictor:
         metrics = ResolutionTrainMetrics(
             n_samples=len(df),
             n_alerts=int(df["alert_id"].nunique()) if "alert_id" in df.columns else -1,
-            median_abs_error_hours=round(mae, 2),
+            # 4 decimal places (not 2): "0.0" was ambiguous between "truly
+            # zero" (worth investigating for leakage) and "0.03 hours,
+            # rounds to 0.0 at 2dp" (a genuinely great, unremarkable result).
+            # This resolves that ambiguity going forward.
+            median_abs_error_hours=round(mae, 4),
+            mean_abs_error_hours=round(mean_ae, 4),
+            max_abs_error_hours=round(max_ae, 4),
             coverage_within_interval=round(coverage, 3),
             holdout_evaluated=holdout_evaluated,
             holdout_note=holdout_note,
