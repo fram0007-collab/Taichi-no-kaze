@@ -308,6 +308,7 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState('map'); // 'map', 'feed', 'settings'
   const [dismissedAutoEvacuationKeys, setDismissedAutoEvacuationKeys] = useState(() => new Set());
   const [activeAutoEvacuationKey, setActiveAutoEvacuationKey] = useState(null);
+  const [evacuationTargetPrediction, setEvacuationTargetPrediction] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -625,12 +626,14 @@ export default function App() {
   const openEvacuationPanel = (prediction = null) => {
     const targetPrediction = prediction ?? filteredPredictions?.[0] ?? null;
     setActiveAutoEvacuationKey(getPredictionKey(targetPrediction));
+    setEvacuationTargetPrediction(targetPrediction);
     setShowEvacuation(true);
   };
 
   const closeEvacuationPanel = () => {
     setShowEvacuation(false);
     setEvacuationRoute(null);
+    setEvacuationTargetPrediction(null);
     if (activeAutoEvacuationKey) {
       setDismissedAutoEvacuationKeys(prev => new Set(prev).add(activeAutoEvacuationKey));
       setActiveAutoEvacuationKey(null);
@@ -1055,7 +1058,7 @@ export default function App() {
               {filteredPredictions.length > 0 && !showEvacuation && (
                 <div className="px-3 py-2 shrink-0">
                   <button
-                    onClick={() => openEvacuationPanel(filteredPredictions[0])}
+                    onClick={() => openEvacuationPanel(selectedPrediction || filteredPredictions[0])}
                     className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
                   >
                     <span>🚨</span>
@@ -1081,7 +1084,7 @@ export default function App() {
                     onRouteReady={handleRouteReady}
                     onClose={closeEvacuationPanel}
                     onRequestLocation={locateUser}
-                    activePrediction={filteredPredictions[0] ?? null}
+                    activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
                   />
                 </div>
               )}
@@ -1103,7 +1106,7 @@ export default function App() {
               {/* Evacuation button — mobile feed tab */}
               {filteredPredictions.length > 0 && !showEvacuation && (
                 <button
-                  onClick={() => { openEvacuationPanel(filteredPredictions[0]); setMobileTab('feed'); }}
+                  onClick={() => { openEvacuationPanel(selectedPrediction || filteredPredictions[0]); setMobileTab('feed'); }}
                   className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
                 >
                   <span>🚨</span>
@@ -1128,7 +1131,7 @@ export default function App() {
                     onRouteReady={handleRouteReady}
                     onClose={closeEvacuationPanel}
                     onRequestLocation={locateUser}
-                    activePrediction={filteredPredictions[0] ?? null}
+                    activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
                   />
                 </div>
               )}
@@ -1469,6 +1472,7 @@ export default function App() {
                   onRouteReady={handleRouteReady}
                   onClose={closeEvacuationPanel}
                   onRequestLocation={locateUser}
+                  activePrediction={evacuationTargetPrediction ?? selectedPrediction ?? filteredPredictions[0] ?? null}
                 />
               }
             />
