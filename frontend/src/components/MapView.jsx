@@ -1115,7 +1115,13 @@ export default function MapView({
                 crowd: zs.crowd_score || 0, earthquake: zs.earthquake_score || 0,
                 waterway: zs.waterway_score || 0,
               };
-              const matchedPred = predictions.find(p => p.zone?.zone_id === zone.zone_id || p.zone?.id === zone.zone_id);
+              const matchedPredsByDim = {};
+              for (const p of predictions) {
+                const pZoneId = p.zone?.zone_id ?? p.zone?.id;
+                if (pZoneId === zone.zone_id && p.disruption_type) {
+                  matchedPredsByDim[p.disruption_type.toLowerCase()] = p;
+                }
+              }
               const isSelected = !!(selectedZone && (selectedZone.zone?.id === zone.zone_id || selectedZone.zone?.zone_id === zone.zone_id));
 
               let isOutOfRadius = false, distanceStr = '';
@@ -1174,8 +1180,8 @@ export default function MapView({
                     key={`${zone.zone_id}-${dim}`}
                     center={center} radius={r} pathOptions={po}
                     interactive={!isOutOfRadius}
-                    eventHandlers={{ click: () => matchedPred
-                      ? onSelectZone(matchedPred)
+                    eventHandlers={{ click: () => matchedPredsByDim[dim]
+                      ? onSelectZone(matchedPredsByDim[dim])
                       : onSelectZone({ zone: { ...zone, id: zone.zone_id }, risk_level: riskKey, disruption_type: dim, probability_percentage: score })
                     }}
                   >
