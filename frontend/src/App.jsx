@@ -630,6 +630,19 @@ export default function App() {
     setShowEvacuation(true);
   };
 
+  // Keep the evacuation panel following the currently selected zone WHILE
+  // it's open. Without this, selecting a different zone/card after already
+  // opening the panel silently did nothing — the panel stayed frozen on
+  // whichever zone it was originally opened for, since the "Get Evacuation
+  // Guidance" button (the only thing that used to update the target) is
+  // hidden once the panel is showing.
+  useEffect(() => {
+    if (showEvacuation && selectedPrediction) {
+      setEvacuationTargetPrediction(selectedPrediction);
+      setActiveAutoEvacuationKey(getPredictionKey(selectedPrediction));
+    }
+  }, [selectedPrediction, showEvacuation]);
+
   const closeEvacuationPanel = () => {
     setShowEvacuation(false);
     setEvacuationRoute(null);
