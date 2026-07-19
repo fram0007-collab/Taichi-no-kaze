@@ -207,6 +207,39 @@ export default function EvacuationPanel({
     ...(CONTENT.hotlines[primaryDisruption] ?? CONTENT.hotlines.traffic),
   ];
 
+  // A single zone can have MULTIPLE simultaneous OPEN alerts of different
+  // disruption types (worker/engine.py maintains one OPEN alert per zone
+  // PER disruption type — e.g. a zone can be both flooding and crowd-surging
+  // at once). Show one guidance accordion per distinct type actually active
+  // at this zone, ordered by severity, instead of only ever showing one.
+  const currentZoneId = activePrediction?.zone?.zone_id ?? activePrediction?.zone?.id ?? null;
+  const zoneAlerts = currentZoneId != null
+    ? (predictions ?? []).filter(p => String(p?.zone?.zone_id ?? p?.zone?.id) === String(currentZoneId))
+    : (activePrediction ? [activePrediction] : []);
+
+  const SEVERITY_RANK = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+  const sortedZoneAlerts = [...zoneAlerts].sort(
+    (a, b) => (SEVERITY_RANK[b.severity?.toUpperCase()] ?? 0) - (SEVERITY_RANK[a.severity?.toUpperCase()] ?? 0)
+  );
+
+  const seenTypes = new Set();
+  const zoneGuidances = [];
+  for (const alert of sortedZoneAlerts) {
+    const dtype = alert.disruption_type?.toLowerCase();
+    if (!dtype || seenTypes.has(dtype)) continue;
+    seenTypes.add(dtype);
+    zoneGuidances.push({
+      disruption_type: dtype,
+      guide: CONTENT.guides[dtype] ?? CONTENT.guides.traffic,
+      hotlines: [...COMMON_EMERGENCY_HOTLINES, ...(CONTENT.hotlines[dtype] ?? CONTENT.hotlines.traffic)],
+    });
+  }
+  // Fallback so the panel never renders with zero guidance sections (e.g. if
+  // no predictions prop was passed for some reason).
+  if (zoneGuidances.length === 0) {
+    zoneGuidances.push({ disruption_type: primaryDisruption, guide, hotlines });
+  }
+
   // ── Route calculation ──────────────────────────────────────────────────────
   const calculateRoute = useCallback(async () => {
     if (!userLocation) {
@@ -339,7 +372,14 @@ export default function EvacuationPanel({
             Enable My Location
           </button>
         </div>
-        <GuidanceAccordion guide={guide} hotlines={hotlines} />
+        {zoneGuidances.length > 1 && (
+          <p className="px-4 text-[11px] font-semibold text-amber-400 uppercase tracking-wide">
+            This zone has {zoneGuidances.length} active disruption types
+          </p>
+        )}
+        {zoneGuidances.map((zg, i) => (
+          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} />
+        ))}
       </div>
     );
   }
@@ -471,8 +511,15 @@ export default function EvacuationPanel({
           </div>
         </div>
 
-        {/* Step-by-step guide */}
-        <GuidanceAccordion guide={guide} hotlines={hotlines} defaultGuideOpen />
+        {/* Step-by-step guide(s) — one per active disruption type at this zone */}
+        {zoneGuidances.length > 1 && (
+          <p className="px-4 text-[11px] font-semibold text-amber-400 uppercase tracking-wide">
+            This zone has {zoneGuidances.length} active disruption types
+          </p>
+        )}
+        {zoneGuidances.map((zg, i) => (
+          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} />
+        ))}
       </div>
     </div>
   );
