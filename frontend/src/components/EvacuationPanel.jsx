@@ -196,8 +196,11 @@ export default function EvacuationPanel({
   const [expandedGuide, setExpandedGuide] = useState(null);
   const [expandedHotlines, setExpandedHotlines] = useState(false);
 
-  // Derive the primary disruption type from active predictions
-  const primaryDisruption = predictions?.[0]?.disruption_type?.toLowerCase() ?? 'traffic';
+  // Derive the primary disruption type from the zone actually being viewed —
+  // NOT predictions[0], which is an unrelated list that doesn't track what
+  // the user selected (this previously caused guidance to always show
+  // whichever disruption type happened to sort first in that list).
+  const primaryDisruption = (activePrediction?.disruption_type ?? predictions?.[0]?.disruption_type ?? 'traffic').toLowerCase();
   const guide = CONTENT.guides[primaryDisruption] ?? CONTENT.guides.traffic;
   const hotlines = [
     ...COMMON_EMERGENCY_HOTLINES,
