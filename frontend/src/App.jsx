@@ -965,10 +965,10 @@ export default function App() {
           )}
         </div>
       </header>
-
+      {/* Notification Preferences Modal */}
       {showNotificationPreferences && (
         <div
-          className="fixed inset-0 z-[999] overflow-y-auto bg-black/40 backdrop-blur-sm p-3 sm:p-4 md:p-6"
+          className="fixed inset-0 z-[3000] overflow-y-auto bg-black/40 backdrop-blur-sm p-3 sm:p-4 md:p-6"
           onClick={() => setShowNotificationPreferences(false)}
         >
           <div className="mx-auto flex min-h-full w-full max-w-lg items-center justify-center py-4 sm:items-start sm:justify-end sm:py-6">

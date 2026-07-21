@@ -403,6 +403,7 @@ export default function MapView({
   nearMeRadius = 5,
   setNearMeRadius,
   evacuationRoute = null,
+  suppressMapControls = false,
 }) {
   const [globalPois, setGlobalPois] = useState([]);
   const hasActiveDisruptions = predictions.length > 0;
@@ -433,6 +434,10 @@ export default function MapView({
       setActiveLayers(prev => ({ ...prev, earthquakes: true }));
     }
   }, [selectedEarthquake]);
+
+  useEffect(() => {
+    if (suppressMapControls) setShowLayerPanel(false);
+  }, [suppressMapControls]);
  
   const hasDisruptionInRadius = useMemo(() => {
     if (!userLocation || !predictions || predictions.length === 0) return false;
@@ -647,122 +652,124 @@ export default function MapView({
  
   return (
     <div className="relative w-full h-full overflow-hidden">
-      {/* Risk Legend */}
-      <div className="absolute left-4 top-4 z-[1100]">
-        {isLegendMinimized ? (
-          <button
-            type="button"
-            onClick={() => setIsLegendMinimized(false)}
-            className="glass-panel flex items-center gap-2 rounded-full border border-slate-700/40 bg-white/80 px-3 py-2 text-sm font-semibold text-slate-700 shadow-lg transition hover:bg-white dark:bg-slate-900/80 dark:text-slate-100"
-          >
-            <ChevronDown className="h-4 w-4" />
-            <span>Legend</span>
-          </button>
-        ) : (
-          <div className="glass-panel rounded-xl border border-slate-700/40 px-3 py-3 shadow-lg">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">
-                Legend
-              </div>
+      {!suppressMapControls && (
+        <>
+          {/* Risk Legend */}
+          <div className="absolute left-4 top-4 z-[1100]">
+            {isLegendMinimized ? (
               <button
                 type="button"
-                onClick={() => setIsLegendMinimized(true)}
-                className="rounded-full p-1 text-slate-600 transition hover:bg-slate-200/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                aria-label="Minimize legend"
+                onClick={() => setIsLegendMinimized(false)}
+                className="flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-2 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-white dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-100"
               >
-                <ChevronUp className="h-3.5 w-3.5" />
+                <ChevronDown className="h-4 w-4" />
+                <span>Legend</span>
               </button>
-            </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-3 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-100">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">
+                    Legend
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsLegendMinimized(true)}
+                    className="rounded-full p-1 text-slate-600 transition hover:bg-slate-200/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                    aria-label="Minimize legend"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </button>
+                </div>
 
-            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
-              Risk Levels
-            </div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+                  Risk Levels
+                </div>
 
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[#FF2A2A]"></span>
-                <span className="text-[11px] text-slate-900 dark:text-slate-100">Critical (80+)</span>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-[#FF2A2A]"></span>
+                    <span className="text-[11px] text-slate-900 dark:text-slate-100">Critical (80+)</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-[#FF7A00]"></span>
+                    <span className="text-[11px] text-slate-900 dark:text-slate-100">High (65-79)</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-[#FFD600]"></span>
+                    <span className="text-[11px] text-slate-900 dark:text-slate-100">Medium (35-64)</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-[#00E676]"></span>
+                    <span className="text-[11px] text-slate-900 dark:text-slate-100">Low (0-34)</span>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+                  Size Legend
+                </div>
+
+                <div className="space-y-1.5 text-xs text-slate-900 dark:text-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-full border border-slate-700 bg-white/80 dark:border-slate-200 dark:bg-slate-800/80"></div>
+                    <span>Small circle = smaller affected area</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full border border-slate-700 bg-white/80 dark:border-slate-200 dark:bg-slate-800/80"></div>
+                    <span>Large circle = larger affected area</span>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+                  Disruption Intensity
+                </div>
+
+                <div className="space-y-1.5 text-xs text-slate-900 dark:text-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 rounded-full bg-[#FF2A2A]"></div>
+                    <span>Solid = Strong disruption</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 rounded-full bg-[#FF2A2A] opacity-30"></div>
+                    <span>Faded = Lower disruption</span>
+                  </div>
+                </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[#FF7A00]"></span>
-                <span className="text-[11px] text-slate-900 dark:text-slate-100">High (65-79)</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[#FFD600]"></span>
-                <span className="text-[11px] text-slate-900 dark:text-slate-100">Medium (35-64)</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[#00E676]"></span>
-                <span className="text-[11px] text-slate-900 dark:text-slate-100">Low (0-34)</span>
-              </div>
-            </div>
-
-            <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
-              Size Legend
-            </div>
-
-            <div className="space-y-1.5 text-xs text-slate-900 dark:text-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full border border-slate-700 bg-white/80 dark:border-slate-200 dark:bg-slate-800/80"></div>
-                <span>Small circle = smaller affected area</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-full border border-slate-700 bg-white/80 dark:border-slate-200 dark:bg-slate-800/80"></div>
-                <span>Large circle = larger affected area</span>
-              </div>
-            </div>
-
-            <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
-              Disruption Intensity
-            </div>
-
-            <div className="space-y-1.5 text-xs text-slate-900 dark:text-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded-full bg-[#FF2A2A]"></div>
-                <span>Solid = Strong disruption</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded-full bg-[#FF2A2A] opacity-30"></div>
-                <span>Faded = Lower disruption</span>
-              </div>
-            </div>
+            )}
           </div>
-        )}
+          {/* Floating Layer Toggle Panel */}
+          {/* pointer-events-none on container prevents the invisible panel from
+               intercepting touches on the right half of the map on mobile */}
+          <div className="absolute top-6 right-6 z-[999] pointer-events-none">
+   
+    <button
+      onClick={() => setShowLayerPanel(!showLayerPanel)}
+      className="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all font-bold pointer-events-auto"
+    >
+      ⚙️ Layers
+    </button>
+   
+    <div
+      className={`glass-panel mt-2 p-2.5 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-1 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-6 opacity-0 pointer-events-none'}`}
+      aria-hidden={!showLayerPanel}
+    >
+      <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
+        <div className="flex items-center space-x-2">
+          <Layers className="w-4 h-4 text-indigo-400" />
+          <span className="text-xs uppercase font-extrabold tracking-wider">Map Layer Filters</span>
+        </div>
+        <button
+          onClick={() => setShowLayerPanel(false)}
+          className="text-slate-400 hover:text-slate-100 bg-transparent p-1 rounded hover:bg-slate-800/30">
+          ✕
+        </button>
       </div>
-      {/* Floating Layer Toggle Panel */}
-      {/* pointer-events-none on container prevents the invisible panel from
-           intercepting touches on the right half of the map on mobile */}
-      <div className="absolute top-6 right-6 z-[999] pointer-events-none">
- 
-  <button
-    onClick={() => setShowLayerPanel(!showLayerPanel)}
-    className="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all font-bold pointer-events-auto"
-  >
-    ⚙️ Layers
-  </button>
- 
-  <div
-    className={`glass-panel mt-2 p-2.5 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-1 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-6 opacity-0 pointer-events-none'}`}
-    aria-hidden={!showLayerPanel}
-  >
-    <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
-      <div className="flex items-center space-x-2">
-        <Layers className="w-4 h-4 text-indigo-400" />
-        <span className="text-xs uppercase font-extrabold tracking-wider">Map Layer Filters</span>
-      </div>
-      <button
-        onClick={() => setShowLayerPanel(false)}
-        className="text-slate-400 hover:text-slate-100 bg-transparent p-1 rounded hover:bg-slate-800/30">
-        ✕
-      </button>
-    </div>
-        <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Threat Zones</div>
-        <div className="flex flex-col space-y-1.5">
+          <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Threat Zones</div>
+          <div className="flex flex-col space-y-1.5">
           {[
             { id: 'threat_traffic', label: 'Traffic 🚗', color: 'text-orange-400' },
             { id: 'threat_weather', label: 'Weather 🌧️', color: 'text-blue-400' },
@@ -875,6 +882,8 @@ export default function MapView({
  
       </div>
     </div>
+    </>
+      )}
  
       <MapContainer 
         center={JABODETABEK_CENTER} 
