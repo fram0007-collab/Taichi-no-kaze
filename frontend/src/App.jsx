@@ -124,6 +124,23 @@ export default function App() {
     });
   }, [predictions, nearMeFilterActive, nearMeRadius, userLocation]);
 
+  // Severity filter state for mobile view tab
+  const [mobileSeverityFilter, setMobileSeverityFilter] = useState('all');
+  const mobileFilteredPredictions = useMemo(() => {
+    if (mobileSeverityFilter === 'all') return filteredPredictions;
+    return filteredPredictions.filter(pred => 
+      pred.risk_level?.toLowerCase() === mobileSeverityFilter.toLowerCase()
+    );
+  }, [filteredPredictions, mobileSeverityFilter]);
+
+  const activeZoneIds = useMemo(() => new Set(
+    predictions.map(p => p.zone?.zone_id ?? p.zone?.id).filter(Boolean)
+  ), [predictions]);
+  const mobileLowZones = useMemo(() => allZones.filter(zs =>
+    !activeZoneIds.has(zs.zone_id) && zs.zone &&
+    (zs.overall_risk_score > 0 || zs.traffic_score > 0 || zs.crowd_score > 0)
+  ), [allZones, activeZoneIds]);
+
   // Earthquake states
   const [earthquakes, setEarthquakes] = useState([]);
   const [selectedEarthquake, setSelectedEarthquake] = useState(null);
@@ -1149,6 +1166,34 @@ export default function App() {
                 </div>
               )}
               
+              {/* Severity Filter Tabs */}
+              <div className="flex flex-wrap gap-1 pb-2 border-b border-slate-800/40">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'Critical', label: 'Critical', color: 'border-red-500/20 text-red-400 bg-red-500/5' },
+                  { id: 'High', label: 'High', color: 'border-orange-500/20 text-orange-400 bg-orange-500/5' },
+                  { id: 'Medium', label: 'Medium', color: 'border-yellow-500/20 text-yellow-400 bg-yellow-500/5' },
+                  { id: 'Low', label: 'Low', color: 'border-emerald-500/20 text-emerald-400 bg-emerald-500/5' }
+                ].map(tab => {
+                  const isActive = mobileSeverityFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setMobileSeverityFilter(tab.id)}
+                      className={`text-[9px] px-2 py-0.5 rounded font-semibold border transition-all duration-200 ${
+                        isActive
+                          ? tab.id === 'all'
+                            ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
+                            : tab.color + ' font-bold scale-105'
+                          : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {nearMeFilterActive && userLocation && (
                 <div className="glass-panel px-3 py-2.5 rounded-xl border border-indigo-500/20 text-indigo-400 text-xs flex items-center justify-between animate-pulse shrink-0">
                   <div className="flex items-center space-x-1.5 font-semibold">
@@ -1164,12 +1209,31 @@ export default function App() {
               )}
               
               <div className="space-y-3">
-                {filteredPredictions.length === 0 ? (
+                {mobileSeverityFilter === 'Low' ? (
+                  mobileLowZones.length === 0 ? (
+                    <div className="text-center py-12 border border-dashed border-slate-800 rounded-2xl">
+                      <p className="text-xs text-slate-500 font-medium">All zones have active alerts or no data yet.</p>
+                    </div>
+                  ) : (
+                    mobileLowZones.map(zs => (
+                      <div key={zs.zone_id} className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-bold text-emerald-400">{zs.zone?.name ?? `Zone ${zs.zone_id}`}</p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">No active alerts — being monitored</p>
+                          {zs.overall_risk_score > 0 && (
+                            <p className="text-[10px] text-slate-500">Risk score: {Number(zs.overall_risk_score).toFixed(1)}</p>
+                          )}
+                        </div>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold border border-emerald-500/20 text-emerald-400 bg-emerald-500/5 shrink-0">LOW</span>
+                      </div>
+                    ))
+                  )
+                ) : mobileFilteredPredictions.length === 0 ? (
                   <div className="text-center py-12 border border-dashed border-slate-800 rounded-2xl">
                     <p className="text-xs text-slate-500 font-medium">No active warnings detected.</p>
                   </div>
                 ) : (
-                  filteredPredictions.map(pred => (
+                  mobileFilteredPredictions.map(pred => (
                     <div 
                       key={pred.id}
                       onClick={() => {
