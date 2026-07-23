@@ -40,3 +40,6 @@ Thumbs.db
 
 # Test/diagnostic scripts with live DB access
 diagnose.py
+
+# Local launch script
+launch_all.bat
