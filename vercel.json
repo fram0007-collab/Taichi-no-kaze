@@ -13,6 +13,7 @@
     { "source": "/api/push/unsubscribe", "destination": "/api/push_handler" },
     { "source": "/api/predict/zone/:zoneId", "destination": "/api/ml_predict?type=zone&zoneId=:zoneId" },
     { "source": "/api/predict/resolution/:alertId", "destination": "/api/ml_predict?type=resolution&alertId=:alertId" },
+    { "source": "/api/predict/batch", "destination": "/api/ml_predict?type=batch" },
     { "source": "/api/earthquakes", "destination": "/api/map_layers?type=earthquakes" },
     { "source": "/api/rivers", "destination": "/api/map_layers?type=rivers" }
   ],

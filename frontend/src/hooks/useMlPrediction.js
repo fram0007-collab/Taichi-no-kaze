@@ -7,7 +7,10 @@ const API_URL = getApiUrl();
 // same render cycle, so scrolling the sidebar doesn't refire a fetch per
 // card every time. Cleared naturally on full page reload.
 const cache = new Map();
-const CACHE_TTL_MS = 60_000;
+// 5 minutes, not 60 seconds — the underlying signals only actually change on
+// the worker's ~15-minute ingestion cycle, so a 60s cache was forcing far
+// more re-fetches (and Vercel CPU-time) than the data could ever justify.
+const CACHE_TTL_MS = 300_000;
 
 export function useMlPrediction(zoneId) {
   const [prediction, setPrediction] = useState(null);

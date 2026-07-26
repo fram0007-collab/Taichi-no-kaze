@@ -41,7 +41,13 @@ class RiskPredictor:
     pipeline: Pipeline = field(default_factory=lambda: Pipeline([
         ("impute", SimpleImputer(strategy="median")),
         ("clf", GradientBoostingClassifier(
-            n_estimators=200,
+            # Reduced from 200 — Vercel Fluid Compute showed this model's
+            # cold-start unpickling + inference cost dominating CPU usage
+            # (P75 21s on /api/ml_predict vs 1-5s on plain DB-query endpoints).
+            # Fewer trees = smaller pickled artifact = faster deserialization
+            # on every cold invocation. Re-check held-out accuracy after the
+            # next training run to confirm this trade-off is worth it.
+            n_estimators=100,
             max_depth=3,
             learning_rate=0.05,
             random_state=42,

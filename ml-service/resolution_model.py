@@ -31,7 +31,12 @@ def _make_pipeline(alpha: float) -> Pipeline:
         ("reg", GradientBoostingRegressor(
             loss="quantile",
             alpha=alpha,
-            n_estimators=150,
+            # Reduced from 150 — this factory builds THREE separate models
+            # (low/median/high quantiles), so the artifact-size and cold-start
+            # cost of this reduction is effectively tripled compared to the
+            # classifier. Same trade-off: verify held-out error/coverage
+            # metrics after the next training run stay acceptable.
+            n_estimators=80,
             max_depth=3,
             learning_rate=0.05,
             random_state=42,
