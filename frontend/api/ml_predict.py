@@ -16,8 +16,21 @@ connection, reused across every item — instead of the frontend firing one
 request per badge. Introduced because per-badge fetching was consuming a
 disproportionate share of Vercel's Fluid Active CPU budget: each individual
 request was separately paying the cost of unpickling the scikit-learn models
-(200-450 trees combined) and opening a fresh DB connection, even though that
-cost is identical regardless of which zone/alert is being predicted.
+(100 trees for the classifier, 240 across the three resolution quantile
+models) and opening a fresh DB connection, even though that cost is
+identical regardless of which zone/alert is being predicted.
+
+All three modes also check a shared Postgres-backed cache (_cache_helpers.py,
+ml_prediction_cache table) before computing anything. A cache hit skips
+feature-building, model loading, AND inference — the whole expensive path —
+returning in the time of one indexed row lookup. This is backed by the
+database rather than an in-process dict specifically because this function
+runs cold most of the time in practice; an in-memory-only cache would rarely
+get the chance to be hit before the instance recycles. TTL is 5 minutes
+(matching the client-side cache and the ~15-minute worker ingestion cycle),
+so a model retrained today can serve a stale-by-one-cycle-at-most result for
+up to 5 minutes after deploy — an accepted, bounded trade-off given how
+short the window is relative to the daily retrain cadence.
 """
 from http.server import BaseHTTPRequestHandler
 import sys, os
@@ -27,6 +40,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from _helpers import get_conn, send_json, send_cors_preflight
 from _ml_helpers import build_live_features as build_zone_features, predict as predict_zone
 from _resolution_helpers import build_live_features_for_alert, predict as predict_resolution
+from _cache_helpers import get_cached, set_cached
 
 MAX_BATCH_SIZE = 50  # guardrail — a pathological request shouldn't tie up one invocation indefinitely
 
@@ -69,16 +83,23 @@ class handler(BaseHTTPRequestHandler):
                 send_json(self, {"error": "zone_id required"}, 400)
                 return
             zone_id = int(zone_id)
+            cache_key = f"zone:{zone_id}"
 
             conn = get_conn()
             cur = conn.cursor()
             try:
+                cached = get_cached(cur, cache_key)
+                if cached is not None:
+                    send_json(self, cached)
+                    return
+
                 features = build_zone_features(cur, zone_id)
+                result = predict_zone(features)
+                result["zone_id"] = zone_id
+                set_cached(cur, conn, cache_key, result)
             finally:
                 cur.close(); conn.close()
 
-            result = predict_zone(features)
-            result["zone_id"] = zone_id
             send_json(self, result)
 
         except ValueError as e:
@@ -99,20 +120,27 @@ class handler(BaseHTTPRequestHandler):
                 send_json(self, {"error": "alert_id required"}, 400)
                 return
             alert_id = int(alert_id)
+            cache_key = f"resolution:{alert_id}"
 
             conn = get_conn()
             cur = conn.cursor()
             try:
+                cached = get_cached(cur, cache_key)
+                if cached is not None:
+                    send_json(self, cached)
+                    return
+
                 features = build_live_features_for_alert(cur, alert_id)
+                result = predict_resolution(features)
+                result["alert_id"] = alert_id
+                now = datetime.now(timezone.utc)
+                result["estimated_resolution_at"] = (
+                    now + timedelta(hours=result["hours_remaining_median"])
+                ).isoformat()
+                set_cached(cur, conn, cache_key, result)
             finally:
                 cur.close(); conn.close()
 
-            result = predict_resolution(features)
-            result["alert_id"] = alert_id
-            now = datetime.now(timezone.utc)
-            result["estimated_resolution_at"] = (
-                now + timedelta(hours=result["hours_remaining_median"])
-            ).isoformat()
             send_json(self, result)
 
         except ValueError as e:
@@ -144,9 +172,15 @@ class handler(BaseHTTPRequestHandler):
         try:
             for zone_id in zone_ids:
                 try:
+                    cache_key = f"zone:{zone_id}"
+                    cached = get_cached(cur, cache_key)
+                    if cached is not None:
+                        zones_result[str(zone_id)] = cached
+                        continue
                     features = build_zone_features(cur, zone_id)
                     result = predict_zone(features)
                     result["zone_id"] = zone_id
+                    set_cached(cur, conn, cache_key, result)
                     zones_result[str(zone_id)] = result
                 except Exception as e:
                     # One zone's failure (e.g. not found) shouldn't sink the
@@ -155,6 +189,11 @@ class handler(BaseHTTPRequestHandler):
 
             for alert_id in alert_ids:
                 try:
+                    cache_key = f"resolution:{alert_id}"
+                    cached = get_cached(cur, cache_key)
+                    if cached is not None:
+                        resolutions_result[str(alert_id)] = cached
+                        continue
                     features = build_live_features_for_alert(cur, alert_id)
                     result = predict_resolution(features)
                     result["alert_id"] = alert_id
@@ -162,6 +201,7 @@ class handler(BaseHTTPRequestHandler):
                     result["estimated_resolution_at"] = (
                         now + timedelta(hours=result["hours_remaining_median"])
                     ).isoformat()
+                    set_cached(cur, conn, cache_key, result)
                     resolutions_result[str(alert_id)] = result
                 except Exception as e:
                     resolutions_result[str(alert_id)] = {"error": str(e)}
