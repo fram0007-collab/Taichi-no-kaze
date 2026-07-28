@@ -45,7 +45,7 @@ The **Critical Event** simulation criteria are derived directly from the Predict
 | Service | Endpoint | Normal State | Critical Event State | Engine Logic Criteria |
 | :--- | :--- | :--- | :--- | :--- |
 | **Open-Meteo Weather** | `GET /v1/forecast` | Mild weather: `rainfall: 0.5mm`, `wind: 8km/h`, `humidity: 72%`, `prob: 12%` | **Compound Monsoon Burst**: `rainfall: 58.5mm/h`, `wind: 42km/h`, `humidity: 96%`, `prob: 98.5%` | `rainfall >= 50.0mm` yields `weather_score >= 85.0` (High/Extreme Flood Warning) |
-| **BMKG Earthquake** | `GET /DataMKG/TEWS/gempaterkini.json` | Minor offshore event: `M3.4`, depth `120km`, Buleleng-Bali | **Severe Near-Jakarta Quake**: `M7.2`, depth `10km`, centroid `-6.200, 106.816` | `Magnitude >= 6.0` near zone triggers impact radius $>100\text{km}$ & emergency push alert |
+| **BMKG Earthquake** | `GET /DataMKG/TEWS/gempaterkini.json` | Minor offshore event: `M3.4`, depth `120km`, Buleleng-Bali | **Catastrophic Megathrust Quake**: Random `M7.4` to `M8.8`, shallow depth `5-12km`, impact radius `110-132km` (covers all 60 zones) | `Magnitude >= 6.0` near zone triggers impact radius $>100\text{km}$ & emergency push alert |
 | **TomTom Traffic** | `GET /traffic/services/4/flowSegmentData/...` | Free flow: `currentSpeed: 46km/h`, `travelTime: 65s` | **Gridlock Traffic**: `currentSpeed: 5km/h`, `travelTime: 600s`, `congestion > 0.9` | Speed drop $>80\%$ below baseline drives `traffic_score > 85.0` |
 | **Google Routes** | `POST /directions/v2:computeRoutes` | Normal drive: `duration: "65s"`, `staticDuration: "60s"` | **10x Delay Spike**: `duration: "600s"`, `staticDuration: "60s"` | 10$\times$ duration multiplier causes heavy congestion drop calculation |
 

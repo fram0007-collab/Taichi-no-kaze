@@ -1,6 +1,7 @@
 import sqlite3
 import httpx
 import json
+import random
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
@@ -274,6 +275,11 @@ async def bmkg_earthquake(request: Request):
     now_str = datetime.now(timezone.utc).isoformat()
     
     if is_critical:
+        # Generate dramatic high magnitude (7.2 - 8.8) and shallow depth (5 - 12 km)
+        random_mag = round(random.uniform(7.4, 8.8), 1)
+        random_depth = random.randint(5, 12)
+        # Impact radius = mag * 15 = ~110km to 132km (massively > 50km covering all Jakarta zones)
+        
         gempa_item = {
             "Tanggal": datetime.now().strftime("%d %b %Y"),
             "Jam": datetime.now().strftime("%H:%M:%S WIB"),
@@ -281,10 +287,10 @@ async def bmkg_earthquake(request: Request):
             "Coordinates": "-6.200,106.816",
             "Lintang": "6.20 LS",
             "Bujur": "106.81 BT",
-            "Magnitude": "7.2",
-            "Kedalaman": "10 km",
-            "Wilayah": "Pusat Gempa 10 km Barat Daya Jakarta - Potensi Tsunami & Kerusakan Severe",
-            "Potensi": "Potensi Tsunami di Pesisir Jakarta"
+            "Magnitude": str(random_mag),
+            "Kedalaman": f"{random_depth} km",
+            "Wilayah": f"EPISENTRUM DAHSYAT M{random_mag} JAKARTA REGION (Kedalaman Shallow {random_depth}km) - High Impact Radius (>110km)",
+            "Potensi": "BERPOTENSI TSUNAMI & KERUSAKAN SEVERE DI SELURUH JABODETABEK"
         }
     else:
         gempa_item = {
@@ -352,12 +358,12 @@ async def tomtom_traffic(
     is_critical = state["services"]["tomtom"]["critical"]
     
     if is_critical:
-        current_speed = 5.0
+        current_speed = round(random.uniform(2.5, 5.0), 1)
         free_flow = 50.0
-        current_travel_time = 600
+        current_travel_time = random.randint(600, 900)
         free_flow_travel_time = 60
     else:
-        current_speed = 46.0
+        current_speed = round(random.uniform(44.0, 48.0), 1)
         free_flow = 50.0
         current_travel_time = 65
         free_flow_travel_time = 60
@@ -426,7 +432,7 @@ async def google_routes(request: Request):
     is_critical = state["services"]["google"]["critical"]
     
     if is_critical:
-        duration_str = "600s"
+        duration_str = f"{random.randint(600, 900)}s"
         static_duration_str = "60s"
     else:
         duration_str = "65s"
