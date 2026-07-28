@@ -43,5 +43,6 @@ diagnose.py
 
 # Local launch script
 launch_all.bat
+launch_mock.bat
 *.sqlite
 local_db.sqlite
