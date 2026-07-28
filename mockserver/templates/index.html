@@ -191,18 +191,45 @@
             border: 1px solid rgba(239, 68, 68, 0.3);
         }
 
-        /* ── Statistics Cards Grid (Wide Responsive Layout) ── */
+        /* ── Helicopter View Summary Banner ── */
+        .helicopter-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            background: #0d1322;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .helicopter-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            border-right: 1px solid rgba(255,255,255,0.06);
+            padding: 0 0.5rem;
+        }
+        .helicopter-item:last-child { border-right: none; }
+        .helicopter-title {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        .helicopter-val {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        /* ── Statistics Cards Grid ── */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 1.25rem;
             margin-top: 1rem;
-        }
-        @media (max-width: 1200px) {
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 640px) {
-            .stats-grid { grid-template-columns: 1fr; }
         }
 
         .provider-card {
@@ -267,7 +294,7 @@
         .service-info h3 { margin: 0 0 0.25rem 0; font-size: 1rem; }
         .service-info code { color: var(--muted); font-size: 0.85rem; }
 
-        /* ── Scrollable Table Inspector (Wide Desktop Table) ── */
+        /* ── Scrollable Table Inspector ── */
         .table-scroll-container {
             max-height: 480px;
             overflow-y: auto;
@@ -325,9 +352,6 @@
             padding: 1.25rem;
             border-bottom: 1px solid var(--border);
         }
-        @media (max-width: 900px) {
-            .panels-grid { grid-template-columns: 1fr; }
-        }
         .inspector-panel {
             background: #0d1322;
             border: 1px solid var(--border);
@@ -375,6 +399,40 @@
             padding-top: 0.75rem;
             border-top: 1px solid var(--border);
         }
+
+        /* ── Mobile View Optimization: Hide Traffic Logs Panel ── */
+        @media (max-width: 768px) {
+            body { padding: 1rem 0.75rem; }
+            .container { width: 100%; }
+            .header h1 { font-size: 1.5rem; }
+            .header p { font-size: 0.85rem; }
+            
+            .helicopter-bar {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.75rem;
+                padding: 0.75rem;
+            }
+            .helicopter-item {
+                border-right: none;
+                border-bottom: 1px solid rgba(255,255,255,0.06);
+                padding-bottom: 0.5rem;
+            }
+            .helicopter-item:nth-child(3), .helicopter-item:nth-child(4) {
+                border-bottom: none;
+                padding-bottom: 0;
+            }
+
+            .stats-grid { grid-template-columns: 1fr; gap: 0.75rem; }
+            .card { padding: 1rem; margin-bottom: 1rem; }
+            .card h2 { font-size: 1.05rem; flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+
+            .service-row { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+            
+            /* HIDE DETAILED TRAFFIC LOGS TABLE PANELS ON MOBILE VIEW ONLY */
+            .card-log-panel {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -384,7 +442,27 @@
             <p>Simulating external disaster & telemetry APIs on port <code>8081</code> (DB: <code>mockserver/app.db</code>)</p>
         </div>
 
-        <!-- 1. STATISTICS CARDS (Card Style with Color Coded Latencies) -->
+        <!-- HELICOPTER VIEW SUMMARY BANNER -->
+        <div class="helicopter-bar">
+            <div class="helicopter-item">
+                <span class="helicopter-title">Global Mode</span>
+                <span id="heli-mode" class="helicopter-val" style="color: var(--accent);">Mock Mode</span>
+            </div>
+            <div class="helicopter-item">
+                <span class="helicopter-title">Active Disruption</span>
+                <span id="heli-critical" class="helicopter-val" style="color: var(--success);">0 / 4 Critical</span>
+            </div>
+            <div class="helicopter-item">
+                <span class="helicopter-title">Total DB Logs</span>
+                <span id="heli-total" class="helicopter-val">0</span>
+            </div>
+            <div class="helicopter-item">
+                <span class="helicopter-title">Avg System Latency</span>
+                <span id="heli-latency" class="helicopter-val"><span class="latency-pill latency-fast">0 ms</span></span>
+            </div>
+        </div>
+
+        <!-- 1. STATISTICS CARDS (Big Picture Statistics) -->
         <div class="card">
             <h2>
                 <span>Provider Performance & Statistics</span>
@@ -594,8 +672,8 @@
             </div>
         </div>
 
-        <!-- PANEL 1: LIVE DEBUG STREAM (In-Memory) -->
-        <div class="card">
+        <!-- PANEL 1: LIVE DEBUG STREAM (Hidden on Mobile) -->
+        <div class="card card-log-panel">
             <h2>
                 <span>Live HTTP Request Stream (In-Memory Debugger)</span>
                 <div class="flex-group">
@@ -641,8 +719,8 @@
             </div>
         </div>
 
-        <!-- PANEL 2: PERSISTENT SQLITE DATABASE QUERY HISTORY -->
-        <div class="card">
+        <!-- PANEL 2: PERSISTENT SQLITE DATABASE QUERY HISTORY (Hidden on Mobile) -->
+        <div class="card card-log-panel">
             <h2>
                 <span>SQLite Persistent Query History (<code>mockserver/app.db</code>)</span>
                 <div class="flex-group">
@@ -765,6 +843,10 @@
         }
 
         function renderStats(stats) {
+            let grandTotal = 0;
+            let sumLatency = 0;
+            let latencyCount = 0;
+
             for (const [svc, data] of Object.entries(stats)) {
                 // Mock
                 const mTotal = document.getElementById(`stat-${svc}-mock-total`);
@@ -774,12 +856,29 @@
                 if (mCrit) mCrit.innerText = data.mock.critical;
                 if (mLatContainer) mLatContainer.innerHTML = getLatencyPillHtml(data.mock.avg_latency_ms);
 
+                grandTotal += data.mock.total;
+                if (data.mock.avg_latency_ms > 0) {
+                    sumLatency += data.mock.avg_latency_ms * data.mock.total;
+                    latencyCount += data.mock.total;
+                }
+
                 // Bypass
                 const bTotal = document.getElementById(`stat-${svc}-bypass-total`);
                 const bLatContainer = document.getElementById(`stat-${svc}-bypass-lat-container`);
                 if (bTotal) bTotal.innerText = data.bypass.total;
                 if (bLatContainer) bLatContainer.innerHTML = getLatencyPillHtml(data.bypass.avg_latency_ms);
+
+                grandTotal += data.bypass.total;
+                if (data.bypass.avg_latency_ms > 0) {
+                    sumLatency += data.bypass.avg_latency_ms * data.bypass.total;
+                    latencyCount += data.bypass.total;
+                }
             }
+
+            // Update Helicopter View Summary Stats
+            document.getElementById('heli-total').innerText = grandTotal;
+            const overallAvg = latencyCount > 0 ? Math.round(sumLatency / latencyCount) : 0;
+            document.getElementById('heli-latency').innerHTML = getLatencyPillHtml(overallAvg);
         }
 
         function renderState() {
@@ -789,6 +888,13 @@
             
             document.getElementById('modeSwitch').checked = !isMock;
             
+            // Helicopter View Mode Update
+            const heliMode = document.getElementById('heli-mode');
+            if (heliMode) {
+                heliMode.innerText = isMock ? 'Mock Mode' : 'Bypass (Proxy)';
+                heliMode.style.color = isMock ? 'var(--accent)' : 'var(--warning)';
+            }
+
             // Handle Disabling Disruption Controls when in Bypass Mode
             const isBypass = !isMock;
             const masterCard = document.getElementById('masterDisruptionCard');
@@ -808,9 +914,11 @@
             document.getElementById('masterSwitch').disabled = isBypass;
             document.getElementById('masterSwitch').checked = currentState.global_critical;
 
+            let activeCriticalCount = 0;
             for (const [service, data] of Object.entries(currentState.services)) {
                 const sw = document.getElementById(`switch-${service}`);
                 const lbl = document.getElementById(`label-${service}`);
+                if (data.critical) activeCriticalCount++;
                 if (sw) {
                     sw.disabled = isBypass;
                     sw.checked = data.critical;
@@ -819,6 +927,13 @@
                     lbl.innerText = data.critical ? 'Critical' : 'Normal';
                     lbl.style.color = data.critical ? 'var(--danger)' : 'var(--text)';
                 }
+            }
+
+            // Helicopter View Active Disruption Update
+            const heliCrit = document.getElementById('heli-critical');
+            if (heliCrit) {
+                heliCrit.innerText = `${activeCriticalCount} / 4 Critical`;
+                heliCrit.style.color = activeCriticalCount > 0 ? 'var(--danger)' : 'var(--success)';
             }
         }
 
