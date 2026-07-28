@@ -59,7 +59,11 @@
             padding: 1.5rem;
             margin-bottom: 1.5rem;
             box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.4);
-            transition: border-color 0.2s ease;
+            transition: all 0.2s ease;
+        }
+        .card.disabled-section {
+            opacity: 0.5;
+            pointer-events: none;
         }
         .card h2 {
             font-size: 1.15rem;
@@ -154,6 +158,7 @@
         input:checked + .slider { background-color: var(--danger); }
         input:checked + .slider.slider-mode { background-color: var(--warning); }
         input:checked + .slider:before { transform: translateX(22px); }
+        input:disabled + .slider { opacity: 0.4; cursor: not-allowed; }
 
         /* ── Latency Color Coding Pills ── */
         .latency-pill {
@@ -482,8 +487,11 @@
         </div>
 
         <!-- Global Event Switcher -->
-        <div class="card">
-            <h2>Master Disruption Control</h2>
+        <div id="masterDisruptionCard" class="card">
+            <h2>
+                <span>Master Disruption Control</span>
+                <span id="bypassDisabledNotice" class="badge badge-warning" style="display: none;">Disabled in Bypass Mode</span>
+            </h2>
             <div class="flex-group" style="margin-top: 1rem;">
                 <div class="switch-container">
                     <span class="switch-label">All Normal</span>
@@ -497,7 +505,7 @@
         </div>
 
         <!-- Individual Service Toggles with Switches -->
-        <div class="card">
+        <div id="serviceDisruptionCard" class="card">
             <h2>Supported External APIs & Event Controls</h2>
             
             <!-- Open-Meteo Weather -->
@@ -755,12 +763,33 @@
             document.getElementById('modeBadge').innerText = isMock ? 'Mock Responses' : 'Bypass (Proxy)';
             
             document.getElementById('modeSwitch').checked = !isMock;
+            
+            // Handle Disabling Disruption Controls when in Bypass Mode
+            const isBypass = !isMock;
+            const masterCard = document.getElementById('masterDisruptionCard');
+            const serviceCard = document.getElementById('serviceDisruptionCard');
+            const notice = document.getElementById('bypassDisabledNotice');
+
+            if (isBypass) {
+                masterCard.classList.add('disabled-section');
+                serviceCard.classList.add('disabled-section');
+                notice.style.display = 'inline-block';
+            } else {
+                masterCard.classList.remove('disabled-section');
+                serviceCard.classList.remove('disabled-section');
+                notice.style.display = 'none';
+            }
+
+            document.getElementById('masterSwitch').disabled = isBypass;
             document.getElementById('masterSwitch').checked = currentState.global_critical;
 
             for (const [service, data] of Object.entries(currentState.services)) {
                 const sw = document.getElementById(`switch-${service}`);
                 const lbl = document.getElementById(`label-${service}`);
-                if (sw) sw.checked = data.critical;
+                if (sw) {
+                    sw.disabled = isBypass;
+                    sw.checked = data.critical;
+                }
                 if (lbl) {
                     lbl.innerText = data.critical ? 'Critical' : 'Normal';
                     lbl.style.color = data.critical ? 'var(--danger)' : 'var(--text)';
