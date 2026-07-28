@@ -52,7 +52,7 @@ def init_db():
 
 init_db()
 
-# ── In-Memory State ─────────────────────────────────────────────────────────
+# ── In-Memory State & Live Buffer ───────────────────────────────────────────
 state = {
     "mode": "mock",  # "mock" or "bypass"
     "global_critical": False,
@@ -64,6 +64,10 @@ state = {
     }
 }
 
+MAX_LIVE_LOGS = 50
+live_logs: List[Dict[str, Any]] = []
+live_id_counter = 0
+
 def log_connection(
     service: str,
     method: str,
@@ -74,9 +78,32 @@ def log_connection(
     status_code: int,
     res_body: Any
 ):
+    global live_id_counter, live_logs
+    live_id_counter += 1
     clean_headers = {k: v for k, v in req_headers.items() if k.lower() not in ["authorization", "cookie"]}
     timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-    
+    is_crit = state["services"].get(service, {}).get("critical", False)
+
+    # 1. Store in In-Memory Live Log Stream Buffer
+    live_entry = {
+        "id": live_id_counter,
+        "timestamp": timestamp,
+        "service": service,
+        "mode": state["mode"],
+        "is_critical": is_crit,
+        "method": method,
+        "path": path,
+        "query_params": params,
+        "request_headers": clean_headers,
+        "request_body": req_body,
+        "status_code": status_code,
+        "response_body": res_body,
+    }
+    live_logs.insert(0, live_entry)
+    if len(live_logs) > MAX_LIVE_LOGS:
+        live_logs.pop()
+
+    # 2. Persist in SQLite Database (mockserver/app.db)
     with get_db_connection() as conn:
         conn.execute("""
             INSERT INTO query_logs (
@@ -87,7 +114,7 @@ def log_connection(
             timestamp,
             service,
             state["mode"],
-            1 if state["services"].get(service, {}).get("critical", False) else 0,
+            1 if is_crit else 0,
             method,
             path,
             json.dumps(params),
@@ -124,8 +151,20 @@ def toggle_state(req: ToggleRequest):
             
     return {"status": "success", "state": state}
 
-@app.get("/api/logs")
-def get_logs(
+# Panel 1 API: In-Memory Live Debug Stream
+@app.get("/api/live_logs")
+def get_live_logs():
+    return {"total": len(live_logs), "logs": live_logs}
+
+@app.post("/api/live_logs/clear")
+def clear_live_logs():
+    global live_logs
+    live_logs = []
+    return {"status": "success", "message": "Live debug stream cleared"}
+
+# Panel 2 API: Persistent SQLite Database Query History
+@app.get("/api/db_logs")
+def get_db_logs(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100)
 ):
@@ -164,8 +203,8 @@ def get_logs(
         "logs": logs
     }
 
-@app.post("/api/logs/clear")
-def clear_logs():
+@app.post("/api/db_logs/clear")
+def clear_db_logs():
     with get_db_connection() as conn:
         conn.execute("DELETE FROM query_logs")
         conn.commit()
