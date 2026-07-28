@@ -335,10 +335,19 @@
                     <button class="btn btn-sm" onclick="clearLiveLogs()">Clear Stream</button>
                 </div>
             </h2>
-            <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1rem;">
-                Real-time active connection log stream. Click any row to expand separated <strong>Request</strong> and <strong>Response</strong> panels.
-            </p>
             
+            <!-- Filter Bar for Live Stream -->
+            <div class="flex-group" style="margin-bottom: 1rem;">
+                <label for="liveServiceSelect" style="color: var(--muted); font-size: 0.85rem; font-weight: 600;">Filter Service:</label>
+                <select id="liveServiceSelect" class="select-input" onchange="changeLiveFilter(this.value)">
+                    <option value="all" selected>All Services</option>
+                    <option value="openmeteo">Open-Meteo Weather</option>
+                    <option value="bmkg">BMKG Earthquake</option>
+                    <option value="tomtom">TomTom Traffic</option>
+                    <option value="google">Google Routes</option>
+                </select>
+            </div>
+
             <div class="table-scroll-container">
                 <table class="log-table">
                     <thead>
@@ -374,10 +383,19 @@
                     <button class="btn btn-sm btn-danger" onclick="clearDbLogs()">Clear DB</button>
                 </div>
             </h2>
-            <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1rem;">
-                Historical query logs persisted in SQLite database. Supports pagination and page size options.
-            </p>
             
+            <!-- Filter Bar for DB Panel -->
+            <div class="flex-group" style="margin-bottom: 1rem;">
+                <label for="dbServiceSelect" style="color: var(--muted); font-size: 0.85rem; font-weight: 600;">Filter Service:</label>
+                <select id="dbServiceSelect" class="select-input" onchange="changeDbFilter(this.value)">
+                    <option value="all" selected>All Services</option>
+                    <option value="openmeteo">Open-Meteo Weather</option>
+                    <option value="bmkg">BMKG Earthquake</option>
+                    <option value="tomtom">TomTom Traffic</option>
+                    <option value="google">Google Routes</option>
+                </select>
+            </div>
+
             <div class="table-scroll-container">
                 <table class="log-table">
                     <thead>
@@ -428,6 +446,9 @@
         let expandedLiveLogs = new Set();
         let expandedDbLogs = new Set();
         
+        let liveServiceFilter = "all";
+        let dbServiceFilter = "all";
+
         let currentPage = 1;
         let currentLimit = 10;
         let totalPages = 1;
@@ -440,7 +461,7 @@
 
         async function fetchLiveLogs() {
             try {
-                const res = await fetch('/api/live_logs');
+                const res = await fetch(`/api/live_logs?service=${liveServiceFilter}`);
                 const data = await res.json();
                 renderTable('live', data.logs || [], expandedLiveLogs, 'liveLogsTbody', 'liveCountBadge');
             } catch(e) {
@@ -450,7 +471,7 @@
 
         async function fetchDbLogs() {
             try {
-                const res = await fetch(`/api/db_logs?page=${currentPage}&limit=${currentLimit}`);
+                const res = await fetch(`/api/db_logs?page=${currentPage}&limit=${currentLimit}&service=${dbServiceFilter}`);
                 const data = await res.json();
                 totalPages = data.total_pages || 1;
                 renderTable('db', data.logs || [], expandedDbLogs, 'dbLogsTbody', 'dbCountBadge', data.total, data.page, data.total_pages);
@@ -496,7 +517,7 @@
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="8" style="text-align: center; color: var(--muted); padding: 2rem;">
-                            No records available.
+                            No matching query records found.
                         </td>
                     </tr>`;
                 return;
@@ -563,6 +584,17 @@
             });
 
             tbody.innerHTML = html;
+        }
+
+        function changeLiveFilter(service) {
+            liveServiceFilter = service;
+            fetchLiveLogs();
+        }
+
+        function changeDbFilter(service) {
+            dbServiceFilter = service;
+            currentPage = 1;
+            fetchDbLogs();
         }
 
         function toggleLogDetails(prefix, id) {

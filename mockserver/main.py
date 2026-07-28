@@ -64,7 +64,7 @@ state = {
     }
 }
 
-MAX_LIVE_LOGS = 50
+MAX_LIVE_LOGS = 100
 live_logs: List[Dict[str, Any]] = []
 live_id_counter = 0
 
@@ -151,10 +151,14 @@ def toggle_state(req: ToggleRequest):
             
     return {"status": "success", "state": state}
 
-# Panel 1 API: In-Memory Live Debug Stream
+# Panel 1 API: In-Memory Live Debug Stream (with Service Filter)
 @app.get("/api/live_logs")
-def get_live_logs():
-    return {"total": len(live_logs), "logs": live_logs}
+def get_live_logs(service: str = Query("all")):
+    if service != "all":
+        filtered = [l for l in live_logs if l["service"] == service]
+    else:
+        filtered = live_logs
+    return {"total": len(filtered), "logs": filtered}
 
 @app.post("/api/live_logs/clear")
 def clear_live_logs():
@@ -162,19 +166,28 @@ def clear_live_logs():
     live_logs = []
     return {"status": "success", "message": "Live debug stream cleared"}
 
-# Panel 2 API: Persistent SQLite Database Query History
+# Panel 2 API: Persistent SQLite Database Query History (with Service Filter & Pagination)
 @app.get("/api/db_logs")
 def get_db_logs(
     page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100)
+    limit: int = Query(10, ge=1, le=100),
+    service: str = Query("all")
 ):
     offset = (page - 1) * limit
     with get_db_connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM query_logs ORDER BY id DESC LIMIT ? OFFSET ?", (limit, offset)
-        ).fetchall()
-        
-        total_count = conn.execute("SELECT COUNT(*) FROM query_logs").fetchone()[0]
+        if service != "all":
+            rows = conn.execute(
+                "SELECT * FROM query_logs WHERE service = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+                (service, limit, offset)
+            ).fetchall()
+            total_count = conn.execute(
+                "SELECT COUNT(*) FROM query_logs WHERE service = ?", (service,)
+            ).fetchone()[0]
+        else:
+            rows = conn.execute(
+                "SELECT * FROM query_logs ORDER BY id DESC LIMIT ? OFFSET ?", (limit, offset)
+            ).fetchall()
+            total_count = conn.execute("SELECT COUNT(*) FROM query_logs").fetchone()[0]
         
     logs = []
     for r in rows:
@@ -200,6 +213,7 @@ def get_db_logs(
         "page": page,
         "limit": limit,
         "total_pages": total_pages,
+        "service": service,
         "logs": logs
     }
 
