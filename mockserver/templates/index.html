@@ -29,7 +29,7 @@
             align-items: center;
         }
         .container {
-            max-width: 1000px;
+            max-width: 1100px;
             width: 100%;
         }
         .header {
@@ -131,48 +131,95 @@
             font-size: 0.85rem;
         }
 
-        /* ── Log Inspector Styling ── */
-        .log-item {
+        /* ── Scrollable Table Inspector Styling ── */
+        .table-scroll-container {
+            max-height: 480px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #0f172a;
+        }
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            text-align: left;
+        }
+        .log-table th {
+            position: sticky;
+            top: 0;
+            background: #1e293b;
+            color: var(--muted);
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            z-index: 10;
+        }
+        .log-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .log-row {
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .log-row:hover {
+            background: rgba(56, 189, 248, 0.05);
+        }
+        .log-row.expanded {
+            background: rgba(56, 189, 248, 0.1);
+        }
+        
+        /* ── Separated Request & Response Inspection Panels ── */
+        .detail-row td {
+            padding: 0 !important;
+            background: var(--code-bg);
+        }
+        .panels-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border);
+        }
+        @media (max-width: 768px) {
+            .panels-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .inspector-panel {
             background: #0f172a;
             border: 1px solid var(--border);
             border-radius: 8px;
-            margin-bottom: 0.75rem;
-            overflow: hidden;
+            padding: 1rem;
+            overflow-x: auto;
         }
-        .log-header {
-            padding: 0.75rem 1rem;
+        .inspector-panel h4 {
+            margin: 0 0 0.75rem 0;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            cursor: pointer;
-            user-select: none;
-            background: rgba(255,255,255,0.02);
         }
-        .log-header:hover {
-            background: rgba(255,255,255,0.05);
-        }
-        .log-meta {
-            display: flex;
-            gap: 0.75rem;
-            align-items: center;
+        .panel-req h4 { color: var(--accent); }
+        .panel-res h4 { color: var(--success); }
+
+        .json-block {
             font-family: monospace;
-            font-size: 0.85rem;
-        }
-        .log-details {
-            display: none;
-            padding: 1rem;
-            border-top: 1px solid var(--border);
-            background: var(--code-bg);
-            font-family: monospace;
-            font-size: 0.82rem;
+            font-size: 0.8rem;
+            color: #e2e8f0;
             white-space: pre-wrap;
-            overflow-x: auto;
-        }
-        .log-details.active {
-            display: block;
+            word-break: break-word;
+            margin: 0;
         }
         .method-tag {
             font-weight: 700;
+            font-family: monospace;
             padding: 0.15rem 0.4rem;
             border-radius: 4px;
         }
@@ -257,22 +304,41 @@
             </div>
         </div>
 
-        <!-- Live Debug Log Inspector -->
+        <!-- Scrollable Table HTTP Debug Inspector -->
         <div class="card">
             <h2>
-                <span>🔍 Live HTTP Connection Debug Inspector</span>
+                <span>🔍 HTTP Request & Response Debug Inspector</span>
                 <div>
                     <span id="logCountBadge" class="badge badge-mock">0 Requests</span>
                     <button class="btn btn-sm" onclick="clearLogs()">Clear Logs</button>
                 </div>
             </h2>
             <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1rem;">
-                Click on any intercepted connection to view full Request Query/Headers/Body & Response JSON payload.
+                Click any row to expand separated <strong>Request</strong> and <strong>Response</strong> payload panels.
             </p>
-            <div id="logsContainer">
-                <div style="text-align: center; color: var(--muted); padding: 2rem;">
-                    No intercepted HTTP requests yet. Waiting for incoming connections...
-                </div>
+            
+            <div class="table-scroll-container">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Method</th>
+                            <th>Service</th>
+                            <th>Path</th>
+                            <th>Mode</th>
+                            <th>Event State</th>
+                            <th>Status</th>
+                            <th>Inspect</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTbody">
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: var(--muted); padding: 2rem;">
+                                No intercepted HTTP requests yet. Waiting for incoming connections...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -323,12 +389,14 @@
 
         function renderLogs(logs) {
             document.getElementById('logCountBadge').innerText = `${logs.length} Requests`;
-            const container = document.getElementById('logsContainer');
+            const tbody = document.getElementById('logsTbody');
             if (logs.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align: center; color: var(--muted); padding: 2rem;">
-                        No intercepted HTTP requests yet. Waiting for incoming connections...
-                    </div>`;
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: var(--muted); padding: 2rem;">
+                            No intercepted HTTP requests yet. Waiting for incoming connections...
+                        </td>
+                    </tr>`;
                 return;
             }
 
@@ -342,38 +410,61 @@
                     ? `<span class="badge badge-critical">🚨 Critical</span>` 
                     : `<span class="badge badge-normal">✅ Normal</span>`;
                 
+                // Main Table Row
                 html += `
-                <div class="log-item">
-                    <div class="log-header" onclick="toggleLogDetails(${log.id})">
-                        <div class="log-meta">
-                            <span style="color: var(--muted);">${log.timestamp}</span>
-                            <span class="method-tag method-${log.method}">${log.method}</span>
-                            <span>${log.service.toUpperCase()}</span>
-                            <span style="color: var(--muted);">${log.path}</span>
-                        </div>
-                        <div class="flex-group">
-                            ${modeBadge}
-                            ${critBadge}
-                            <span class="badge badge-normal">HTTP ${log.status_code}</span>
-                            <span style="font-size: 0.8rem; color: var(--muted);">${isExpanded ? '▲' : '▼'}</span>
-                        </div>
-                    </div>
-                    <div id="log-details-${log.id}" class="log-details ${isExpanded ? 'active' : ''}">
-<strong>=== REQUEST INFO ===</strong>
-Path: ${log.path}
-Query Params: ${JSON.stringify(log.query_params, null, 2)}
-Request Headers: ${JSON.stringify(log.request_headers, null, 2)}
-Request Body: ${log.request_body ? JSON.stringify(log.request_body, null, 2) : 'None'}
+                <tr class="log-row ${isExpanded ? 'expanded' : ''}" onclick="toggleLogDetails(${log.id})">
+                    <td style="color: var(--muted); font-family: monospace;">${log.timestamp}</td>
+                    <td><span class="method-tag method-${log.method}">${log.method}</span></td>
+                    <td style="font-weight: 600;">${log.service.toUpperCase()}</td>
+                    <td style="font-family: monospace; color: var(--accent);">${log.path}</td>
+                    <td>${modeBadge}</td>
+                    <td>${critBadge}</td>
+                    <td><span class="badge badge-normal">${log.status_code}</span></td>
+                    <td style="color: var(--muted); font-weight: bold;">${isExpanded ? '▲ Close' : '▼ Inspect'}</td>
+                </tr>`;
 
-<strong>=== RESPONSE INFO ===</strong>
-Status Code: ${log.status_code}
-Response Body:
-${JSON.stringify(log.response_body, null, 2)}
-                    </div>
-                </div>`;
+                // Expandable Detail Row with Separated Request & Response Panels
+                if (isExpanded) {
+                    html += `
+                    <tr class="detail-row">
+                        <td colspan="8">
+                            <div class="panels-grid">
+                                <!-- LEFT PANEL: REQUEST DETAILS -->
+                                <div class="inspector-panel panel-req">
+                                    <h4>
+                                        <span>📥 Request Details</span>
+                                        <span class="method-tag method-${log.method}">${log.method}</span>
+                                    </h4>
+                                    <p style="margin: 0 0 0.5rem 0; font-family: monospace; color: var(--accent);">
+                                        <strong>Path:</strong> ${log.path}
+                                    </p>
+                                    
+                                    <strong style="color: var(--muted); font-size: 0.75rem;">QUERY PARAMETERS:</strong>
+                                    <pre class="json-block">${JSON.stringify(log.query_params, null, 2)}</pre>
+                                    
+                                    <strong style="color: var(--muted); font-size: 0.75rem; margin-top: 0.75rem; display: block;">REQUEST HEADERS:</strong>
+                                    <pre class="json-block">${JSON.stringify(log.request_headers, null, 2)}</pre>
+                                    
+                                    <strong style="color: var(--muted); font-size: 0.75rem; margin-top: 0.75rem; display: block;">REQUEST BODY:</strong>
+                                    <pre class="json-block">${log.request_body ? JSON.stringify(log.request_body, null, 2) : 'None'}</pre>
+                                </div>
+
+                                <!-- RIGHT PANEL: RESPONSE DETAILS -->
+                                <div class="inspector-panel panel-res">
+                                    <h4>
+                                        <span>📤 Response Payload</span>
+                                        <span class="badge badge-normal">HTTP ${log.status_code}</span>
+                                    </h4>
+                                    <strong style="color: var(--muted); font-size: 0.75rem;">RESPONSE BODY (JSON):</strong>
+                                    <pre class="json-block">${JSON.stringify(log.response_body, null, 2)}</pre>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>`;
+                }
             });
 
-            container.innerHTML = html;
+            tbody.innerHTML = html;
         }
 
         function toggleLogDetails(id) {
