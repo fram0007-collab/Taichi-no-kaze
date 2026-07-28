@@ -1,6 +1,7 @@
 import sqlite3
 import httpx
 import json
+import math
 import random
 from pathlib import Path
 from datetime import datetime, timezone
@@ -124,10 +125,14 @@ def toggle_state(req: ToggleRequest):
     return {"status": "success", "state": state}
 
 @app.get("/api/logs")
-def get_logs(limit: int = Query(10)):
+def get_logs(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100)
+):
+    offset = (page - 1) * limit
     with get_db_connection() as conn:
         rows = conn.execute(
-            "SELECT * FROM query_logs ORDER BY id DESC LIMIT ?", (limit,)
+            "SELECT * FROM query_logs ORDER BY id DESC LIMIT ? OFFSET ?", (limit, offset)
         ).fetchall()
         
         total_count = conn.execute("SELECT COUNT(*) FROM query_logs").fetchone()[0]
@@ -149,7 +154,15 @@ def get_logs(limit: int = Query(10)):
             "response_body": json.loads(r["response_body"]) if r["response_body"] else None,
         })
         
-    return {"total": total_count, "logs": logs}
+    total_pages = math.ceil(total_count / limit) if total_count > 0 else 1
+        
+    return {
+        "total": total_count,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages,
+        "logs": logs
+    }
 
 @app.post("/api/logs/clear")
 def clear_logs():
@@ -275,10 +288,8 @@ async def bmkg_earthquake(request: Request):
     now_str = datetime.now(timezone.utc).isoformat()
     
     if is_critical:
-        # Generate dramatic high magnitude (7.2 - 8.8) and shallow depth (5 - 12 km)
         random_mag = round(random.uniform(7.4, 8.8), 1)
         random_depth = random.randint(5, 12)
-        # Impact radius = mag * 15 = ~110km to 132km (massively > 50km covering all Jakarta zones)
         
         gempa_item = {
             "Tanggal": datetime.now().strftime("%d %b %Y"),
@@ -290,7 +301,7 @@ async def bmkg_earthquake(request: Request):
             "Magnitude": str(random_mag),
             "Kedalaman": f"{random_depth} km",
             "Wilayah": f"EPISENTRUM DAHSYAT M{random_mag} JAKARTA REGION (Kedalaman Shallow {random_depth}km) - High Impact Radius (>110km)",
-            "Potensi": "BERPOTENSI TSUNAMI & KERUSAKAN SEVERE DI SELURUH JABODETABEK"
+            "Potensi": "BERPOTENSI TSUNAMI SANGAT BESAR DI PESISIR JAKARTA & JAWA BARAT"
         }
     else:
         gempa_item = {

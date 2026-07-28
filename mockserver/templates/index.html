@@ -93,6 +93,10 @@
         .btn:hover {
             background: #475569;
         }
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
         .btn-active {
             background: var(--accent);
             color: #0f172a;
@@ -111,6 +115,15 @@
         .btn-sm {
             padding: 0.35rem 0.75rem;
             font-size: 0.8rem;
+        }
+        .select-input {
+            background: #0f172a;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-family: inherit;
         }
         .service-row {
             display: flex;
@@ -225,6 +238,15 @@
         }
         .method-GET { background: #0284c7; color: white; }
         .method-POST { background: #16a34a; color: white; }
+
+        .pagination-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
     </style>
 </head>
 <body>
@@ -309,12 +331,12 @@
             <h2>
                 <span>🔍 HTTP History Inspector (Stored in <code>mockserver/app.db</code>)</span>
                 <div class="flex-group">
-                    <span id="logCountBadge" class="badge badge-mock">Last 10 Queries</span>
+                    <span id="logCountBadge" class="badge badge-mock">0 Queries</span>
                     <button class="btn btn-sm" onclick="clearLogs()">Clear DB History</button>
                 </div>
             </h2>
             <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1rem;">
-                Displaying the last 10 historical query connections loaded from SQLite storage. Click any row to expand Request & Response details.
+                Historical queries loaded from SQLite storage. Click any row to expand Request & Response details.
             </p>
             
             <div class="table-scroll-container">
@@ -340,12 +362,34 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Toolbar -->
+            <div class="pagination-bar">
+                <div class="flex-group">
+                    <label for="limitSelect" style="color: var(--muted); font-size: 0.85rem;">Per page:</label>
+                    <select id="limitSelect" class="select-input" onchange="changeLimit(this.value)">
+                        <option value="10" selected>10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+
+                <div class="flex-group">
+                    <button id="btnPrev" class="btn btn-sm" onclick="changePage(currentPage - 1)">◀ Prev</button>
+                    <span id="pageIndicator" style="font-size: 0.85rem; color: var(--muted); font-family: monospace;">Page 1 of 1</span>
+                    <button id="btnNext" class="btn btn-sm" onclick="changePage(currentPage + 1)">Next ▶</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         let currentState = {};
         let expandedLogs = new Set();
+        let currentPage = 1;
+        let currentLimit = 10;
+        let totalPages = 1;
 
         async function fetchStatus() {
             const res = await fetch('/api/status');
@@ -355,17 +399,16 @@
 
         async function fetchLogs() {
             try {
-                // Fetch last 10 historical queries upon launch and poll
-                const res = await fetch('/api/logs?limit=10');
+                const res = await fetch(`/api/logs?page=${currentPage}&limit=${currentLimit}`);
                 const data = await res.json();
-                renderLogs(data.logs || [], data.total || 0);
+                totalPages = data.total_pages || 1;
+                renderLogs(data.logs || [], data.total || 0, data.page, data.total_pages);
             } catch(e) {
                 console.error('Error fetching logs', e);
             }
         }
 
         function renderState() {
-            // Mode
             const isMock = currentState.mode === 'mock';
             document.getElementById('modeBadge').className = isMock ? 'badge badge-mock' : 'badge badge-bypass';
             document.getElementById('modeBadge').innerText = isMock ? 'Mock Responses' : 'Bypass (Proxy)';
@@ -373,7 +416,6 @@
             document.getElementById('btnMock').className = isMock ? 'btn btn-active' : 'btn';
             document.getElementById('btnBypass').className = !isMock ? 'btn btn-active' : 'btn';
 
-            // Services
             for (const [service, data] of Object.entries(currentState.services)) {
                 const btn = document.getElementById(`btn-${service}`);
                 if (btn) {
@@ -388,8 +430,13 @@
             }
         }
 
-        function renderLogs(logs, totalCount) {
-            document.getElementById('logCountBadge').innerText = `Last ${logs.length} of ${totalCount} Queries`;
+        function renderLogs(logs, totalCount, page, totalPages) {
+            document.getElementById('logCountBadge').innerText = `Total: ${totalCount} Queries`;
+            document.getElementById('pageIndicator').innerText = `Page ${page} of ${totalPages}`;
+            
+            document.getElementById('btnPrev').disabled = page <= 1;
+            document.getElementById('btnNext').disabled = page >= totalPages;
+
             const tbody = document.getElementById('logsTbody');
             if (logs.length === 0) {
                 tbody.innerHTML = `
@@ -411,7 +458,6 @@
                     ? `<span class="badge badge-critical">🚨 Critical</span>` 
                     : `<span class="badge badge-normal">✅ Normal</span>`;
                 
-                // Main Table Row
                 html += `
                 <tr class="log-row ${isExpanded ? 'expanded' : ''}" onclick="toggleLogDetails(${log.id})">
                     <td style="color: var(--muted); font-family: monospace;">${log.timestamp}</td>
@@ -424,13 +470,11 @@
                     <td style="color: var(--muted); font-weight: bold;">${isExpanded ? '▲ Close' : '▼ Inspect'}</td>
                 </tr>`;
 
-                // Expandable Detail Row with Separated Request & Response Panels
                 if (isExpanded) {
                     html += `
                     <tr class="detail-row">
                         <td colspan="8">
                             <div class="panels-grid">
-                                <!-- LEFT PANEL: REQUEST DETAILS -->
                                 <div class="inspector-panel panel-req">
                                     <h4>
                                         <span>📥 Request Details</span>
@@ -450,7 +494,6 @@
                                     <pre class="json-block">${log.request_body ? JSON.stringify(log.request_body, null, 2) : 'None'}</pre>
                                 </div>
 
-                                <!-- RIGHT PANEL: RESPONSE DETAILS -->
                                 <div class="inspector-panel panel-res">
                                     <h4>
                                         <span>📤 Response Payload</span>
@@ -468,6 +511,19 @@
             tbody.innerHTML = html;
         }
 
+        function changePage(newPage) {
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                fetchLogs();
+            }
+        }
+
+        function changeLimit(newLimit) {
+            currentLimit = parseInt(newLimit, 10);
+            currentPage = 1;
+            fetchLogs();
+        }
+
         function toggleLogDetails(id) {
             if (expandedLogs.has(id)) {
                 expandedLogs.delete(id);
@@ -480,6 +536,7 @@
         async function clearLogs() {
             await fetch('/api/logs/clear', { method: 'POST' });
             expandedLogs.clear();
+            currentPage = 1;
             fetchLogs();
         }
 
