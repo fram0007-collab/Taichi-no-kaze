@@ -16,6 +16,7 @@
             --success: #22c55e;
             --warning: #f59e0b;
             --border: #334155;
+            --code-bg: #090d16;
         }
         body {
             font-family: 'Inter', sans-serif;
@@ -28,7 +29,7 @@
             align-items: center;
         }
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             width: 100%;
         }
         .header {
@@ -71,6 +72,8 @@
         }
         .badge-mock { background: rgba(56, 189, 248, 0.2); color: var(--accent); }
         .badge-bypass { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .badge-critical { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .badge-normal { background: rgba(34, 197, 94, 0.2); color: var(--success); }
         
         .flex-group {
             display: flex;
@@ -105,6 +108,10 @@
             color: #fff;
             border-color: var(--success);
         }
+        .btn-sm {
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+        }
         .service-row {
             display: flex;
             justify-content: space-between;
@@ -123,6 +130,54 @@
             color: var(--muted);
             font-size: 0.85rem;
         }
+
+        /* ── Log Inspector Styling ── */
+        .log-item {
+            background: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+        .log-header {
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            background: rgba(255,255,255,0.02);
+        }
+        .log-header:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        .log-meta {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        .log-details {
+            display: none;
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+            background: var(--code-bg);
+            font-family: monospace;
+            font-size: 0.82rem;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .log-details.active {
+            display: block;
+        }
+        .method-tag {
+            font-weight: 700;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+        .method-GET { background: #0284c7; color: white; }
+        .method-POST { background: #16a34a; color: white; }
     </style>
 </head>
 <body>
@@ -201,15 +256,45 @@
                 </div>
             </div>
         </div>
+
+        <!-- Live Debug Log Inspector -->
+        <div class="card">
+            <h2>
+                <span>🔍 Live HTTP Connection Debug Inspector</span>
+                <div>
+                    <span id="logCountBadge" class="badge badge-mock">0 Requests</span>
+                    <button class="btn btn-sm" onclick="clearLogs()">Clear Logs</button>
+                </div>
+            </h2>
+            <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1rem;">
+                Click on any intercepted connection to view full Request Query/Headers/Body & Response JSON payload.
+            </p>
+            <div id="logsContainer">
+                <div style="text-align: center; color: var(--muted); padding: 2rem;">
+                    No intercepted HTTP requests yet. Waiting for incoming connections...
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
         let currentState = {};
+        let expandedLogs = new Set();
 
         async function fetchStatus() {
             const res = await fetch('/api/status');
             currentState = await res.json();
             renderState();
+        }
+
+        async function fetchLogs() {
+            try {
+                const res = await fetch('/api/logs');
+                const data = await res.json();
+                renderLogs(data.logs || []);
+            } catch(e) {
+                console.error('Error fetching logs', e);
+            }
         }
 
         function renderState() {
@@ -234,6 +319,76 @@
                     }
                 }
             }
+        }
+
+        function renderLogs(logs) {
+            document.getElementById('logCountBadge').innerText = `${logs.length} Requests`;
+            const container = document.getElementById('logsContainer');
+            if (logs.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; color: var(--muted); padding: 2rem;">
+                        No intercepted HTTP requests yet. Waiting for incoming connections...
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+            logs.forEach(log => {
+                const isExpanded = expandedLogs.has(log.id);
+                const modeBadge = log.mode === 'mock' 
+                    ? `<span class="badge badge-mock">Mock</span>` 
+                    : `<span class="badge badge-bypass">Bypass</span>`;
+                const critBadge = log.is_critical 
+                    ? `<span class="badge badge-critical">🚨 Critical</span>` 
+                    : `<span class="badge badge-normal">✅ Normal</span>`;
+                
+                html += `
+                <div class="log-item">
+                    <div class="log-header" onclick="toggleLogDetails(${log.id})">
+                        <div class="log-meta">
+                            <span style="color: var(--muted);">${log.timestamp}</span>
+                            <span class="method-tag method-${log.method}">${log.method}</span>
+                            <span>${log.service.toUpperCase()}</span>
+                            <span style="color: var(--muted);">${log.path}</span>
+                        </div>
+                        <div class="flex-group">
+                            ${modeBadge}
+                            ${critBadge}
+                            <span class="badge badge-normal">HTTP ${log.status_code}</span>
+                            <span style="font-size: 0.8rem; color: var(--muted);">${isExpanded ? '▲' : '▼'}</span>
+                        </div>
+                    </div>
+                    <div id="log-details-${log.id}" class="log-details ${isExpanded ? 'active' : ''}">
+<strong>=== REQUEST INFO ===</strong>
+Path: ${log.path}
+Query Params: ${JSON.stringify(log.query_params, null, 2)}
+Request Headers: ${JSON.stringify(log.request_headers, null, 2)}
+Request Body: ${log.request_body ? JSON.stringify(log.request_body, null, 2) : 'None'}
+
+<strong>=== RESPONSE INFO ===</strong>
+Status Code: ${log.status_code}
+Response Body:
+${JSON.stringify(log.response_body, null, 2)}
+                    </div>
+                </div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function toggleLogDetails(id) {
+            if (expandedLogs.has(id)) {
+                expandedLogs.delete(id);
+            } else {
+                expandedLogs.add(id);
+            }
+            fetchLogs();
+        }
+
+        async function clearLogs() {
+            await fetch('/api/logs/clear', { method: 'POST' });
+            expandedLogs.clear();
+            fetchLogs();
         }
 
         async function setMode(mode) {
@@ -265,7 +420,9 @@
         }
 
         fetchStatus();
+        fetchLogs();
         setInterval(fetchStatus, 3000);
+        setInterval(fetchLogs, 1500);
     </script>
 </body>
 </html>

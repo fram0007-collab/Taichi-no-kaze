@@ -1,7 +1,8 @@
 import httpx
+import json
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,12 +32,52 @@ state = {
     }
 }
 
+# ── In-Memory Request & Response Debug Logs (Ring Buffer) ───────────────────
+MAX_LOG_ENTRIES = 100
+request_logs: List[Dict[str, Any]] = []
+log_id_counter = 0
+
+def log_connection(
+    service: str,
+    method: str,
+    path: str,
+    params: Dict[str, Any],
+    req_headers: Dict[str, str],
+    req_body: Any,
+    status_code: int,
+    res_body: Any
+):
+    global log_id_counter, request_logs
+    log_id_counter += 1
+    
+    # Filter sensitive headers if needed
+    clean_headers = {k: v for k, v in req_headers.items() if k.lower() not in ["authorization", "cookie"]}
+    
+    entry = {
+        "id": log_id_counter,
+        "timestamp": datetime.now().strftime("%H:%M:%S.%f")[:-3],
+        "service": service,
+        "mode": state["mode"],
+        "is_critical": state["services"].get(service, {}).get("critical", False),
+        "method": method,
+        "path": path,
+        "query_params": params,
+        "request_headers": clean_headers,
+        "request_body": req_body,
+        "status_code": status_code,
+        "response_body": res_body,
+    }
+    
+    request_logs.insert(0, entry) # newest first
+    if len(request_logs) > MAX_LOG_ENTRIES:
+        request_logs.pop()
+
 class ToggleRequest(BaseModel):
     mode: Optional[str] = None  # "mock" or "bypass"
     service: Optional[str] = "all"  # "all", "openmeteo", "bmkg", "tomtom", "google"
     critical: Optional[bool] = None
 
-# ── API Control Endpoints ────────────────────────────────────────────────────
+# ── API Control & Debug Endpoints ───────────────────────────────────────────
 @app.get("/api/status")
 def get_status():
     return state
@@ -53,34 +94,51 @@ def toggle_state(req: ToggleRequest):
                 state["services"][s]["critical"] = req.critical
         elif req.service in state["services"]:
             state["services"][req.service]["critical"] = req.critical
-            # Check if all are critical
             state["global_critical"] = all(s["critical"] for s in state["services"].values())
             
     return {"status": "success", "state": state}
 
+@app.get("/api/logs")
+def get_logs():
+    return {"total": len(request_logs), "logs": request_logs}
+
+@app.post("/api/logs/clear")
+def clear_logs():
+    global request_logs
+    request_logs = []
+    return {"status": "success", "message": "Debug logs cleared"}
+
 # ── 1. Open-Meteo Weather API Mock/Proxy ────────────────────────────────────
 @app.get("/v1/forecast")
 async def open_meteo_forecast(
+    request: Request,
     latitude: float = Query(-6.200),
     longitude: float = Query(106.816),
     hourly: str = Query("precipitation,relative_humidity_2m,wind_speed_10m"),
     timezone_param: str = Query("Asia/Jakarta", alias="timezone"),
     forecast_days: int = Query(1)
 ):
+    params_dict = dict(request.query_params)
+    
     if state["mode"] == "bypass":
         async with httpx.AsyncClient(verify=False) as client:
             resp = await client.get(
                 "https://api.open-meteo.com/v1/forecast",
-                params={
-                    "latitude": latitude,
-                    "longitude": longitude,
-                    "hourly": hourly,
-                    "timezone": timezone_param,
-                    "forecast_days": forecast_days,
-                },
+                params=params_dict,
                 timeout=10.0
             )
-            return JSONResponse(content=resp.json(), status_code=resp.status_code)
+            res_json = resp.json()
+            log_connection(
+                service="openmeteo",
+                method="GET",
+                path=str(request.url.path),
+                params=params_dict,
+                req_headers=dict(request.headers),
+                req_body=None,
+                status_code=resp.status_code,
+                res_body=res_json
+            )
+            return JSONResponse(content=res_json, status_code=resp.status_code)
     
     is_critical = state["services"]["openmeteo"]["critical"]
     times = []
@@ -97,7 +155,6 @@ async def open_meteo_forecast(
         times.append(t.strftime("%Y-%m-%dT%H:00"))
         
         if is_critical and (2 <= i <= 5 or 14 <= i <= 17):
-            # Extreme monsoon cloud burst (Compound Weather Event > 50mm)
             precip_probs.append(98.5)
             precips.append(58.5 if i in [3, 15] else 24.0)
             winds.append(42.0)
@@ -108,7 +165,7 @@ async def open_meteo_forecast(
             winds.append(8.0)
             humidities.append(72.0)
 
-    return {
+    res_content = {
         "latitude": latitude,
         "longitude": longitude,
         "generationtime_ms": 0.12,
@@ -130,14 +187,39 @@ async def open_meteo_forecast(
             "relative_humidity_2m": humidities
         }
     }
+    
+    log_connection(
+        service="openmeteo",
+        method="GET",
+        path=str(request.url.path),
+        params=params_dict,
+        req_headers=dict(request.headers),
+        req_body=None,
+        status_code=200,
+        res_body=res_content
+    )
+    return res_content
 
 # ── 2. BMKG Earthquake API Mock/Proxy ───────────────────────────────────────
 @app.get("/DataMKG/TEWS/gempaterkini.json")
-async def bmkg_earthquake():
+async def bmkg_earthquake(request: Request):
+    params_dict = dict(request.query_params)
+    
     if state["mode"] == "bypass":
         async with httpx.AsyncClient(verify=False) as client:
             resp = await client.get("https://data.bmkg.go.id/DataMKG/TEWS/gempaterkini.json", timeout=10.0)
-            return JSONResponse(content=resp.json(), status_code=resp.status_code)
+            res_json = resp.json()
+            log_connection(
+                service="bmkg",
+                method="GET",
+                path=str(request.url.path),
+                params=params_dict,
+                req_headers=dict(request.headers),
+                req_body=None,
+                status_code=resp.status_code,
+                res_body=res_json
+            )
+            return JSONResponse(content=res_json, status_code=resp.status_code)
     
     is_critical = state["services"]["bmkg"]["critical"]
     now_str = datetime.now(timezone.utc).isoformat()
@@ -169,45 +251,69 @@ async def bmkg_earthquake():
             "Potensi": "Tidak berpotensi tsunami"
         }
         
-    return {
+    res_content = {
         "Infogempa": {
             "gempa": [gempa_item]
         }
     }
+    
+    log_connection(
+        service="bmkg",
+        method="GET",
+        path=str(request.url.path),
+        params=params_dict,
+        req_headers=dict(request.headers),
+        req_body=None,
+        status_code=200,
+        res_body=res_content
+    )
+    return res_content
 
 # ── 3. TomTom Traffic API Mock/Proxy ────────────────────────────────────────
 @app.get("/traffic/services/4/flowSegmentData/absolute/10/json")
 async def tomtom_traffic(
+    request: Request,
     key: str = Query(""),
     point: str = Query("-6.200,106.816"),
     unit: str = Query("KMPH"),
     thickness: int = Query(1)
 ):
+    params_dict = dict(request.query_params)
+    
     if state["mode"] == "bypass":
         async with httpx.AsyncClient(verify=False) as client:
             resp = await client.get(
                 "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json",
-                params={"key": key, "point": point, "unit": unit, "thickness": thickness},
+                params=params_dict,
                 timeout=10.0
             )
-            return JSONResponse(content=resp.json(), status_code=resp.status_code)
+            res_json = resp.json()
+            log_connection(
+                service="tomtom",
+                method="GET",
+                path=str(request.url.path),
+                params=params_dict,
+                req_headers=dict(request.headers),
+                req_body=None,
+                status_code=resp.status_code,
+                res_body=res_json
+            )
+            return JSONResponse(content=res_json, status_code=resp.status_code)
             
     is_critical = state["services"]["tomtom"]["critical"]
     
     if is_critical:
-        # Extreme congestion gridlock
         current_speed = 5.0
         free_flow = 50.0
         current_travel_time = 600
         free_flow_travel_time = 60
     else:
-        # Smooth traffic
         current_speed = 46.0
         free_flow = 50.0
         current_travel_time = 65
         free_flow_travel_time = 60
 
-    return {
+    res_content = {
         "flowSegmentData": {
             "frc": "FRC1",
             "currentSpeed": current_speed,
@@ -223,33 +329,61 @@ async def tomtom_traffic(
             }
         }
     }
+    
+    log_connection(
+        service="tomtom",
+        method="GET",
+        path=str(request.url.path),
+        params=params_dict,
+        req_headers=dict(request.headers),
+        req_body=None,
+        status_code=200,
+        res_body=res_content
+    )
+    return res_content
 
 # ── 4. Google Maps Routes API Mock/Proxy ────────────────────────────────────
 @app.post("/directions/v2:computeRoutes")
 async def google_routes(request: Request):
+    params_dict = dict(request.query_params)
+    body_json = None
+    try:
+        body_json = await request.json()
+    except Exception:
+        body_json = None
+
     if state["mode"] == "bypass":
         headers = {k: v for k, v in request.headers.items() if k.lower() in ["content-type", "x-goog-fieldmask", "x-goog-api-key"]}
-        body = await request.json()
         async with httpx.AsyncClient(verify=False) as client:
             resp = await client.post(
                 "https://routes.googleapis.com/directions/v2:computeRoutes",
-                json=body,
+                json=body_json,
                 headers=headers,
                 timeout=10.0
             )
-            return JSONResponse(content=resp.json(), status_code=resp.status_code)
+            res_json = resp.json()
+            log_connection(
+                service="google",
+                method="POST",
+                path=str(request.url.path),
+                params=params_dict,
+                req_headers=dict(request.headers),
+                req_body=body_json,
+                status_code=resp.status_code,
+                res_body=res_json
+            )
+            return JSONResponse(content=res_json, status_code=resp.status_code)
 
     is_critical = state["services"]["google"]["critical"]
     
     if is_critical:
-        # 10x traffic delay spike
         duration_str = "600s"
         static_duration_str = "60s"
     else:
         duration_str = "65s"
         static_duration_str = "60s"
 
-    return {
+    res_content = {
         "routes": [
             {
                 "duration": duration_str,
@@ -258,6 +392,18 @@ async def google_routes(request: Request):
             }
         ]
     }
+
+    log_connection(
+        service="google",
+        method="POST",
+        path=str(request.url.path),
+        params=params_dict,
+        req_headers=dict(request.headers),
+        req_body=body_json,
+        status_code=200,
+        res_body=res_content
+    )
+    return res_content
 
 # ── Web Control Dashboard UI ────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
