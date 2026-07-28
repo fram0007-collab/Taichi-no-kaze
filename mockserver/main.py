@@ -3,6 +3,7 @@ import httpx
 import json
 import math
 import random
+import time
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
@@ -45,9 +46,15 @@ def init_db():
                 request_headers TEXT,
                 request_body TEXT,
                 status_code INTEGER NOT NULL,
-                response_body TEXT
+                response_body TEXT,
+                latency_ms REAL DEFAULT 0.0
             );
         """)
+        # Ensure latency_ms column exists for existing app.db
+        cursor = conn.execute("PRAGMA table_info(query_logs);")
+        columns = [column[1] for column in cursor.fetchall()]
+        if "latency_ms" not in columns:
+            conn.execute("ALTER TABLE query_logs ADD COLUMN latency_ms REAL DEFAULT 0.0;")
         conn.commit()
 
 init_db()
@@ -76,7 +83,8 @@ def log_connection(
     req_headers: Dict[str, str],
     req_body: Any,
     status_code: int,
-    res_body: Any
+    res_body: Any,
+    latency_ms: float
 ):
     global live_id_counter, live_logs
     live_id_counter += 1
@@ -98,6 +106,7 @@ def log_connection(
         "request_body": req_body,
         "status_code": status_code,
         "response_body": res_body,
+        "latency_ms": latency_ms,
     }
     live_logs.insert(0, live_entry)
     if len(live_logs) > MAX_LIVE_LOGS:
@@ -108,8 +117,8 @@ def log_connection(
         conn.execute("""
             INSERT INTO query_logs (
                 timestamp, service, mode, is_critical, method, path,
-                query_params, request_headers, request_body, status_code, response_body
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                query_params, request_headers, request_body, status_code, response_body, latency_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             timestamp,
             service,
@@ -121,7 +130,8 @@ def log_connection(
             json.dumps(clean_headers),
             json.dumps(req_body) if req_body is not None else None,
             status_code,
-            json.dumps(res_body) if res_body is not None else None
+            json.dumps(res_body) if res_body is not None else None,
+            latency_ms
         ))
         conn.commit()
 
@@ -150,6 +160,37 @@ def toggle_state(req: ToggleRequest):
             state["global_critical"] = all(s["critical"] for s in state["services"].values())
             
     return {"status": "success", "state": state}
+
+@app.get("/api/stats")
+def get_statistics():
+    with get_db_connection() as conn:
+        rows = conn.execute("""
+            SELECT service, mode,
+                   COUNT(*) as total_requests,
+                   SUM(is_critical) as critical_requests,
+                   AVG(latency_ms) as avg_latency
+            FROM query_logs
+            GROUP BY service, mode
+        """).fetchall()
+        
+    stats = {}
+    for service in ["openmeteo", "bmkg", "tomtom", "google"]:
+        stats[service] = {
+            "mock": {"total": 0, "critical": 0, "avg_latency_ms": 0.0},
+            "bypass": {"total": 0, "critical": 0, "avg_latency_ms": 0.0}
+        }
+        
+    for r in rows:
+        svc = r["service"]
+        md = r["mode"]
+        if svc in stats and md in ["mock", "bypass"]:
+            stats[svc][md] = {
+                "total": r["total_requests"],
+                "critical": r["critical_requests"] or 0,
+                "avg_latency_ms": round(float(r["avg_latency"] or 0.0), 2)
+            }
+            
+    return stats
 
 # Panel 1 API: In-Memory Live Debug Stream (with Service Filter)
 @app.get("/api/live_logs")
@@ -204,6 +245,7 @@ def get_db_logs(
             "request_body": json.loads(r["request_body"]) if r["request_body"] else None,
             "status_code": r["status_code"],
             "response_body": json.loads(r["response_body"]) if r["response_body"] else None,
+            "latency_ms": round(float(r["latency_ms"] or 0.0), 2)
         })
         
     total_pages = math.ceil(total_count / limit) if total_count > 0 else 1
@@ -234,6 +276,7 @@ async def open_meteo_forecast(
     timezone_param: str = Query("Asia/Jakarta", alias="timezone"),
     forecast_days: int = Query(1)
 ):
+    start_t = time.perf_counter()
     params_dict = dict(request.query_params)
     
     if state["mode"] == "bypass":
@@ -244,6 +287,7 @@ async def open_meteo_forecast(
                 timeout=10.0
             )
             res_json = resp.json()
+            latency_ms = round((time.perf_counter() - start_t) * 1000.0, 2)
             log_connection(
                 service="openmeteo",
                 method="GET",
@@ -252,7 +296,8 @@ async def open_meteo_forecast(
                 req_headers=dict(request.headers),
                 req_body=None,
                 status_code=resp.status_code,
-                res_body=res_json
+                res_body=res_json,
+                latency_ms=latency_ms
             )
             return JSONResponse(content=res_json, status_code=resp.status_code)
     
@@ -304,6 +349,7 @@ async def open_meteo_forecast(
         }
     }
     
+    latency_ms = round((time.perf_counter() - start_t) * 1000.0, 2)
     log_connection(
         service="openmeteo",
         method="GET",
@@ -312,19 +358,22 @@ async def open_meteo_forecast(
         req_headers=dict(request.headers),
         req_body=None,
         status_code=200,
-        res_body=res_content
+        res_body=res_content,
+        latency_ms=latency_ms
     )
     return res_content
 
 # ── 2. BMKG Earthquake API Mock/Proxy ───────────────────────────────────────
 @app.get("/DataMKG/TEWS/gempaterkini.json")
 async def bmkg_earthquake(request: Request):
+    start_t = time.perf_counter()
     params_dict = dict(request.query_params)
     
     if state["mode"] == "bypass":
         async with httpx.AsyncClient(verify=False) as client:
             resp = await client.get("https://data.bmkg.go.id/DataMKG/TEWS/gempaterkini.json", timeout=10.0)
             res_json = resp.json()
+            latency_ms = round((time.perf_counter() - start_t) * 1000.0, 2)
             log_connection(
                 service="bmkg",
                 method="GET",
@@ -333,7 +382,8 @@ async def bmkg_earthquake(request: Request):
                 req_headers=dict(request.headers),
                 req_body=None,
                 status_code=resp.status_code,
-                res_body=res_json
+                res_body=res_json,
+                latency_ms=latency_ms
             )
             return JSONResponse(content=res_json, status_code=resp.status_code)
     
@@ -376,6 +426,7 @@ async def bmkg_earthquake(request: Request):
         }
     }
     
+    latency_ms = round((time.perf_counter() - start_t) * 1000.0, 2)
     log_connection(
         service="bmkg",
         method="GET",
@@ -384,7 +435,8 @@ async def bmkg_earthquake(request: Request):
         req_headers=dict(request.headers),
         req_body=None,
         status_code=200,
-        res_body=res_content
+        res_body=res_content,
+        latency_ms=latency_ms
     )
     return res_content
 
@@ -397,6 +449,7 @@ async def tomtom_traffic(
     unit: str = Query("KMPH"),
     thickness: int = Query(1)
 ):
+    start_t = time.perf_counter()
     params_dict = dict(request.query_params)
     
     if state["mode"] == "bypass":
@@ -407,6 +460,7 @@ async def tomtom_traffic(
                 timeout=10.0
             )
             res_json = resp.json()
+            latency_ms = round((time.perf_counter() - start_t) * 1000.0, 2)
             log_connection(
                 service="tomtom",
                 method="GET",
@@ -415,7 +469,8 @@ async def tomtom_traffic(
                 req_headers=dict(request.headers),
                 req_body=None,
                 status_code=resp.status_code,
-                res_body=res_json
+                res_body=res_json,
+                latency_ms=latency_ms
             )
             return JSONResponse(content=res_json, status_code=resp.status_code)
             
@@ -449,6 +504,7 @@ async def tomtom_traffic(
         }
     }
     
+    latency_ms = round((time.perf_counter() - start_t) * 1000.0, 2)
     log_connection(
         service="tomtom",
         method="GET",
@@ -457,13 +513,15 @@ async def tomtom_traffic(
         req_headers=dict(request.headers),
         req_body=None,
         status_code=200,
-        res_body=res_content
+        res_body=res_content,
+        latency_ms=latency_ms
     )
     return res_content
 
 # ── 4. Google Maps Routes API Mock/Proxy ────────────────────────────────────
 @app.post("/directions/v2:computeRoutes")
 async def google_routes(request: Request):
+    start_t = time.perf_counter()
     params_dict = dict(request.query_params)
     body_json = None
     try:
@@ -481,6 +539,7 @@ async def google_routes(request: Request):
                 timeout=10.0
             )
             res_json = resp.json()
+            latency_ms = round((time.perf_counter() - start_t) * 1000.0, 2)
             log_connection(
                 service="google",
                 method="POST",
@@ -489,7 +548,8 @@ async def google_routes(request: Request):
                 req_headers=dict(request.headers),
                 req_body=body_json,
                 status_code=resp.status_code,
-                res_body=res_json
+                res_body=res_json,
+                latency_ms=latency_ms
             )
             return JSONResponse(content=res_json, status_code=resp.status_code)
 
@@ -512,6 +572,7 @@ async def google_routes(request: Request):
         ]
     }
 
+    latency_ms = round((time.perf_counter() - start_t) * 1000.0, 2)
     log_connection(
         service="google",
         method="POST",
@@ -520,7 +581,8 @@ async def google_routes(request: Request):
         req_headers=dict(request.headers),
         req_body=body_json,
         status_code=200,
-        res_body=res_content
+        res_body=res_content,
+        latency_ms=latency_ms
     )
     return res_content
 
