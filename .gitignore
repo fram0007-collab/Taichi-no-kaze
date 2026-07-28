@@ -45,4 +45,6 @@ diagnose.py
 launch_all.bat
 launch_mock.bat
 *.sqlite
+*.db
 local_db.sqlite
+mockserver/app.db

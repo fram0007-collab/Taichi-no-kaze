@@ -1,3 +1,4 @@
+import sqlite3
 import httpx
 import json
 from pathlib import Path
@@ -9,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+DB_FILE = Path(__file__).resolve().parent / "app.db"
 
 app = FastAPI(title="Taichi-no-kaze External API Mock Server", version="1.0.0")
 
@@ -19,6 +21,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── SQLite Database Setup ───────────────────────────────────────────────────
+def get_db_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    with get_db_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS query_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                service TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                is_critical INTEGER NOT NULL,
+                method TEXT NOT NULL,
+                path TEXT NOT NULL,
+                query_params TEXT,
+                request_headers TEXT,
+                request_body TEXT,
+                status_code INTEGER NOT NULL,
+                response_body TEXT
+            );
+        """)
+        conn.commit()
+
+init_db()
 
 # ── In-Memory State ─────────────────────────────────────────────────────────
 state = {
@@ -32,11 +62,6 @@ state = {
     }
 }
 
-# ── In-Memory Request & Response Debug Logs (Ring Buffer) ───────────────────
-MAX_LOG_ENTRIES = 100
-request_logs: List[Dict[str, Any]] = []
-log_id_counter = 0
-
 def log_connection(
     service: str,
     method: str,
@@ -47,30 +72,29 @@ def log_connection(
     status_code: int,
     res_body: Any
 ):
-    global log_id_counter, request_logs
-    log_id_counter += 1
-    
-    # Filter sensitive headers if needed
     clean_headers = {k: v for k, v in req_headers.items() if k.lower() not in ["authorization", "cookie"]}
+    timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
     
-    entry = {
-        "id": log_id_counter,
-        "timestamp": datetime.now().strftime("%H:%M:%S.%f")[:-3],
-        "service": service,
-        "mode": state["mode"],
-        "is_critical": state["services"].get(service, {}).get("critical", False),
-        "method": method,
-        "path": path,
-        "query_params": params,
-        "request_headers": clean_headers,
-        "request_body": req_body,
-        "status_code": status_code,
-        "response_body": res_body,
-    }
-    
-    request_logs.insert(0, entry) # newest first
-    if len(request_logs) > MAX_LOG_ENTRIES:
-        request_logs.pop()
+    with get_db_connection() as conn:
+        conn.execute("""
+            INSERT INTO query_logs (
+                timestamp, service, mode, is_critical, method, path,
+                query_params, request_headers, request_body, status_code, response_body
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            timestamp,
+            service,
+            state["mode"],
+            1 if state["services"].get(service, {}).get("critical", False) else 0,
+            method,
+            path,
+            json.dumps(params),
+            json.dumps(clean_headers),
+            json.dumps(req_body) if req_body is not None else None,
+            status_code,
+            json.dumps(res_body) if res_body is not None else None
+        ))
+        conn.commit()
 
 class ToggleRequest(BaseModel):
     mode: Optional[str] = None  # "mock" or "bypass"
@@ -99,14 +123,39 @@ def toggle_state(req: ToggleRequest):
     return {"status": "success", "state": state}
 
 @app.get("/api/logs")
-def get_logs():
-    return {"total": len(request_logs), "logs": request_logs}
+def get_logs(limit: int = Query(10)):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM query_logs ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        
+        total_count = conn.execute("SELECT COUNT(*) FROM query_logs").fetchone()[0]
+        
+    logs = []
+    for r in rows:
+        logs.append({
+            "id": r["id"],
+            "timestamp": r["timestamp"],
+            "service": r["service"],
+            "mode": r["mode"],
+            "is_critical": bool(r["is_critical"]),
+            "method": r["method"],
+            "path": r["path"],
+            "query_params": json.loads(r["query_params"]) if r["query_params"] else {},
+            "request_headers": json.loads(r["request_headers"]) if r["request_headers"] else {},
+            "request_body": json.loads(r["request_body"]) if r["request_body"] else None,
+            "status_code": r["status_code"],
+            "response_body": json.loads(r["response_body"]) if r["response_body"] else None,
+        })
+        
+    return {"total": total_count, "logs": logs}
 
 @app.post("/api/logs/clear")
 def clear_logs():
-    global request_logs
-    request_logs = []
-    return {"status": "success", "message": "Debug logs cleared"}
+    with get_db_connection() as conn:
+        conn.execute("DELETE FROM query_logs")
+        conn.commit()
+    return {"status": "success", "message": "Database query logs cleared"}
 
 # ── 1. Open-Meteo Weather API Mock/Proxy ────────────────────────────────────
 @app.get("/v1/forecast")

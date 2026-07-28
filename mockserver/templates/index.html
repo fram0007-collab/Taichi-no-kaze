@@ -231,7 +231,7 @@
     <div class="container">
         <div class="header">
             <h1>DIS-RUPTURE External API Mock Server</h1>
-            <p>Simulating external disaster & telemetry APIs on port <code>8081</code></p>
+            <p>Simulating external disaster & telemetry APIs on port <code>8081</code> (DB: <code>mockserver/app.db</code>)</p>
         </div>
 
         <!-- Global Mode Switcher -->
@@ -307,14 +307,14 @@
         <!-- Scrollable Table HTTP Debug Inspector -->
         <div class="card">
             <h2>
-                <span>🔍 HTTP Request & Response Debug Inspector</span>
-                <div>
-                    <span id="logCountBadge" class="badge badge-mock">0 Requests</span>
-                    <button class="btn btn-sm" onclick="clearLogs()">Clear Logs</button>
+                <span>🔍 HTTP History Inspector (Stored in <code>mockserver/app.db</code>)</span>
+                <div class="flex-group">
+                    <span id="logCountBadge" class="badge badge-mock">Last 10 Queries</span>
+                    <button class="btn btn-sm" onclick="clearLogs()">Clear DB History</button>
                 </div>
             </h2>
             <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1rem;">
-                Click any row to expand separated <strong>Request</strong> and <strong>Response</strong> payload panels.
+                Displaying the last 10 historical query connections loaded from SQLite storage. Click any row to expand Request & Response details.
             </p>
             
             <div class="table-scroll-container">
@@ -334,7 +334,7 @@
                     <tbody id="logsTbody">
                         <tr>
                             <td colspan="8" style="text-align: center; color: var(--muted); padding: 2rem;">
-                                No intercepted HTTP requests yet. Waiting for incoming connections...
+                                Loading historical queries from mockserver/app.db...
                             </td>
                         </tr>
                     </tbody>
@@ -355,9 +355,10 @@
 
         async function fetchLogs() {
             try {
-                const res = await fetch('/api/logs');
+                // Fetch last 10 historical queries upon launch and poll
+                const res = await fetch('/api/logs?limit=10');
                 const data = await res.json();
-                renderLogs(data.logs || []);
+                renderLogs(data.logs || [], data.total || 0);
             } catch(e) {
                 console.error('Error fetching logs', e);
             }
@@ -387,14 +388,14 @@
             }
         }
 
-        function renderLogs(logs) {
-            document.getElementById('logCountBadge').innerText = `${logs.length} Requests`;
+        function renderLogs(logs, totalCount) {
+            document.getElementById('logCountBadge').innerText = `Last ${logs.length} of ${totalCount} Queries`;
             const tbody = document.getElementById('logsTbody');
             if (logs.length === 0) {
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="8" style="text-align: center; color: var(--muted); padding: 2rem;">
-                            No intercepted HTTP requests yet. Waiting for incoming connections...
+                            No historical queries in database yet. Waiting for incoming connections...
                         </td>
                     </tr>`;
                 return;
