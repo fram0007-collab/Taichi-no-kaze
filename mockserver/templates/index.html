@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIS-RUPTURE | External API Mock Server</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --card-bg: #151d30;
+            --card-hover: #1c2742;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.15);
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.15);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.15);
+            --border: #26334d;
+            --code-bg: #090d16;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 1.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 1600px;
+            width: 96%;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin: 0 0 0.5rem 0;
+            letter-spacing: -0.02em;
+        }
+        .header p {
+            color: var(--muted);
+            margin: 0;
+            font-size: 1rem;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.4);
+            transition: all 0.2s ease;
+        }
+        .card.disabled-section {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .card h2 {
+            font-size: 1.2rem;
+            margin-top: 0;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            letter-spacing: -0.01em;
+        }
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+        }
+        .badge-mock { background: rgba(56, 189, 248, 0.2); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); }
+        .badge-bypass { background: var(--warning-bg); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-critical { background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-normal { background: var(--success-bg); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3); }
+        
+        .flex-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        .btn {
+            background: #24314c;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1.1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .btn:hover { background: #324367; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+        .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+
+        .select-input {
+            background: #0d1322;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.4rem 0.85rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-family: inherit;
+        }
+
+        /* ── Toggle Switch Controls ── */
+        .switch-container {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            white-space: nowrap;
+        }
+        .switch-label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 26px;
+            flex-shrink: 0;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #26334d;
+            transition: .3s;
+            border-radius: 34px;
+            border: 1px solid var(--border);
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--danger); }
+        input:checked + .slider.slider-mode { background-color: var(--warning); }
+        input:checked + .slider:before { transform: translateX(22px); }
+        input:disabled + .slider { opacity: 0.4; cursor: not-allowed; }
+
+        /* ── Latency Color Coding Pills ── */
+        .latency-pill {
+            font-family: monospace;
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 0.15rem 0.55rem;
+            border-radius: 6px;
+            display: inline-block;
+            white-space: nowrap;
+        }
+        .latency-fast {
+            background: var(--success-bg);
+            color: var(--success);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .latency-moderate {
+            background: var(--warning-bg);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        .latency-slow {
+            background: var(--danger-bg);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        /* ── Helicopter View Summary Banner ── */
+        .helicopter-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            background: #0d1322;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .helicopter-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            border-right: 1px solid rgba(255,255,255,0.06);
+            padding: 0 0.5rem;
+        }
+        .helicopter-item:last-child { border-right: none; }
+        .helicopter-title {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        .helicopter-val {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        /* ── Statistics Cards Grid ── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
+            margin-top: 1rem;
+        }
+
+        .provider-card {
+            background: #0d1322;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .provider-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            padding-bottom: 0.65rem;
+        }
+        .provider-card-header h3 {
+            margin: 0;
+            font-size: 0.98rem;
+            color: var(--accent);
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .mode-section {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 8px;
+            padding: 0.85rem;
+        }
+        .mode-section-title {
+            font-size: 0.74rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            margin-bottom: 0.4rem;
+        }
+        .metric-row:last-child { margin-bottom: 0; }
+        .metric-value { font-weight: 700; }
+
+        .service-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .service-row:last-child { border-bottom: none; }
+        .service-info h3 { margin: 0 0 0.25rem 0; font-size: 1rem; }
+        .service-info code { color: var(--muted); font-size: 0.85rem; }
+
+        /* ── Scrollable Table Inspector ── */
+        .table-scroll-container {
+            max-height: 480px;
+            overflow-y: auto;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #0d1322;
+        }
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            text-align: left;
+        }
+        .log-table th {
+            position: sticky;
+            top: 0;
+            background: #19233a;
+            color: var(--muted);
+            font-weight: 600;
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border);
+            z-index: 10;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+        }
+        .log-table td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            white-space: nowrap;
+        }
+        .log-table td.col-path {
+            white-space: normal;
+            word-break: break-all;
+            max-width: 320px;
+        }
+        .log-row {
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .log-row:hover { background: rgba(56, 189, 248, 0.06); }
+        .log-row.expanded { background: rgba(56, 189, 248, 0.12); }
+        
+        .detail-row td {
+            padding: 0 !important;
+            background: var(--code-bg);
+            white-space: normal !important;
+        }
+        .panels-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .inspector-panel {
+            background: #0d1322;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.2rem;
+            overflow-x: auto;
+        }
+        .inspector-panel h4 {
+            margin: 0 0 0.75rem 0;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-req h4 { color: var(--accent); }
+        .panel-res h4 { color: var(--success); }
+
+        .json-block {
+            font-family: monospace;
+            font-size: 0.82rem;
+            color: #e2e8f0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 0;
+        }
+        .method-tag {
+            font-weight: 700;
+            font-family: monospace;
+            padding: 0.15rem 0.45rem;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .method-GET { background: #0284c7; color: white; }
+        .method-POST { background: #16a34a; color: white; }
+
+        .pagination-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+
+        /* ── Mobile View Optimization: Hide Traffic Logs Panel ── */
+        @media (max-width: 768px) {
+            body { padding: 1rem 0.75rem; }
+            .container { width: 100%; }
+            .header h1 { font-size: 1.5rem; }
+            .header p { font-size: 0.85rem; }
+            
+            .helicopter-bar {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.75rem;
+                padding: 0.75rem;
+            }
+            .helicopter-item {
+                border-right: none;
+                border-bottom: 1px solid rgba(255,255,255,0.06);
+                padding-bottom: 0.5rem;
+            }
+            .helicopter-item:nth-child(3), .helicopter-item:nth-child(4) {
+                border-bottom: none;
+                padding-bottom: 0;
+            }
+
+            .stats-grid { grid-template-columns: 1fr; gap: 0.75rem; }
+            .card { padding: 1rem; margin-bottom: 1rem; }
+            .card h2 { font-size: 1.05rem; flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+
+            .service-row { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+            
+            /* HIDE DETAILED TRAFFIC LOGS TABLE PANELS ON MOBILE VIEW ONLY */
+            .card-log-panel {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>DIS-RUPTURE External API Mock Server</h1>
+            <p>Simulating external disaster & telemetry APIs on port <code>8081</code> (DB: <code>mockserver/app.db</code>)</p>
+        </div>
+
+        <!-- HELICOPTER VIEW SUMMARY BANNER -->
+        <div class="helicopter-bar">
+            <div class="helicopter-item">
+                <span class="helicopter-title">Global Mode</span>
+                <span id="heli-mode" class="helicopter-val" style="color: var(--accent);">Mock Mode</span>
+            </div>
+            <div class="helicopter-item">
+                <span class="helicopter-title">Active Disruption</span>
+                <span id="heli-critical" class="helicopter-val" style="color: var(--success);">0 / 4 Critical</span>
+            </div>
+            <div class="helicopter-item">
+                <span class="helicopter-title">Total DB Logs</span>
+                <span id="heli-total" class="helicopter-val">0</span>
+            </div>
+            <div class="helicopter-item">
+                <span class="helicopter-title">Avg System Latency</span>
+                <span id="heli-latency" class="helicopter-val"><span class="latency-pill latency-fast">0 ms</span></span>
+            </div>
+        </div>
+
+        <!-- 1. STATISTICS CARDS (Big Picture Statistics) -->
+        <div class="card">
+            <h2>
+                <span>Provider Performance & Statistics</span>
+                <span class="badge badge-mock">Live Metrics</span>
+            </h2>
+            <div class="stats-grid">
+                <!-- Open-Meteo -->
+                <div class="provider-card">
+                    <div class="provider-card-header">
+                        <h3>Open-Meteo Weather</h3>
+                        <code>/v1/forecast</code>
+                    </div>
+                    <div class="mode-section">
+                        <div class="mode-section-title">
+                            <span>Mock Mode</span>
+                            <span class="badge badge-mock">Active</span>
+                        </div>
+                        <div class="metric-row"><span>Total Requests:</span><span id="stat-openmeteo-mock-total" class="metric-value">0</span></div>
+                        <div class="metric-row"><span>Critical Events:</span><span id="stat-openmeteo-mock-crit" class="metric-value" style="color: var(--danger);">0</span></div>
+                        <div class="metric-row"><span>Avg Latency:</span><span id="stat-openmeteo-mock-lat-container"><span id="stat-openmeteo-mock-lat" class="latency-pill latency-fast">0 ms</span></span></div>
+                    </div>
+                    <div class="mode-section">
+                        <div class="mode-section-title">
+                            <span>Actual External (Bypass)</span>
+                            <span class="badge badge-bypass">Proxy</span>
+                        </div>
+                        <div class="metric-row"><span>Total Requests:</span><span id="stat-openmeteo-bypass-total" class="metric-value">0</span></div>
+                        <div class="metric-row"><span>Avg Latency:</span><span id="stat-openmeteo-bypass-lat-container"><span id="stat-openmeteo-bypass-lat" class="latency-pill latency-fast">0 ms</span></span></div>
+                    </div>
+                </div>
+
+                <!-- BMKG -->
+                <div class="provider-card">
+                    <div class="provider-card-header">
+                        <h3>BMKG Earthquake</h3>
+                        <code>/DataMKG/...</code>
+                    </div>
+                    <div class="mode-section">
+                        <div class="mode-section-title">
+                            <span>Mock Mode</span>
+                            <span class="badge badge-mock">Active</span>
+                        </div>
+                        <div class="metric-row"><span>Total Requests:</span><span id="stat-bmkg-mock-total" class="metric-value">0</span></div>
+                        <div class="metric-row"><span>Critical Events:</span><span id="stat-bmkg-mock-crit" class="metric-value" style="color: var(--danger);">0</span></div>
+                        <div class="metric-row"><span>Avg Latency:</span><span id="stat-bmkg-mock-lat-container"><span id="stat-bmkg-mock-lat" class="latency-pill latency-fast">0 ms</span></span></div>
+                    </div>
+                    <div class="mode-section">
+                        <div class="mode-section-title">
+                            <span>Actual External (Bypass)</span>
+                            <span class="badge badge-bypass">Proxy</span>
+                        </div>
+                        <div class="metric-row"><span>Total Requests:</span><span id="stat-bmkg-bypass-total" class="metric-value">0</span></div>
+                        <div class="metric-row"><span>Avg Latency:</span><span id="stat-bmkg-bypass-lat-container"><span id="stat-bmkg-bypass-lat" class="latency-pill latency-fast">0 ms</span></span></div>
+                    </div>
+                </div>
+
+                <!-- TomTom -->
+                <div class="provider-card">
+                    <div class="provider-card-header">
+                        <h3>TomTom Traffic</h3>
+                        <code>/traffic/...</code>
+                    </div>
+                    <div class="mode-section">
+                        <div class="mode-section-title">
+                            <span>Mock Mode</span>
+                            <span class="badge badge-mock">Active</span>
+                        </div>
+                        <div class="metric-row"><span>Total Requests:</span><span id="stat-tomtom-mock-total" class="metric-value">0</span></div>
+                        <div class="metric-row"><span>Critical Events:</span><span id="stat-tomtom-mock-crit" class="metric-value" style="color: var(--danger);">0</span></div>
+                        <div class="metric-row"><span>Avg Latency:</span><span id="stat-tomtom-mock-lat-container"><span id="stat-tomtom-mock-lat" class="latency-pill latency-fast">0 ms</span></span></div>
+                    </div>
+                    <div class="mode-section">
+                        <div class="mode-section-title">
+                            <span>Actual External (Bypass)</span>
+                            <span class="badge badge-bypass">Proxy</span>
+                        </div>
+                        <div class="metric-row"><span>Total Requests:</span><span id="stat-tomtom-bypass-total" class="metric-value">0</span></div>
+                        <div class="metric-row"><span>Avg Latency:</span><span id="stat-tomtom-bypass-lat-container"><span id="stat-tomtom-bypass-lat" class="latency-pill latency-fast">0 ms</span></span></div>
+                    </div>
+                </div>
+
+                <!-- Google Routes -->
+                <div class="provider-card">
+                    <div class="provider-card-header">
+                        <h3>Google Routes</h3>
+                        <code>/directions/...</code>
+                    </div>
+                    <div class="mode-section">
+                        <div class="mode-section-title">
+                            <span>Mock Mode</span>
+                            <span class="badge badge-mock">Active</span>
+                        </div>
+                        <div class="metric-row"><span>Total Requests:</span><span id="stat-google-mock-total" class="metric-value">0</span></div>
+                        <div class="metric-row"><span>Critical Events:</span><span id="stat-google-mock-crit" class="metric-value" style="color: var(--danger);">0</span></div>
+                        <div class="metric-row"><span>Avg Latency:</span><span id="stat-google-mock-lat-container"><span id="stat-google-mock-lat" class="latency-pill latency-fast">0 ms</span></span></div>
+                    </div>
+                    <div class="mode-section">
+                        <div class="mode-section-title">
+                            <span>Actual External (Bypass)</span>
+                            <span class="badge badge-bypass">Proxy</span>
+                        </div>
+                        <div class="metric-row"><span>Total Requests:</span><span id="stat-google-bypass-total" class="metric-value">0</span></div>
+                        <div class="metric-row"><span>Avg Latency:</span><span id="stat-google-bypass-lat-container"><span id="stat-google-bypass-lat" class="latency-pill latency-fast">0 ms</span></span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Mode Switcher -->
+        <div class="card">
+            <h2>
+                <span>Global Operation Mode</span>
+                <span id="modeBadge" class="badge badge-mock">Mock Responses</span>
+            </h2>
+            <div class="flex-group" style="margin-top: 1rem;">
+                <div class="switch-container">
+                    <span class="switch-label">Mock Responses</span>
+                    <label class="switch">
+                        <input type="checkbox" id="modeSwitch" onchange="toggleModeSwitch(this.checked)">
+                        <span class="slider slider-mode"></span>
+                    </label>
+                    <span class="switch-label">Bypass (Live Proxy)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Event Switcher -->
+        <div id="masterDisruptionCard" class="card">
+            <h2>
+                <span>Master Disruption Control</span>
+                <span id="bypassDisabledNotice" class="badge badge-warning" style="display: none;">Disabled in Bypass Mode</span>
+            </h2>
+            <div class="flex-group" style="margin-top: 1rem;">
+                <div class="switch-container">
+                    <span class="switch-label">All Normal</span>
+                    <label class="switch">
+                        <input type="checkbox" id="masterSwitch" onchange="toggleMasterSwitch(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="switch-label" style="color: var(--danger);">All Critical</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Individual Service Toggles with Switches -->
+        <div id="serviceDisruptionCard" class="card">
+            <h2>Supported External APIs & Event Controls</h2>
+            
+            <!-- Open-Meteo Weather -->
+            <div class="service-row">
+                <div class="service-info">
+                    <h3>Open-Meteo Weather API</h3>
+                    <code>GET /v1/forecast</code>
+                </div>
+                <div class="switch-container">
+                    <span id="label-openmeteo" class="switch-label">Normal</span>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-openmeteo" onchange="toggleServiceSwitch('openmeteo', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- BMKG Earthquake -->
+            <div class="service-row">
+                <div class="service-info">
+                    <h3>BMKG Earthquake Telemetry API</h3>
+                    <code>GET /DataMKG/TEWS/gempaterkini.json</code>
+                </div>
+                <div class="switch-container">
+                    <span id="label-bmkg" class="switch-label">Normal</span>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-bmkg" onchange="toggleServiceSwitch('bmkg', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- TomTom Traffic -->
+            <div class="service-row">
+                <div class="service-info">
+                    <h3>TomTom Traffic Flow API</h3>
+                    <code>GET /traffic/services/4/flowSegmentData/...</code>
+                </div>
+                <div class="switch-container">
+                    <span id="label-tomtom" class="switch-label">Normal</span>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-tomtom" onchange="toggleServiceSwitch('tomtom', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Google Routes -->
+            <div class="service-row">
+                <div class="service-info">
+                    <h3>Google Maps Routes API</h3>
+                    <code>POST /directions/v2:computeRoutes</code>
+                </div>
+                <div class="switch-container">
+                    <span id="label-google" class="switch-label">Normal</span>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-google" onchange="toggleServiceSwitch('google', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANEL 1: LIVE DEBUG STREAM (Hidden on Mobile) -->
+        <div class="card card-log-panel">
+            <h2>
+                <span>Live HTTP Request Stream (In-Memory Debugger)</span>
+                <div class="flex-group">
+                    <span id="liveCountBadge" class="badge badge-mock">0 Live Stream</span>
+                    <button class="btn btn-sm" onclick="clearLiveLogs()">Clear Stream</button>
+                </div>
+            </h2>
+            
+            <div class="flex-group" style="margin-bottom: 1rem;">
+                <label for="liveServiceSelect" style="color: var(--muted); font-size: 0.85rem; font-weight: 600;">Filter Service:</label>
+                <select id="liveServiceSelect" class="select-input" onchange="changeLiveFilter(this.value)">
+                    <option value="all" selected>All Services</option>
+                    <option value="openmeteo">Open-Meteo Weather</option>
+                    <option value="bmkg">BMKG Earthquake</option>
+                    <option value="tomtom">TomTom Traffic</option>
+                    <option value="google">Google Routes</option>
+                </select>
+            </div>
+
+            <div class="table-scroll-container">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Method</th>
+                            <th>Service</th>
+                            <th>Path</th>
+                            <th>Mode</th>
+                            <th>Event State</th>
+                            <th>Latency</th>
+                            <th>Status</th>
+                            <th>Inspect</th>
+                        </tr>
+                    </thead>
+                    <tbody id="liveLogsTbody">
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: var(--muted); padding: 2rem;">
+                                Waiting for incoming connections...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PANEL 2: PERSISTENT SQLITE DATABASE QUERY HISTORY (Hidden on Mobile) -->
+        <div class="card card-log-panel">
+            <h2>
+                <span>SQLite Persistent Query History (<code>mockserver/app.db</code>)</span>
+                <div class="flex-group">
+                    <span id="dbCountBadge" class="badge badge-mock">0 DB Records</span>
+                    <button class="btn btn-sm" onclick="fetchDbLogs()">Refresh DB</button>
+                    <button class="btn btn-sm btn-danger" onclick="clearDbLogs()">Clear DB</button>
+                </div>
+            </h2>
+            
+            <div class="flex-group" style="margin-bottom: 1rem;">
+                <label for="dbServiceSelect" style="color: var(--muted); font-size: 0.85rem; font-weight: 600;">Filter Service:</label>
+                <select id="dbServiceSelect" class="select-input" onchange="changeDbFilter(this.value)">
+                    <option value="all" selected>All Services</option>
+                    <option value="openmeteo">Open-Meteo Weather</option>
+                    <option value="bmkg">BMKG Earthquake</option>
+                    <option value="tomtom">TomTom Traffic</option>
+                    <option value="google">Google Routes</option>
+                </select>
+            </div>
+
+            <div class="table-scroll-container">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Method</th>
+                            <th>Service</th>
+                            <th>Path</th>
+                            <th>Mode</th>
+                            <th>Event State</th>
+                            <th>Latency</th>
+                            <th>Status</th>
+                            <th>Inspect</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dbLogsTbody">
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: var(--muted); padding: 2rem;">
+                                Loading persistent history from mockserver/app.db...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination-bar">
+                <div class="flex-group">
+                    <label for="limitSelect" style="color: var(--muted); font-size: 0.85rem;">Per page:</label>
+                    <select id="limitSelect" class="select-input" onchange="changeLimit(this.value)">
+                        <option value="10" selected>10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+
+                <div class="flex-group">
+                    <button id="btnPrev" class="btn btn-sm" onclick="changePage(currentPage - 1)">Prev</button>
+                    <span id="pageIndicator" style="font-size: 0.85rem; color: var(--muted); font-family: monospace;">Page 1 of 1</span>
+                    <button id="btnNext" class="btn btn-sm" onclick="changePage(currentPage + 1)">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentState = {};
+        let expandedLiveLogs = new Set();
+        let expandedDbLogs = new Set();
+        
+        let liveServiceFilter = "all";
+        let dbServiceFilter = "all";
+
+        let currentPage = 1;
+        let currentLimit = 10;
+        let totalPages = 1;
+
+        function getLatencyPillHtml(ms) {
+            let cls = 'latency-fast';
+            if (ms >= 500) cls = 'latency-slow';
+            else if (ms >= 150) cls = 'latency-moderate';
+            return `<span class="latency-pill ${cls}">${ms} ms</span>`;
+        }
+
+        async function fetchStatus() {
+            const res = await fetch('/api/status');
+            currentState = await res.json();
+            renderState();
+        }
+
+        async function fetchStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const stats = await res.json();
+                renderStats(stats);
+            } catch(e) {
+                console.error('Error fetching statistics', e);
+            }
+        }
+
+        async function fetchLiveLogs() {
+            try {
+                const res = await fetch(`/api/live_logs?service=${liveServiceFilter}`);
+                const data = await res.json();
+                renderTable('live', data.logs || [], expandedLiveLogs, 'liveLogsTbody', 'liveCountBadge');
+            } catch(e) {
+                console.error('Error fetching live logs', e);
+            }
+        }
+
+        async function fetchDbLogs() {
+            try {
+                const res = await fetch(`/api/db_logs?page=${currentPage}&limit=${currentLimit}&service=${dbServiceFilter}`);
+                const data = await res.json();
+                totalPages = data.total_pages || 1;
+                renderTable('db', data.logs || [], expandedDbLogs, 'dbLogsTbody', 'dbCountBadge', data.total, data.page, data.total_pages);
+            } catch(e) {
+                console.error('Error fetching DB logs', e);
+            }
+        }
+
+        function renderStats(stats) {
+            let grandTotal = 0;
+            let sumLatency = 0;
+            let latencyCount = 0;
+
+            for (const [svc, data] of Object.entries(stats)) {
+                // Mock
+                const mTotal = document.getElementById(`stat-${svc}-mock-total`);
+                const mCrit = document.getElementById(`stat-${svc}-mock-crit`);
+                const mLatContainer = document.getElementById(`stat-${svc}-mock-lat-container`);
+                if (mTotal) mTotal.innerText = data.mock.total;
+                if (mCrit) mCrit.innerText = data.mock.critical;
+                if (mLatContainer) mLatContainer.innerHTML = getLatencyPillHtml(data.mock.avg_latency_ms);
+
+                grandTotal += data.mock.total;
+                if (data.mock.avg_latency_ms > 0) {
+                    sumLatency += data.mock.avg_latency_ms * data.mock.total;
+                    latencyCount += data.mock.total;
+                }
+
+                // Bypass
+                const bTotal = document.getElementById(`stat-${svc}-bypass-total`);
+                const bLatContainer = document.getElementById(`stat-${svc}-bypass-lat-container`);
+                if (bTotal) bTotal.innerText = data.bypass.total;
+                if (bLatContainer) bLatContainer.innerHTML = getLatencyPillHtml(data.bypass.avg_latency_ms);
+
+                grandTotal += data.bypass.total;
+                if (data.bypass.avg_latency_ms > 0) {
+                    sumLatency += data.bypass.avg_latency_ms * data.bypass.total;
+                    latencyCount += data.bypass.total;
+                }
+            }
+
+            // Update Helicopter View Summary Stats
+            document.getElementById('heli-total').innerText = grandTotal;
+            const overallAvg = latencyCount > 0 ? Math.round(sumLatency / latencyCount) : 0;
+            document.getElementById('heli-latency').innerHTML = getLatencyPillHtml(overallAvg);
+        }
+
+        function renderState() {
+            const isMock = currentState.mode === 'mock';
+            document.getElementById('modeBadge').className = isMock ? 'badge badge-mock' : 'badge badge-bypass';
+            document.getElementById('modeBadge').innerText = isMock ? 'Mock Responses' : 'Bypass (Proxy)';
+            
+            document.getElementById('modeSwitch').checked = !isMock;
+            
+            // Helicopter View Mode Update
+            const heliMode = document.getElementById('heli-mode');
+            if (heliMode) {
+                heliMode.innerText = isMock ? 'Mock Mode' : 'Bypass (Proxy)';
+                heliMode.style.color = isMock ? 'var(--accent)' : 'var(--warning)';
+            }
+
+            // Handle Disabling Disruption Controls when in Bypass Mode
+            const isBypass = !isMock;
+            const masterCard = document.getElementById('masterDisruptionCard');
+            const serviceCard = document.getElementById('serviceDisruptionCard');
+            const notice = document.getElementById('bypassDisabledNotice');
+
+            if (isBypass) {
+                masterCard.classList.add('disabled-section');
+                serviceCard.classList.add('disabled-section');
+                notice.style.display = 'inline-block';
+            } else {
+                masterCard.classList.remove('disabled-section');
+                serviceCard.classList.remove('disabled-section');
+                notice.style.display = 'none';
+            }
+
+            document.getElementById('masterSwitch').disabled = isBypass;
+            document.getElementById('masterSwitch').checked = currentState.global_critical;
+
+            let activeCriticalCount = 0;
+            for (const [service, data] of Object.entries(currentState.services)) {
+                const sw = document.getElementById(`switch-${service}`);
+                const lbl = document.getElementById(`label-${service}`);
+                if (data.critical) activeCriticalCount++;
+                if (sw) {
+                    sw.disabled = isBypass;
+                    sw.checked = data.critical;
+                }
+                if (lbl) {
+                    lbl.innerText = data.critical ? 'Critical' : 'Normal';
+                    lbl.style.color = data.critical ? 'var(--danger)' : 'var(--text)';
+                }
+            }
+
+            // Helicopter View Active Disruption Update
+            const heliCrit = document.getElementById('heli-critical');
+            if (heliCrit) {
+                heliCrit.innerText = `${activeCriticalCount} / 4 Critical`;
+                heliCrit.style.color = activeCriticalCount > 0 ? 'var(--danger)' : 'var(--success)';
+            }
+        }
+
+        function renderTable(prefix, logs, expandedSet, tbodyId, badgeId, totalCount = null, page = null, pages = null) {
+            if (badgeId === 'dbCountBadge' && totalCount !== null) {
+                document.getElementById('dbCountBadge').innerText = `Total: ${totalCount} DB Records`;
+                document.getElementById('pageIndicator').innerText = `Page ${page} of ${pages}`;
+                document.getElementById('btnPrev').disabled = page <= 1;
+                document.getElementById('btnNext').disabled = page >= pages;
+            } else if (badgeId === 'liveCountBadge') {
+                document.getElementById('liveCountBadge').innerText = `${logs.length} Live Stream`;
+            }
+
+            const tbody = document.getElementById(tbodyId);
+            if (logs.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" style="text-align: center; color: var(--muted); padding: 2rem;">
+                            No matching query records found.
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            let html = '';
+            logs.forEach(log => {
+                const isExpanded = expandedSet.has(log.id);
+                const modeBadge = log.mode === 'mock' 
+                    ? `<span class="badge badge-mock">Mock</span>` 
+                    : `<span class="badge badge-bypass">Bypass</span>`;
+                const critBadge = log.is_critical 
+                    ? `<span class="badge badge-critical">Critical</span>` 
+                    : `<span class="badge badge-normal">Normal</span>`;
+                
+                const statusBadge = log.status_code >= 400 
+                    ? `<span class="badge badge-critical">HTTP ${log.status_code}</span>`
+                    : `<span class="badge badge-normal">HTTP ${log.status_code}</span>`;
+
+                const latPill = getLatencyPillHtml(log.latency_ms || 0);
+
+                html += `
+                <tr class="log-row ${isExpanded ? 'expanded' : ''}" onclick="toggleLogDetails('${prefix}', ${log.id})">
+                    <td style="color: var(--muted); font-family: monospace;">${log.timestamp}</td>
+                    <td><span class="method-tag method-${log.method}">${log.method}</span></td>
+                    <td style="font-weight: 600;">${log.service.toUpperCase()}</td>
+                    <td class="col-path" style="font-family: monospace; color: var(--accent);">${log.path}</td>
+                    <td>${modeBadge}</td>
+                    <td>${critBadge}</td>
+                    <td>${latPill}</td>
+                    <td>${statusBadge}</td>
+                    <td style="color: var(--muted); font-weight: bold;">${isExpanded ? 'Close' : 'Inspect'}</td>
+                </tr>`;
+
+                if (isExpanded) {
+                    html += `
+                    <tr class="detail-row">
+                        <td colspan="9">
+                            <div class="panels-grid">
+                                <div class="inspector-panel panel-req">
+                                    <h4>
+                                        <span>Request Details</span>
+                                        <span class="method-tag method-${log.method}">${log.method}</span>
+                                    </h4>
+                                    <p style="margin: 0 0 0.5rem 0; font-family: monospace; color: var(--accent);">
+                                        <strong>Path:</strong> ${log.path}
+                                    </p>
+                                    
+                                    <strong style="color: var(--muted); font-size: 0.75rem;">QUERY PARAMETERS:</strong>
+                                    <pre class="json-block">${JSON.stringify(log.query_params, null, 2)}</pre>
+                                    
+                                    <strong style="color: var(--muted); font-size: 0.75rem; margin-top: 0.75rem; display: block;">REQUEST HEADERS:</strong>
+                                    <pre class="json-block">${JSON.stringify(log.request_headers, null, 2)}</pre>
+                                    
+                                    <strong style="color: var(--muted); font-size: 0.75rem; margin-top: 0.75rem; display: block;">REQUEST BODY:</strong>
+                                    <pre class="json-block">${log.request_body ? JSON.stringify(log.request_body, null, 2) : 'None'}</pre>
+                                </div>
+
+                                <div class="inspector-panel panel-res">
+                                    <h4>
+                                        <span>Response Payload</span>
+                                        ${statusBadge}
+                                    </h4>
+                                    <strong style="color: var(--muted); font-size: 0.75rem;">LATENCY:</strong>
+                                    <p style="margin: 0.2rem 0 0.75rem 0;">${latPill}</p>
+
+                                    <strong style="color: var(--muted); font-size: 0.75rem;">RESPONSE BODY (JSON):</strong>
+                                    <pre class="json-block">${JSON.stringify(log.response_body, null, 2)}</pre>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>`;
+                }
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function toggleLogDetails(prefix, id) {
+            const set = prefix === 'live' ? expandedLiveLogs : expandedDbLogs;
+            if (set.has(id)) set.delete(id);
+            else set.add(id);
+            if (prefix === 'live') fetchLiveLogs();
+            else fetchDbLogs();
+        }
+
+        function changeLiveFilter(service) {
+            liveServiceFilter = service;
+            fetchLiveLogs();
+        }
+
+        function changeDbFilter(service) {
+            dbServiceFilter = service;
+            currentPage = 1;
+            fetchDbLogs();
+        }
+
+        function changePage(newPage) {
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                fetchDbLogs();
+            }
+        }
+
+        function changeLimit(newLimit) {
+            currentLimit = parseInt(newLimit, 10);
+            currentPage = 1;
+            fetchDbLogs();
+        }
+
+        async function clearLiveLogs() {
+            await fetch('/api/live_logs/clear', { method: 'POST' });
+            expandedLiveLogs.clear();
+            fetchLiveLogs();
+        }
+
+        async function clearDbLogs() {
+            await fetch('/api/db_logs/clear', { method: 'POST' });
+            expandedDbLogs.clear();
+            currentPage = 1;
+            fetchDbLogs();
+            fetchStats();
+        }
+
+        async function toggleModeSwitch(isBypass) {
+            await fetch('/api/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: isBypass ? 'bypass' : 'mock' })
+            });
+            fetchStatus();
+        }
+
+        async function toggleMasterSwitch(isCritical) {
+            await fetch('/api/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ service: 'all', critical: isCritical })
+            });
+            fetchStatus();
+        }
+
+        async function toggleServiceSwitch(service, isCritical) {
+            await fetch('/api/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ service: service, critical: isCritical })
+            });
+            fetchStatus();
+        }
+
+        fetchStatus();
+        fetchStats();
+        fetchLiveLogs();
+        fetchDbLogs();
+        
+        setInterval(fetchStatus, 3000);
+        setInterval(fetchStats, 3000);
+        setInterval(fetchLiveLogs, 1500);
+        setInterval(fetchDbLogs, 5000);
+    </script>
+</body>
+</html>
