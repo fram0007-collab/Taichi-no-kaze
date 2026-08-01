@@ -74,23 +74,22 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
 
   const { text } = confColor(conf);
   const uncertain = conf < 60;
-  const remainingLabel = uncertain ? null : formatRemainingTimeLabel(estimated_resolution_at);
+  const remainingLabel = formatRemainingTimeLabel(estimated_resolution_at);
 
   return (
-    <div className={`flex items-center gap-1.5 text-[10px] ${text}`}>
+    <div className="flex items-center gap-1.5 text-[10px] text-slate-700 dark:text-slate-200">
       <span>🕐</span>
       <span>
         Est. clear{' '}
-        <span className="font-bold">
+        <span className={`font-bold ${text}`}>
           {uncertain ? 'Estimate uncertain' : time}
         </span>
-        {!uncertain && (
-          <>
-            {remainingLabel && <span className="opacity-80 ml-1">· {remainingLabel}</span>}
-            <span className="opacity-70 ml-1">({conf}% confidence)</span>
-          </>
+        {remainingLabel && <span className="ml-1">· {remainingLabel}</span>}
+        {uncertain ? (
+          <span className="ml-1 text-slate-600 dark:text-slate-300">(confidence &lt;60%)</span>
+        ) : (
+          <span className="ml-1 text-slate-600 dark:text-slate-300">({conf}% confidence)</span>
         )}
-        {uncertain && <span className="opacity-70 ml-1">(confidence &lt;60%)</span>}
       </span>
     </div>
   );
@@ -105,7 +104,7 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
   if (!time || conf === 0) return null;
 
   const { text, bar } = confColor(conf);
-  const remainingLabel = conf >= 60 ? formatRemainingTimeLabel(estimated_resolution_at) : null;
+  const remainingLabel = formatRemainingTimeLabel(estimated_resolution_at);
 
   const disclaimer = {
     traffic:    'Based on historical rush hour patterns for this zone.',
