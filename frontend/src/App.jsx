@@ -9,7 +9,8 @@ import AdminDashboard from './components/AdminDashboard';
 import { ResolutionBadgeCompact } from './components/ResolutionBadge';
 import { MlRiskBadgeCompact } from './components/MlRiskBadge';
 import { MlResolutionBadgeCompact } from './components/MlResolutionBadge';
-import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity, BookOpen } from 'lucide-react';
+import FirstTimeTour from './components/FirstTimeTour';
 import { getApiUrl } from './utils/getApiUrl';
 import Dashboard from './components/Dashboard';
 import NotificationPreferences from './components/NotificationPreferences';
@@ -207,13 +208,13 @@ export default function App() {
     return window.location.pathname === '/admin' ? 'admin' : 'map';
   });
 
-  // Animated Loading Screen states and logic
-  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
-  const [loadingProgress, setLoadingProgress] = useState(0);
+  // First time tour state — opens automatically if user hasn't completed tour
+  const [showTour, setShowTour] = useState(() => {
+    return localStorage.getItem('hasSeenTour') !== 'true';
+  });
   const [dbStatus, setDbStatus] = useState("connecting");
   const [dbLatency, setDbLatency] = useState(0);
   const [realDbEmpty, setRealDbEmpty] = useState(true);
-  const [allowFallbackBypass, setAllowFallbackBypass] = useState(false);
 
   // Trigger automatic bypass of loading screen after 30 seconds max if database is still unseeded
   useEffect(() => {
@@ -248,35 +249,6 @@ export default function App() {
       setRealDbEmpty(isFallback);
     }
   }, [loading, predictions, isFallback]);
-
-  // Complete progress bar immediately and fade out loading screen once loading finishes
-  useEffect(() => {
-    if (!loading && showLoadingScreen) {
-      // Dismiss loading screen when backend is reachable OR after 30s timeout
-      if (!isFallback || allowFallbackBypass || dbStatus === 'healthy') {
-        setLoadingProgress(100);
-        const delay = setTimeout(() => {
-          setShowLoadingScreen(false);
-        }, 500);
-        return () => clearTimeout(delay);
-      }
-    }
-  }, [loading, isFallback, allowFallbackBypass, showLoadingScreen]);
-
-  // Increment progress organically while loading is active
-  useEffect(() => {
-    if (!showLoadingScreen) return;
-    const interval = setInterval(() => {
-      setLoadingProgress(prev => {
-        // Hold progress at 85% if database is still empty (waiting for background worker)
-        if (realDbEmpty && prev >= 85) return 85;
-        if (prev >= 98) return 98; // Hold just before completion
-        return prev + Math.random() * 6;
-      });
-    }, 250);
-
-    return () => clearInterval(interval);
-  }, [showLoadingScreen, realDbEmpty]);
   
   // Listen for browser history back/forward events
   useEffect(() => {
@@ -795,99 +767,6 @@ export default function App() {
     fetchTimeline(prediction.zone.id, selectedHours);
   };
 
-  if (showLoadingScreen) {
-    return (
-      <div className={`flex flex-col items-center justify-center h-screen w-screen font-sans ${theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-brand-dark text-slate-100'}`}>
-        <div className="flex flex-col items-center max-w-md px-6 text-center space-y-6">
-          
-          {/* Animated Pulsing Rotating Shield */}
-          <div className="relative flex items-center justify-center">
-            <div className="absolute w-24 h-24 rounded-full bg-indigo-500/10 border border-indigo-500/20 shadow-glow animate-pulse"></div>
-            <div className="p-5 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-glow-orange animate-pulse">
-              <Shield className="w-12 h-12" />
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <h1 className="text-xl md:text-2xl font-extrabold tracking-wide uppercase bg-gradient-to-r from-slate-100 via-indigo-200 to-indigo-400 bg-clip-text text-transparent">
-              DIS-RUPTURE
-            </h1>
-            <p className="text-[10px] text-slate-400 font-semibold tracking-widest uppercase">
-              Early Warning Command Center
-            </p>
-          </div>
-          
-          {/* Progress Bar Container */}
-          <div className="w-80 space-y-3">
-            <div className="w-full bg-slate-800/80 border border-slate-700/40 h-2.5 rounded-full overflow-hidden shadow-inner">
-              <div 
-                className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-300 rounded-full"
-                style={{ width: `${loadingProgress}%` }}
-              ></div>
-            </div>
-            
-            {/* Dynamic Status Steps */}
-            <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider h-4 animate-pulse">
-              {loadingProgress < 25 && "Initializing command deck and secure systems..."}
-              {loadingProgress >= 25 && loadingProgress < 50 && "Establishing secure Neon PostgreSQL link..."}
-              {loadingProgress >= 50 && loadingProgress < 75 && "Polling live TomTom flow & Open-Meteo forecasts..."}
-              {loadingProgress >= 75 && loadingProgress < 85 && "Clustering POIs and caching Jabodetabek warning zones..."}
-              {loadingProgress >= 85 && realDbEmpty && "Worker executing initial analytics cycle (Waiting for DB seed)..."}
-              {loadingProgress >= 85 && !realDbEmpty && loadingProgress < 100 && "Zoning complete. Building map geofences..."}
-              {loadingProgress >= 100 && "System calibrated. Booting dashboard..."}
-            </p>
-          </div>
-
-          {/* Diagnostic Console Card */}
-          <div className="w-80 p-4 rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-sm text-left text-xs space-y-2">
-            <div className="flex justify-between border-b border-slate-800 pb-1.5 mb-1.5 font-bold uppercase tracking-wider text-slate-400 text-[10px]">
-              <span>System Calibration Feed</span>
-              <span className="text-indigo-400 animate-pulse">Live</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Neon Database:</span>
-              <span className={`font-semibold ${
-                dbStatus === 'healthy' ? 'text-emerald-400' :
-                dbStatus === 'connecting' ? 'text-amber-400 animate-pulse' : 'text-rose-400'
-              }`}>
-                {dbStatus === 'healthy' ? `CONNECTED (${dbLatency}ms)` :
-                 dbStatus === 'connecting' ? 'CONNECTING...' : 'OFFLINE'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Analytics Worker:</span>
-              <span className={`font-semibold ${
-                realDbEmpty ? 'text-amber-400 animate-pulse' : 'text-emerald-400'
-              }`}>
-                {realDbEmpty ? 'ANALYZING THREAT CYCLES...' : 'CALIBRATED & ACTIVE'}
-              </span>
-            </div>
-            {realDbEmpty && (
-              <div className="text-[10px] text-slate-500 border-t border-slate-800/60 pt-1.5 mt-1.5 italic text-center">
-                Initial ingestion sweeps take roughly 15-25 seconds to compile.
-              </div>
-            )}
-          </div>
-
-          {/* Manual Bypass Action */}
-          {realDbEmpty && (
-            <button
-              onClick={() => setShowLoadingScreen(false)}
-              className="px-4 py-2 rounded-lg bg-slate-800/80 border border-slate-700/60 text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 transition-all text-xs font-bold active:scale-[0.98]"
-            >
-              Skip & Launch Sandbox Mode (Simulated Data)
-            </button>
-          )}
-
-          <p className="text-[9px] text-slate-500 font-semibold tracking-wider uppercase pt-2">
-            Securing Greater Metropolitan Geofences
-          </p>
-
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={`flex flex-col h-screen h-[100dvh] w-screen overflow-hidden font-sans ${theme === 'light' ? 'light-mode' : 'bg-brand-dark text-slate-100'}`}>
       
@@ -931,6 +810,15 @@ export default function App() {
                 ) : (
                   <Sun className="w-4 h-4 text-amber-400" />
                 )}
+              </button>
+
+              <button
+                onClick={() => setShowTour(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-all text-xs font-semibold"
+                title="Replay First Time Tour"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Guide</span>
               </button>
 
               <button
@@ -1654,6 +1542,14 @@ export default function App() {
         isOpen={showDashboard}
         onClose={() => setShowDashboard(false)}
         allZones={allZones}
+      />
+
+      {/* First Time Visit Tour Modal */}
+      <FirstTimeTour
+        isOpen={showTour}
+        onClose={() => setShowTour(false)}
+        dbStatus={dbStatus}
+        isFallback={isFallback}
       />
     </div>
   );

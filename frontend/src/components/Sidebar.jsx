@@ -259,7 +259,7 @@ export default function Sidebar({
   }, [predictions, mlPrediction, selectedPrediction]);
 
   return (
-    <div className="w-full flex flex-col h-full bg-brand-elevated border-l border-slate-800 overflow-hidden">
+    <div data-tour="sidebar-filters" className="w-full flex flex-col h-full bg-brand-elevated border-l border-slate-800 overflow-hidden">
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
       {/* Active Notifications Block */}
@@ -282,13 +282,13 @@ export default function Sidebar({
 
         {/* Evacuation guidance button — shown when active threats exist */}
         {predictions.length > 0 && !showEvacuationPanel && onGetEvacuation && (
-          <button
-            onClick={onGetEvacuation}
-            className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30 mb-3"
-          >
-            <span>🚨</span>
-            Get Evacuation Guidance
-          </button>
+            <button
+              data-tour="evacuation-control"
+              onClick={onGetEvacuation}
+              className="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all flex items-center justify-center space-x-2"
+            >
+              <span>🧭 Open Evacuation Route Guidance</span>
+            </button>
         )}
 
         {/* Evacuation panel rendered inside sidebar */}

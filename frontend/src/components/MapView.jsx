@@ -651,7 +651,7 @@ export default function MapView({
   const poisToRender = globalPois.filter(poi => activeLayers[poi.category]);
  
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div data-tour="map-container" className="relative w-full h-full overflow-hidden">
       {!suppressMapControls && (
         <>
           {/* Risk Legend */}
