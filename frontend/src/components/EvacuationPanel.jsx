@@ -592,7 +592,7 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
       </div>
 
       {/* Emergency hotlines */}
-      <div className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-slate-800/60 overflow-hidden">
         <button
           onClick={() => setHotlinesOpen(o => !o)}
           className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/50 transition-colors"
@@ -613,8 +613,8 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
             {hotlines.map((h, i) => (
               <div key={i} className="flex items-center justify-between px-4 py-3 gap-3">
                 <div className="min-w-0">
-                  <p className="font-semibold text-xs text-slate-100 truncate">{h.name}</p>
-                  <p className="text-[10px] text-slate-500 truncate">{h.role}</p>
+                  <p className="font-semibold text-xs text-slate-900 dark:text-slate-100 truncate">{h.name}</p>
+                  <p className="text-[10px] text-slate-600 dark:text-slate-400 truncate">{h.role}</p>
                 </div>
                 <a
                   href={`tel:${h.number.replace(/[^0-9+]/g, '')}`}

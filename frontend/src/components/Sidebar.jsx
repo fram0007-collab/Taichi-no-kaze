@@ -4,6 +4,7 @@ import { calculateDistanceKm } from '../utils/haversine';
 import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { MlRiskBadgeCompact } from './MlRiskBadge';
 import { MlResolutionBadgeCompact } from './MlResolutionBadge';
+import { useMlResolution } from '../hooks/useMlResolution';
 import { 
   ResponsiveContainer, 
   ComposedChart, 
@@ -18,7 +19,7 @@ import {
   LineChart,
   ReferenceLine
 } from 'recharts';
-import { MapPin, CloudRain, TrendingDown, Users, Bell, ShoppingBag, Train, Building, Store, Layers } from 'lucide-react';
+import { MapPin, CloudRain, TrendingDown, Users, Bell, ShoppingBag, Train, Building, Store, Layers, Info, X, BarChart3, Clock3, Sparkles } from 'lucide-react';
 
 export default function Sidebar({ 
   predictions = [], 
@@ -42,6 +43,9 @@ export default function Sidebar({
   const [poiFilter, setPoiFilter] = useState('all');
   const [showAllWarnings, setShowAllWarnings] = useState(false);
   const [severityFilter, setSeverityFilter] = useState('all');
+  const [showPredictionHelp, setShowPredictionHelp] = useState(false);
+  const [helpTab, setHelpTab] = useState('read');
+  const { prediction: mlPrediction } = useMlResolution(selectedPrediction?.id);
 
   // LOW tier: zones monitored with no OPEN alert
   const activeZoneIds = new Set(
@@ -158,15 +162,122 @@ export default function Sidebar({
 
   const nowLabel = timelineData?.timeline?.[0] ? formatTime(timelineData.timeline[0].timestamp) : null;
 
+  const formatHoursLabel = (hours) => {
+    if (hours == null || Number.isNaN(hours)) return 'Unknown';
+    if (hours < 1) return `${Math.round(hours * 60)} min`;
+    if (hours < 2) return `${hours.toFixed(1)} hour`;
+    return `${hours.toFixed(1)} hours`;
+  };
+
+  const getMinutesRemaining = (estimate) => {
+    if (!estimate) return null;
+    const diff = Math.round((new Date(estimate) - new Date()) / 60000);
+    return diff > 0 ? diff : 0;
+  };
+
+  const selectedAlertComparison = useMemo(() => {
+    if (!selectedPrediction) {
+      return {
+        isExample: true,
+        rows: [
+          { label: 'Standard estimate', valueLabel: '2.7 hours remaining', confidence: '65% confidence', percent: 70, tint: 'bg-indigo-500' },
+          { label: 'ML estimate', valueLabel: '2.0 hours remaining', confidence: '47% confidence', percent: 50, tint: 'bg-cyan-500' },
+        ],
+      };
+    }
+
+    const standardHours = selectedPrediction.estimated_resolution_at
+      ? Math.max(0.1, getMinutesRemaining(selectedPrediction.estimated_resolution_at) / 60)
+      : null;
+    const mlHours = mlPrediction?.estimated_resolution_at
+      ? Math.max(0.1, getMinutesRemaining(mlPrediction.estimated_resolution_at) / 60)
+      : null;
+
+    const rows = [];
+    if (standardHours != null) {
+      rows.push({
+        label: 'Standard estimate',
+        valueLabel: `${formatHoursLabel(standardHours)} remaining`,
+        confidence: `${Math.round(selectedPrediction.resolution_confidence || selectedPrediction.probability_percentage || 0)}% confidence`,
+        percent: Math.min(100, Math.max(20, Math.round(standardHours / 3 * 100))),
+        tint: 'bg-indigo-500',
+      });
+    }
+    if (mlHours != null) {
+      rows.push({
+        label: 'ML estimate',
+        valueLabel: `${formatHoursLabel(mlHours)} remaining`,
+        confidence: `${Math.round(mlPrediction?.resolution_confidence || 0)}% confidence`,
+        percent: Math.min(100, Math.max(20, Math.round(mlHours / 3 * 100))),
+        tint: 'bg-cyan-500',
+      });
+    }
+
+    return { isExample: false, rows: rows.length > 0 ? rows : [
+      { label: 'Standard estimate', valueLabel: 'Estimate pending', confidence: 'Waiting for fresh telemetry', percent: 25, tint: 'bg-indigo-500' },
+    ]};
+  }, [selectedPrediction, mlPrediction]);
+
+  const confidenceBreakdown = useMemo(() => {
+    const buckets = [
+      { label: 'High confidence', min: 70, count: 0, accent: 'bg-emerald-500' },
+      { label: 'Medium confidence', min: 40, count: 0, accent: 'bg-amber-500' },
+      { label: 'Low confidence', min: 0, count: 0, accent: 'bg-rose-500' },
+    ];
+
+    predictions.forEach((prediction) => {
+      const value = Number(prediction.probability_percentage ?? 0);
+      if (value >= 70) buckets[0].count += 1;
+      else if (value >= 40) buckets[1].count += 1;
+      else buckets[2].count += 1;
+    });
+
+    return buckets;
+  }, [predictions]);
+
+  const clearTimeTimeline = useMemo(() => {
+    const buckets = [
+      { label: '0-15 min', count: 0 },
+      { label: '15-30 min', count: 0 },
+      { label: '30-60 min', count: 0 },
+      { label: '60+ min', count: 0 },
+    ];
+
+    predictions.forEach((prediction) => {
+      const estimate = selectedPrediction?.id === prediction.id && mlPrediction?.estimated_resolution_at
+        ? mlPrediction.estimated_resolution_at
+        : prediction.estimated_resolution_at;
+      const minutes = getMinutesRemaining(estimate);
+      if (minutes == null) return;
+      if (minutes <= 15) buckets[0].count += 1;
+      else if (minutes <= 30) buckets[1].count += 1;
+      else if (minutes <= 60) buckets[2].count += 1;
+      else buckets[3].count += 1;
+    });
+
+    return buckets.filter((bucket) => bucket.count > 0);
+  }, [predictions, mlPrediction, selectedPrediction]);
+
   return (
     <div className="w-full flex flex-col h-full bg-brand-elevated border-l border-slate-800 overflow-hidden">
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
       {/* Active Notifications Block */}
       <div>
-        <div className="flex items-center space-x-2 text-slate-100 font-bold text-lg mb-2">
-          <Bell className="w-5 h-5 text-indigo-400" />
-          <h2>Predictive Warning Feed</h2>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center space-x-2 text-slate-100 font-bold text-lg min-w-0">
+            <Bell className="w-5 h-5 text-indigo-400 shrink-0" />
+            <h2 className="truncate">Predictive Warning Feed</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowPredictionHelp(true)}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-700/80 bg-slate-900/50 text-slate-300 transition hover:border-indigo-500/60 hover:text-indigo-400"
+            title="How to read predictions"
+            aria-label="How to read predictions"
+          >
+            <Info className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Evacuation guidance button — shown when active threats exist */}
@@ -317,6 +428,220 @@ export default function Sidebar({
           </button>
         )}
       </div>
+
+      {showPredictionHelp && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-3 sm:p-4"
+          onClick={() => setShowPredictionHelp(false)}
+        >
+          <div
+            className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-2xl dark:border-slate-700 dark:bg-slate-900/95"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 py-4 dark:border-slate-700/70">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Prediction & ML Transparency</h3>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Understand warning cards, clear-time estimates, and prediction confidence.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPredictionHelp(false)}
+                className="rounded-full border border-slate-300/80 p-2 text-slate-600 transition hover:border-indigo-500/60 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-300"
+                aria-label="Close help modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="border-b border-slate-200/70 px-4 py-3 dark:border-slate-700/70">
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: 'read', label: 'How to Read' },
+                  { id: 'works', label: 'How Prediction Works' },
+                ].map((tab) => {
+                  const active = helpTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setHelpTab(tab.id)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'}`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="max-h-[calc(90vh-170px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+              {helpTab === 'read' ? (
+                <div className="space-y-6 text-sm leading-6 text-slate-700 dark:text-slate-300">
+                  <section className="space-y-3">
+                    <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">How to read a warning card</h4>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Threat</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">The type of disruption detected, such as traffic, crowd, weather, flood/river, or earthquake.</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Severity</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Low = monitor only. Medium = use caution. High = avoid the area if possible. Critical = follow emergency guidance.</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Peak</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">The time when the disruption is expected to be strongest, busiest, or most severe.</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Confidence Level</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Higher confidence means the warning is more stable. Lower confidence means the warning may change when new data arrives.</p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">Clear-time estimates</h4>
+                    <div className="space-y-2">
+                      <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Standard estimate</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">The rule-based clear-time estimate from the current risk level and thresholds.</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">ML estimate</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">The model-based clear-time estimate from historical patterns and live signals.</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Estimate confidence</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">How reliable the clear-time estimate is. It is different from the warning confidence.</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Remaining time</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Remaining time means the approximate time from now until the predicted clear time.</p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Example</p>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">If a crowd warning says Peak 17:40, the area may be most crowded around 17:40. If the ML estimate says 20.24 WIB with 65% confidence, the model estimates the disruption may reduce around 20.24 WIB, but the time can still change as new data arrives.</p>
+                  </section>
+
+                  <section className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4 text-indigo-500" />
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Selected alert comparison</h4>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Time remaining from now is shown here so you can compare the rule-based estimate with the ML estimate.</p>
+                    {selectedAlertComparison.rows.length > 0 ? (
+                      <div className="mt-3 space-y-3">
+                        {selectedAlertComparison.rows.map((row) => (
+                          <div key={row.label}>
+                            <div className="flex items-center justify-between gap-2 text-sm">
+                              <span className="font-medium text-slate-800 dark:text-slate-200">{row.label}</span>
+                              <span className="text-slate-600 dark:text-slate-300">{row.valueLabel}</span>
+                            </div>
+                            <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                              <div className={`h-2 rounded-full ${row.tint}`} style={{ width: `${Math.max(12, row.percent)}%` }} />
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{row.confidence}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">No selected alert is available yet. The chart will appear once a warning is chosen.</p>
+                    )}
+                  </section>
+                </div>
+              ) : (
+                <div className="space-y-6 text-sm leading-6 text-slate-700 dark:text-slate-300">
+                  <section className="space-y-3">
+                    <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">How prediction works</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">DIS-RUPTURE combines rule-based scoring, machine-learning recovery estimates, live telemetry, and historical disruption patterns to build a practical warning feed.</p>
+                  </section>
+
+                  <section className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Signals used</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {['Traffic score', 'Weather score', 'Crowd score', 'Earthquake score', 'Waterway/flood score', 'Overall risk score', 'Historical snapshots', 'Zone status'].map((chip) => (
+                        <span key={chip} className="rounded-full border border-slate-300/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+                          {chip}
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">How confidence is decided</p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/80 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Higher confidence usually means</p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600 dark:text-slate-300">
+                          <li>Data is complete</li>
+                          <li>Recent telemetry is stable</li>
+                          <li>Similar past cases exist</li>
+                          <li>Signals agree with each other</li>
+                        </ul>
+                      </div>
+                      <div className="rounded-lg border border-amber-200/80 bg-amber-50/80 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+                        <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Lower confidence usually means</p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600 dark:text-slate-300">
+                          <li>Data is missing</li>
+                          <li>Conditions are changing quickly</li>
+                          <li>The disruption is unusual</li>
+                          <li>Flood or earthquake conditions are uncertain</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                    <div className="flex items-center gap-2">
+                      <Clock3 className="h-4 w-4 text-indigo-500" />
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Estimated Clear Time Timeline</h4>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">This timeline groups active warnings by how soon they are estimated to clear. It uses the ML estimate when available, otherwise it uses the standard clear-time estimate.</p>
+                    <div className="mt-3 space-y-2">
+                      {clearTimeTimeline.length > 0 ? clearTimeTimeline.map((bucket) => (
+                        <div key={bucket.label} className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                          <span className="font-medium text-slate-700 dark:text-slate-200">{bucket.label}</span>
+                          <span className="text-slate-500 dark:text-slate-400">{bucket.count} warning{bucket.count === 1 ? '' : 's'}</span>
+                        </div>
+                      )) : (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">No clear-time estimates are available yet.</p>
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-indigo-500" />
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Confidence Breakdown</h4>
+                    </div>
+                    <div className="mt-3 space-y-3">
+                      {confidenceBreakdown.map((bucket) => (
+                        <div key={bucket.label}>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium text-slate-700 dark:text-slate-200">{bucket.label}</span>
+                            <span className="text-slate-500 dark:text-slate-400">{bucket.count}</span>
+                          </div>
+                          <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                            <div className={`h-2 rounded-full ${bucket.accent}`} style={{ width: `${Math.max(10, bucket.count * 12)}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-indigo-200/80 bg-indigo-50/80 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Limitations</p>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Predictions are estimates and may change when new telemetry arrives. During emergencies, follow BMKG, BPBD, and local authority instructions.</p>
+                  </section>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* BMKG Earthquake Live Telemetry Section */}
       <div className="pt-4 border-t border-slate-800/80">

@@ -10,6 +10,8 @@
  * ───────────────────────────────────────────────────────────────────────────
  */
 
+import { formatRemainingTimeLabel } from '../utils/remainingTime';
+
 /**
  * Format an ISO timestamp as "HH:MM WIB" in Jakarta local time.
  */
@@ -72,6 +74,7 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
 
   const { text } = confColor(conf);
   const uncertain = conf < 60;
+  const remainingLabel = uncertain ? null : formatRemainingTimeLabel(estimated_resolution_at);
 
   return (
     <div className={`flex items-center gap-1.5 text-[10px] ${text}`}>
@@ -81,7 +84,12 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
         <span className="font-bold">
           {uncertain ? 'Estimate uncertain' : time}
         </span>
-        {!uncertain && <span className="opacity-70 ml-1">({conf}% confidence)</span>}
+        {!uncertain && (
+          <>
+            {remainingLabel && <span className="opacity-80 ml-1">· {remainingLabel}</span>}
+            <span className="opacity-70 ml-1">({conf}% confidence)</span>
+          </>
+        )}
         {uncertain && <span className="opacity-70 ml-1">(confidence &lt;60%)</span>}
       </span>
     </div>
@@ -97,6 +105,7 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
   if (!time || conf === 0) return null;
 
   const { text, bar } = confColor(conf);
+  const remainingLabel = conf >= 60 ? formatRemainingTimeLabel(estimated_resolution_at) : null;
 
   const disclaimer = {
     traffic:    'Based on historical rush hour patterns for this zone.',
@@ -112,19 +121,24 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
       <div className="flex items-center gap-2">
         <span className="text-base">🕐</span>
         <div>
-          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
+          <p className="text-[10px] text-slate-300 font-semibold uppercase tracking-wide">
             Estimated Resolution
           </p>
           <p className={`font-bold text-sm ${text}`}>
             {conf < 60 ? 'Estimate uncertain' : time}
           </p>
+          {remainingLabel && (
+            <p className="mt-1 text-[11px] font-medium text-slate-700 dark:text-slate-200">
+              {remainingLabel}
+            </p>
+          )}
         </div>
       </div>
 
       {/* Confidence bar */}
       <div>
         <div className="flex items-center justify-between text-[10px] mb-1">
-          <span className="text-slate-500">Prediction confidence</span>
+          <span className="text-slate-300">Prediction confidence</span>
           <span className={`font-bold ${text}`}>{conf}%</span>
         </div>
         <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
@@ -134,13 +148,13 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
           />
         </div>
         {conf < 60 && (
-          <p className="text-[9px] text-slate-500 mt-1 italic">
+          <p className="text-[9px] text-slate-300 mt-1 italic">
             Confidence below 60% — specific timestamp suppressed to avoid false precision.
           </p>
         )}
       </div>
 
-      <p className="text-[10px] text-slate-500 leading-relaxed">{disclaimer}</p>
+      <p className="text-[10px] text-slate-300 leading-relaxed">{disclaimer}</p>
     </div>
   );
 }
