@@ -440,8 +440,8 @@ export default function Sidebar({
           >
             <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 py-4 dark:border-slate-700/70">
               <div>
-                <h3 className="text-lg font-bold text-slate-100 dark:text-white">Prediction & ML Transparency</h3>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Understand warning cards, clear-time estimates, and prediction confidence.</p>
+                <h3 className="text-lg font-bold text-white">Prediction & ML Transparency</h3>
+                <p className="mt-1 text-sm text-slate-200">Understand warning cards, clear-time estimates, and prediction confidence.</p>
               </div>
               <button
                 type="button"
