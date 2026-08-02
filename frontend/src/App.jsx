@@ -1095,13 +1095,31 @@ export default function App() {
               {/* Evacuation guidance trigger */}
               {filteredPredictions.length > 0 && !showEvacuation && (
                 <div className="px-3 py-2 shrink-0">
-                  <button
-                    onClick={() => openEvacuationPanel(selectedPrediction || filteredPredictions[0])}
-                    className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
-                  >
-                    <span>🚨</span>
-                    Get Evacuation Guidance
-                  </button>
+                  {(() => {
+                    const _p = selectedPrediction || filteredPredictions[0];
+                    const _sev = _p?.severity?.toUpperCase();
+                    const _isMed = _sev === 'MEDIUM';
+                    return (
+                      <button
+                        onClick={() => openEvacuationPanel(_p)}
+                        className={`w-full py-3 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                          _isMed
+                            ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-900/20'
+                            : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/30'
+                        }`}
+                      >
+                        <span>{_isMed ? '⚠️' : '🚨'}</span>
+                        <span className="flex flex-col items-center">
+                          {_isMed ? 'Monitor & Prepare' : 'Get Evacuation Guidance'}
+                          {_isMed && (
+                            <span className="text-[10px] font-normal opacity-80">
+                              Conditions developing — tap for guidance
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1142,15 +1160,31 @@ export default function App() {
               </div>
 
               {/* Evacuation button — mobile feed tab */}
-              {filteredPredictions.length > 0 && !showEvacuation && (
-                <button
-                  onClick={() => { openEvacuationPanel(selectedPrediction || filteredPredictions[0]); setMobileTab('feed'); }}
-                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
-                >
-                  <span>🚨</span>
-                  Get Evacuation Guidance
-                </button>
-              )}
+              {filteredPredictions.length > 0 && !showEvacuation && (() => {
+                const _p = selectedPrediction || filteredPredictions[0];
+                const _sev = _p?.severity?.toUpperCase();
+                const _isMed = _sev === 'MEDIUM';
+                return (
+                  <button
+                    onClick={() => { openEvacuationPanel(_p); setMobileTab('feed'); }}
+                    className={`w-full py-3 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                      _isMed
+                        ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-900/20'
+                        : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/30'
+                    }`}
+                  >
+                    <span>{_isMed ? '⚠️' : '🚨'}</span>
+                    <span className="flex flex-col items-center">
+                      {_isMed ? 'Monitor & Prepare' : 'Get Evacuation Guidance'}
+                      {_isMed && (
+                        <span className="text-[10px] font-normal opacity-80">
+                          Conditions developing — tap for guidance
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })()}
 
               {/* Evacuation panel — mobile */}
               {showEvacuation && (

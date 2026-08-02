@@ -281,15 +281,32 @@ export default function Sidebar({
         </div>
 
         {/* Evacuation guidance button — shown when active threats exist */}
-        {predictions.length > 0 && !showEvacuationPanel && onGetEvacuation && (
-          <button
-            onClick={onGetEvacuation}
-            className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30 mb-3"
-          >
-            <span>🚨</span>
-            Get Evacuation Guidance
-          </button>
-        )}
+        {predictions.length > 0 && !showEvacuationPanel && onGetEvacuation && (() => {
+          const _sev = (predictions[0]?.severity)?.toUpperCase();
+          const _isMed = _sev === 'MEDIUM';
+          return (
+            <div className="mb-3">
+              <button
+                onClick={onGetEvacuation}
+                className={`w-full py-2.5 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                  _isMed
+                    ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-900/20'
+                    : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/30'
+                }`}
+              >
+                <span>{_isMed ? '⚠️' : '🚨'}</span>
+                <span className="flex flex-col items-center">
+                  {_isMed ? 'Monitor & Prepare' : 'Get Evacuation Guidance'}
+                  {_isMed && (
+                    <span className="text-[10px] font-normal opacity-80">
+                      Conditions developing — tap for guidance
+                    </span>
+                  )}
+                </span>
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Evacuation panel rendered inside sidebar */}
         {showEvacuationPanel && evacuationPanelNode && (
