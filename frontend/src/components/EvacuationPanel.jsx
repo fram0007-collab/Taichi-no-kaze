@@ -18,6 +18,7 @@ import {
   X, Phone, Navigation, ChevronDown, ChevronUp,
   AlertTriangle, MapPin, Loader2, ShieldCheck
 } from 'lucide-react';
+import { getApiUrl } from '../utils/getApiUrl';
 import { ResolutionBadgeExpanded } from './ResolutionBadge';
 import { MlResolutionBadgeExpanded } from './MlResolutionBadge';
 
@@ -694,7 +695,7 @@ const MEDIUM_ADVICE = {
 };
 
 function MediumSeverityBanner({ disruption }) {
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, setExpanded] = useState(false);
   const advice = MEDIUM_ADVICE[disruption] ?? MEDIUM_ADVICE.weather;
 
   return (
