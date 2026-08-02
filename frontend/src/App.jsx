@@ -1156,7 +1156,7 @@ export default function App() {
                     const _isMed = _sev === 'MEDIUM';
                     return (
                       <button
-                        onClick={() => openEvacuationPanel(_p)}
+                        onClick={() => openEvacuationPanel(selectedPrediction || null)}
                         className={`w-full py-3 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
                           _isMed
                             ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-900/20'
@@ -1223,7 +1223,7 @@ export default function App() {
                 const _isMed = _sev === 'MEDIUM';
                 return (
                   <button
-                    onClick={() => { openEvacuationPanel(_p); setMobileTab('feed'); }}
+                    onClick={() => { openEvacuationPanel(selectedPrediction || null); setMobileTab('feed'); }}
                     className={`w-full py-3 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
                       _isMed
                         ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-900/20'
@@ -1633,7 +1633,7 @@ export default function App() {
               nearMeRadius={nearMeRadius}
               onClearNearMeFilter={() => setNearMeFilterActive(false)}
               allZones={allZones}
-              onGetEvacuation={() => openEvacuationPanel(selectedPrediction || filteredPredictions[0])}
+              onGetEvacuation={() => openEvacuationPanel(selectedPrediction || null)}
               showEvacuationPanel={showEvacuation}
               evacuationPanelNode={
                 <EvacuationPanel
