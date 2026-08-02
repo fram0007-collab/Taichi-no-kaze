@@ -49,7 +49,7 @@ function formatRelativeWIB(isoString) {
       minute: '2-digit',
       hour12: false,
     });
-    return sameDay ? `${time} WIB` : `Tomorrow ${time} WIB`;
+    return sameDay ? `${time} Jakarta time` : `Tomorrow ${time} Jakarta time`;
   } catch {
     return formatWIB(isoString);
   }
@@ -137,7 +137,7 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
       {/* Confidence bar */}
       <div>
         <div className="flex items-center justify-between text-[10px] mb-1">
-          <span className="text-slate-300">Prediction confidence</span>
+          <span className="text-slate-300">Prediction reliability</span>
           <span className={`font-bold ${text}`}>{conf}%</span>
         </div>
         <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
@@ -148,7 +148,7 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
         </div>
         {conf < 60 && (
           <p className="text-[9px] text-slate-300 mt-1 italic">
-            Confidence below 60% — specific timestamp suppressed to avoid false precision.
+            Prediction reliability is low — we have hidden the specific time to avoid giving a misleading estimate.
           </p>
         )}
       </div>

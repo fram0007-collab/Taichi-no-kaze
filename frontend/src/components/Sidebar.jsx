@@ -486,7 +486,7 @@ export default function Sidebar({
                       </div>
                       <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
                         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Severity</p>
-                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Low = monitor only. Medium = use caution. High = avoid the area if possible. Critical = follow emergency guidance.</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Low = being monitored, no action needed. Medium = use caution. High = avoid the area if possible. Critical = follow emergency guidance immediately.</p>
                       </div>
                       <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
                         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Peak</p>

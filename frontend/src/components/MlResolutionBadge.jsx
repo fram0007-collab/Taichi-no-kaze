@@ -29,7 +29,7 @@ function formatRelativeWIB(isoString) {
     const time = date.toLocaleTimeString('id-ID', {
       timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false,
     });
-    return sameDay ? `${time} WIB` : `Tomorrow ${time} WIB`;
+    return sameDay ? `${time} Jakarta time` : `Tomorrow ${time} Jakarta time`;
   } catch {
     return null;
   }
@@ -55,7 +55,7 @@ export function MlResolutionBadgeCompact({ alertId }) {
     <div className={`flex items-center gap-1.5 text-[10px] ${text}`}>
       <span>🧠</span>
       <span>
-        ML estimate: <span className="font-bold">{time}</span>
+        AI prediction: <span className="font-bold">{time}</span>
         {remainingLabel && <span className="opacity-80 ml-1">· {remainingLabel}</span>}
         <span className="opacity-70 ml-1">({conf}% confidence)</span>
       </span>
@@ -82,7 +82,7 @@ export function MlResolutionBadgeExpanded({ alertId }) {
         <span className="text-base">🧠</span>
         <div>
           <p className="text-[10px] text-slate-300 font-semibold uppercase tracking-wide">
-            ML Resolution Estimate
+            AI-Powered Prediction
           </p>
           <p className={`font-bold text-sm ${text}`}>{time}</p>
           {remainingLabel && (
@@ -95,7 +95,7 @@ export function MlResolutionBadgeExpanded({ alertId }) {
 
       <div>
         <div className="flex items-center justify-between text-[10px] mb-1">
-          <span className="text-slate-300">Model confidence</span>
+          <span className="text-slate-300">Prediction reliability</span>
           <span className={`font-bold ${text}`}>{conf}%</span>
         </div>
         <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
@@ -104,10 +104,8 @@ export function MlResolutionBadgeExpanded({ alertId }) {
       </div>
 
       <p className="text-[10px] text-slate-300 leading-relaxed">
-        Range: {prediction.hours_remaining_low}h – {prediction.hours_remaining_high}h remaining.
-        Learned from real historical alert durations for this zone/hazard —
-        distinct from the rule-based estimate above, which uses fixed
-        time-of-day and decay assumptions.
+        Estimated time remaining: {prediction.hours_remaining_low}–{prediction.hours_remaining_high} hours.
+        This prediction is based on patterns from past alerts in this area — it learns and improves over time as more real events are recorded.
       </p>
     </div>
   );
