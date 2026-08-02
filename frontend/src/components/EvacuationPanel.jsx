@@ -199,27 +199,29 @@ export default function EvacuationPanel({
   // NOT predictions[0], which is an unrelated list that doesn't track what
   // the user selected (this previously caused guidance to always show
   // whichever disruption type happened to sort first in that list).
-  const primaryDisruption = (activePrediction?.disruption_type ?? predictions?.[0]?.disruption_type ?? 'traffic').toLowerCase();
-  const guide = CONTENT.guides[primaryDisruption] ?? CONTENT.guides.traffic;
-  const hotlines = [
-    ...COMMON_EMERGENCY_HOTLINES,
-    ...(CONTENT.hotlines[primaryDisruption] ?? CONTENT.hotlines.traffic),
-  ];
-
-  // A single zone can have MULTIPLE simultaneous OPEN alerts of different
-  // disruption types (worker/engine.py maintains one OPEN alert per zone
-  // PER disruption type — e.g. a zone can be both flooding and crowd-surging
-  // at once). Show one guidance accordion per distinct type actually active
-  // at this zone, ordered by severity, instead of only ever showing one.
+  // Compute all alerts for this zone first, sorted by severity descending.
+  // This lets primaryDisruption be determined by the HIGHEST severity threat
+  // rather than whichever alert happened to be tapped — so safe zone logic
+  // always reflects the most critical condition in the zone.
   const currentZoneId = activePrediction?.zone?.zone_id ?? activePrediction?.zone?.id ?? null;
   const zoneAlerts = currentZoneId != null
     ? (predictions ?? []).filter(p => String(p?.zone?.zone_id ?? p?.zone?.id) === String(currentZoneId))
     : (activePrediction ? [activePrediction] : []);
 
-  const SEVERITY_RANK = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+  const SEVERITY_RANK = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
   const sortedZoneAlerts = [...zoneAlerts].sort(
     (a, b) => (SEVERITY_RANK[b.severity?.toUpperCase()] ?? 0) - (SEVERITY_RANK[a.severity?.toUpperCase()] ?? 0)
   );
+
+  // Primary disruption = highest severity active threat in this zone.
+  // Falls back to activePrediction (tapped alert) if zone has no other alerts.
+  const highestAlert = sortedZoneAlerts[0] ?? activePrediction;
+  const primaryDisruption = (highestAlert?.disruption_type ?? 'traffic').toLowerCase();
+  const guide = CONTENT.guides[primaryDisruption] ?? CONTENT.guides.traffic;
+  const hotlines = [
+    ...COMMON_EMERGENCY_HOTLINES,
+    ...(CONTENT.hotlines[primaryDisruption] ?? CONTENT.hotlines.traffic),
+  ];
 
   const seenTypes = new Set();
   const zoneGuidances = [];
@@ -398,9 +400,11 @@ export default function EvacuationPanel({
 
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-3 p-4">
 
-        {/* Medium severity heads-up banner */}
+        {/* Medium severity heads-up — sticky so it stays visible when scrolling to route */}
         {activePrediction?.severity?.toUpperCase() === 'MEDIUM' && (
-          <MediumSeverityBanner disruption={primaryDisruption} />
+          <div className="sticky top-0 z-10 pb-1">
+            <MediumSeverityBanner disruption={primaryDisruption} />
+          </div>
         )}
 
         {/* Resolution prediction */}
@@ -418,9 +422,20 @@ export default function EvacuationPanel({
         )}
 
 
+          {/* Multiple threats notice */}
+        {sortedZoneAlerts.length > 1 && (
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2">
+            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+              ⚠️ This zone has <strong>{sortedZoneAlerts.length} active threats</strong>:{' '}
+              {sortedZoneAlerts.map(a => a.disruption_type).join(', ')}.{' '}
+              Safe zone guidance below applies to the <strong>{primaryDisruption}</strong> threat.
+            </p>
+          </div>
+        )}
+
         {/* Route section */}
-        <div className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">
-          <div className="px-4 pt-4 pb-3 border-b border-slate-700">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 overflow-hidden">
+          <div className="px-4 pt-4 pb-3 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-2 mb-1">
               <Navigation className="w-4 h-4 text-indigo-400" />
               <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
@@ -619,7 +634,7 @@ function MediumSeverityBanner({ disruption }) {
 
 function PanelHeader({ title, subtitle, onClose }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0">
+    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-lg">🚨</span>
         <div className="min-w-0">
@@ -631,7 +646,7 @@ function PanelHeader({ title, subtitle, onClose }) {
       </div>
       <button
         onClick={onClose}
-        className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0"
+        className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:text-slate-200 transition-colors shrink-0"
       >
         <X className="w-4 h-4" />
       </button>
@@ -646,7 +661,7 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
   return (
     <div className="space-y-3 p-4 pt-0">
       {/* Step-by-step guide */}
-      <div className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">
+      <div className="rounded-xl border border-slate-700 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
         <button
           onClick={() => setGuideOpen(o => !o)}
           className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/50 transition-colors"
@@ -674,7 +689,7 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
       </div>
 
       {/* Emergency hotlines */}
-      <div className="rounded-xl border border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-slate-800/60 overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
         <button
           onClick={() => setHotlinesOpen(o => !o)}
           className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/50 transition-colors"
