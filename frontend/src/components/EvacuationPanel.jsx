@@ -277,10 +277,13 @@ export default function EvacuationPanel({
     setErrorMsg('');
 
     try {
-      // Normalise lat/lon field names from either pois or safe-zones endpoint
-      if (forcedDestination) {
-        if (!forcedDestination.latitude && forcedDestination.lat) forcedDestination = { ...forcedDestination, latitude: forcedDestination.lat, longitude: forcedDestination.lon };
-      }
+      // Normalise lat/lon field names from either pois (/api/pois → lat/lon)
+      // or safe-zones (/api/safe-zones → latitude/longitude)
+      const dest = forcedDestination
+        ? (forcedDestination.latitude
+            ? forcedDestination
+            : { ...forcedDestination, latitude: forcedDestination.lat, longitude: forcedDestination.lon })
+        : null;
 
       // 1. Find the nearest safe POI that is NOT inside a threat zone
       const threatCircles = (activeThreatZones ?? []).map(z => ({
@@ -306,7 +309,7 @@ export default function EvacuationPanel({
         return;
       }
 
-      const destination = forcedDestination ?? candidates[0];
+      const destination = dest ?? candidates[0];
 
       // 2. Build avoid areas from threat zones (max 10 for TomTom free tier)
       const avoidAreas = (activeThreatZones ?? [])
@@ -316,7 +319,7 @@ export default function EvacuationPanel({
       // 3. Call TomTom Routing API
       // avoidAreas is only supported via POST body — not as a GET query param.
       const origin = `${userLocation.lat},${userLocation.lon}`;
-      const dest   = `${destination.latitude},${destination.longitude}`;
+      const coordStr = `${destination.latitude},${destination.longitude}`;
       const url = `https://api.tomtom.com/routing/1/calculateRoute/${origin}:${dest}/json` +
         `?key=${tomtomApiKey}` +
         `&travelMode=pedestrian` +
