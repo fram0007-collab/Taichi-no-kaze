@@ -97,13 +97,21 @@ export default function App() {
   // Fetch safe POIs when disruptions are active in user radius
   useEffect(() => {
     if (!showEvacuation) return;
-    const dtype = predictions?.[0]?.disruption_type ?? '';
-    const qs = dtype ? `?disruption_types=${dtype}` : '';
+    // Use the selected prediction's disruption type, not just predictions[0]
+    const dtype = selectedPrediction?.disruption_type ?? predictions?.[0]?.disruption_type ?? '';
+    const params = new URLSearchParams();
+    if (dtype) params.set('disruption_types', dtype);
+    // For crowd disruptions, pass the alert score as the crowd threshold
+    // so we surface POIs that are genuinely quieter than the affected zone
+    if (dtype === 'crowd' && selectedPrediction?.probability_percentage) {
+      params.set('crowd_score_threshold', String(selectedPrediction.probability_percentage));
+    }
+    const qs = params.toString() ? `?${params.toString()}` : '';
     fetch(`${API_URL}/safe-zones${qs}`)
       .then(r => r.json())
       .then(d => setSafePois(Array.isArray(d) ? d : (d.safe_zones ?? [])))
       .catch(() => setSafePois([]));
-  }, [showEvacuation, predictions, API_URL]);
+  }, [showEvacuation, predictions, selectedPrediction, API_URL]);
   const [nearMeRadius, setNearMeRadius] = useState(5); // in km (default 5km)
 
   // Derived state: predictions filtered by spatial proximity if nearMeFilterActive is true
@@ -602,7 +610,7 @@ export default function App() {
           const subscription = await subscribeToPush(
             import.meta.env.VITE_VAPID_PUBLIC_KEY || '',
             API_URL,
-            notificationPreferences,
+            { ...notificationPreferences, enabled: true },
           );
           setPushSubscriptionActive(Boolean(subscription));
           setPushStatus('active');
