@@ -398,6 +398,11 @@ export default function EvacuationPanel({
 
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-3 p-4">
 
+        {/* Medium severity heads-up banner */}
+        {activePrediction?.severity?.toUpperCase() === 'MEDIUM' && (
+          <MediumSeverityBanner disruption={primaryDisruption} />
+        )}
+
         {/* Resolution prediction */}
         {activePrediction?.estimated_resolution_at && (
           <ResolutionBadgeExpanded
@@ -418,10 +423,20 @@ export default function EvacuationPanel({
           <div className="px-4 pt-4 pb-3 border-b border-slate-700">
             <div className="flex items-center gap-2 mb-1">
               <Navigation className="w-4 h-4 text-indigo-400" />
-              <span className="font-bold text-sm text-slate-100">Nearest Safe Location</span>
+              <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                {primaryDisruption === 'crowd'
+                  ? 'Find a Less Crowded Area'
+                  : primaryDisruption === 'traffic'
+                  ? 'Alternate Route'
+                  : 'Nearest Safe Location'}
+              </span>
             </div>
-            <p className="text-xs text-slate-400">
-              Route avoids all active threat zones. Walking directions.
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              {primaryDisruption === 'crowd'
+                ? 'Showing nearby places currently less crowded than this area.'
+                : primaryDisruption === 'traffic'
+                ? 'Shows an alternate route away from congestion.'
+                : 'Route avoids all active threat zones. Walking directions.'}
             </p>
           </div>
 
@@ -429,10 +444,14 @@ export default function EvacuationPanel({
             {phase === 'idle' && (
               <button
                 onClick={calculateRoute}
-                className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
+                className={`w-full py-3 rounded-xl active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                  primaryDisruption === 'traffic'
+                    ? 'bg-slate-600 hover:bg-slate-500'
+                    : 'bg-indigo-600 hover:bg-indigo-500'
+                }`}
               >
                 <Navigation className="w-4 h-4" />
-                Get Evacuation Route
+                {primaryDisruption === 'traffic' ? 'Show Alternate Route' : 'Get Evacuation Route'}
               </button>
             )}
 
@@ -528,6 +547,74 @@ export default function EvacuationPanel({
   );
 }
 
+// ── Medium severity banner ───────────────────────────────────────────────────
+
+const MEDIUM_ADVICE = {
+  traffic: {
+    icon: '🚗',
+    headline: 'Traffic is heavy but manageable',
+    body: 'You do not need to evacuate. Consider delaying your trip, using public transport (MRT / TransJakarta), or waiting 30–60 minutes for congestion to ease. Monitor conditions and leave early if it worsens.',
+  },
+  crowd: {
+    icon: '👥',
+    headline: 'Area is getting crowded',
+    body: 'No need to leave urgently. Avoid the densest spots, stay aware of your surroundings, and move to a quieter nearby area if you feel uncomfortable. Check back — crowd levels can change quickly.',
+  },
+  weather: {
+    icon: '⛈️',
+    headline: 'Weather risk is building',
+    body: 'Conditions are concerning but not yet severe. Move indoors if possible, avoid flooded roads and underpasses, and keep an eye on BMKG updates. Be ready to move to higher ground if rainfall intensifies.',
+  },
+  waterway: {
+    icon: '🌊',
+    headline: 'River levels are rising',
+    body: 'No immediate evacuation needed yet. Stay away from riverbanks and low-lying areas. If you are near the river, start preparing an emergency bag. Act immediately if the level reaches Siaga 2.',
+  },
+  earthquake: {
+    icon: '🌍',
+    headline: 'Tremor detected in the area',
+    body: 'Stay calm. Move away from windows and heavy objects. If inside, take cover under a sturdy table. Check BMKG for aftershock advisories before resuming normal activity.',
+  },
+};
+
+function MediumSeverityBanner({ disruption }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const advice = MEDIUM_ADVICE[disruption] ?? MEDIUM_ADVICE.weather;
+
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-500/8 overflow-hidden">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-start gap-3 px-4 py-3 text-left"
+      >
+        <span className="text-lg shrink-0 mt-0.5">{advice.icon}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-0.5">
+            Medium alert — monitor & prepare
+          </p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+            {advice.headline}
+          </p>
+        </div>
+        <span className="text-amber-500 text-xs mt-1 shrink-0">
+          {expanded ? '▲' : '▼'}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 pt-0">
+          <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+            {advice.body}
+          </p>
+          <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-500 font-medium">
+            Evacuation routes and safe areas below are available as a precaution — you do not need to use them unless conditions worsen.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function PanelHeader({ title, subtitle, onClose }) {
@@ -538,7 +625,7 @@ function PanelHeader({ title, subtitle, onClose }) {
         <div className="min-w-0">
           <span className="font-bold text-slate-100 text-sm block">{title}</span>
           {subtitle && (
-            <span className="text-[11px] text-slate-400 truncate block">{subtitle}</span>
+            <span className="text-[11px] text-slate-600 dark:text-slate-400 truncate block">{subtitle}</span>
           )}
         </div>
       </div>

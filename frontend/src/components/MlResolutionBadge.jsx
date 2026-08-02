@@ -36,9 +36,9 @@ function formatRelativeWIB(isoString) {
 }
 
 function confColor(pct) {
-  if (pct >= 75) return { text: 'text-emerald-400', bar: 'bg-emerald-400' };
-  if (pct >= 50) return { text: 'text-amber-400', bar: 'bg-amber-400' };
-  return { text: 'text-red-400', bar: 'bg-red-400' };
+  if (pct >= 75) return { text: 'text-emerald-600 dark:text-emerald-400', bar: 'bg-emerald-400' };
+  if (pct >= 50) return { text: 'text-amber-600 dark:text-amber-400', bar: 'bg-amber-400' };
+  return { text: 'text-red-600 dark:text-red-400', bar: 'bg-red-400' };
 }
 
 export function MlResolutionBadgeCompact({ alertId }) {
@@ -77,11 +77,11 @@ export function MlResolutionBadgeExpanded({ alertId }) {
   const remainingLabel = formatRemainingTimeLabel(prediction.estimated_resolution_at);
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-3 space-y-2">
+    <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/60 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <span className="text-base">🧠</span>
         <div>
-          <p className="text-[10px] text-slate-300 font-semibold uppercase tracking-wide">
+          <p className="text-[10px] text-slate-600 dark:text-slate-300 font-semibold uppercase tracking-wide">
             AI-Powered Prediction
           </p>
           <p className={`font-bold text-sm ${text}`}>{time}</p>
@@ -95,15 +95,15 @@ export function MlResolutionBadgeExpanded({ alertId }) {
 
       <div>
         <div className="flex items-center justify-between text-[10px] mb-1">
-          <span className="text-slate-300">Prediction reliability</span>
+          <span className="text-slate-600 dark:text-slate-300">Prediction reliability</span>
           <span className={`font-bold ${text}`}>{conf}%</span>
         </div>
-        <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
+        <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
           <div className={`h-full rounded-full ${bar} transition-all duration-700`} style={{ width: `${conf}%` }} />
         </div>
       </div>
 
-      <p className="text-[10px] text-slate-300 leading-relaxed">
+      <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed">
         Estimated time remaining: {prediction.hours_remaining_low}–{prediction.hours_remaining_high} hours.
         This prediction is based on patterns from past alerts in this area — it learns and improves over time as more real events are recorded.
       </p>
