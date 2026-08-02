@@ -559,7 +559,7 @@ export default function EvacuationPanel({
                 </div>
               ) : (
                 <button
-                  onClick={calculateRoute}
+                  onClick={() => calculateRoute()}
                   className={`w-full py-3 rounded-xl active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 ${
                     primaryDisruption === 'traffic'
                       ? 'bg-slate-600 hover:bg-slate-500'
@@ -640,7 +640,7 @@ export default function EvacuationPanel({
 
                 {/* Recalculate */}
                 <button
-                  onClick={calculateRoute}
+                  onClick={() => calculateRoute()}
                   className="w-full py-2 rounded-xl border border-slate-600 text-slate-400 text-xs font-semibold hover:bg-slate-700 transition-colors"
                 >
                   Recalculate Route

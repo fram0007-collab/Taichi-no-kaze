@@ -649,7 +649,37 @@ export default function App() {
   };
 
   const openEvacuationPanel = (prediction = null) => {
-    const targetPrediction = prediction ?? filteredPredictions?.[0] ?? null;
+    let targetPrediction = prediction;
+
+    // If no specific prediction was tapped (e.g. opened from a generic
+    // "Get Evacuation Guidance" entry point) and the user has location
+    // enabled, find the alert whose zone the user is ACTUALLY inside or
+    // nearest to — rather than defaulting to filteredPredictions[0], which
+    // is sorted by severity/time and can point to a completely unrelated
+    // zone the user isn't anywhere near. This prevents showing guidance
+    // for a threat in a different part of Jabodetabek than where the user is.
+    if (!targetPrediction && userLocation && filteredPredictions?.length > 0) {
+      const withDistance = filteredPredictions
+        .map(p => {
+          const zLat = p.zone?.latitude;
+          const zLon = p.zone?.longitude;
+          if (zLat == null || zLon == null) return null;
+          const distanceKm = calculateDistanceKm(userLocation.lat, userLocation.lon, zLat, zLon);
+          const radiusKm = (p.zone?.radius_m ?? 1000) / 1000;
+          return { prediction: p, distanceKm, insideZone: distanceKm <= radiusKm };
+        })
+        .filter(Boolean);
+
+      // Prefer a zone the user is literally inside; otherwise nearest zone.
+      const inside = withDistance.filter(w => w.insideZone);
+      const pool = inside.length > 0 ? inside : withDistance;
+      pool.sort((a, b) => a.distanceKm - b.distanceKm);
+
+      targetPrediction = pool[0]?.prediction ?? filteredPredictions[0] ?? null;
+    } else if (!targetPrediction) {
+      targetPrediction = filteredPredictions?.[0] ?? null;
+    }
+
     setActiveAutoEvacuationKey(getPredictionKey(targetPrediction));
     setEvacuationTargetPrediction(targetPrediction);
     setShowEvacuation(true);
