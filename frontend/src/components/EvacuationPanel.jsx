@@ -190,6 +190,7 @@ export default function EvacuationPanel({
   onRequestLocation,     // () => void — triggers the location prompt in App
   activePrediction = null, // the primary active prediction (for resolution data)
   allZones = [], // live zone_status data — current scores, NOT the stale alert-time snapshot
+  zoneIsNearby = true, // false when no active threat is near the user's actual location
 }) {
   const [phase, setPhase] = useState('idle'); // idle | routing | done | error
   const [routeInfo, setRouteInfo] = useState(null);  // { destination, distanceKm, durationMin, steps }
@@ -323,7 +324,7 @@ export default function EvacuationPanel({
       // avoidAreas is only supported via POST body — not as a GET query param.
       const origin = `${userLocation.lat},${userLocation.lon}`;
       const coordStr = `${destination.latitude},${destination.longitude}`;
-      const url = `https://api.tomtom.com/routing/1/calculateRoute/${origin}:${dest}/json` +
+      const url = `https://api.tomtom.com/routing/1/calculateRoute/${origin}:${coordStr}/json` +
         `?key=${tomtomApiKey}` +
         `&travelMode=pedestrian` +
         `&instructionsType=text` +
@@ -459,6 +460,20 @@ export default function EvacuationPanel({
               ⚠️ This zone has <strong>{sortedZoneAlerts.length} active threats</strong>:{' '}
               {sortedZoneAlerts.map(a => a.disruption_type).join(', ')}.{' '}
               Safe zone guidance below applies to the <strong>{primaryDisruption}</strong> threat.
+            </p>
+          </div>
+        )}
+
+        {/* No nearby threat notice — shown when the user's location doesn't
+             correspond to any active alert zone, so we don't silently show
+             guidance for an unrelated distant zone as if it were relevant */}
+        {!zoneIsNearby && (
+          <div className="rounded-lg border border-emerald-300 dark:border-emerald-700/50 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2.5 flex items-start gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+            <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+              <strong>No active threat detected near your current location.</strong>{' '}
+              The zone shown below (<strong>{zoneNameLabel}</strong>) is the nearest active alert in the system,
+              but it may be far from where you are. This guidance is shown for reference only.
             </p>
           </div>
         )}

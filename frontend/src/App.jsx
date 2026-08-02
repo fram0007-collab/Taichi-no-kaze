@@ -334,6 +334,7 @@ export default function App() {
   const [dismissedAutoEvacuationKeys, setDismissedAutoEvacuationKeys] = useState(() => new Set());
   const [activeAutoEvacuationKey, setActiveAutoEvacuationKey] = useState(null);
   const [evacuationTargetPrediction, setEvacuationTargetPrediction] = useState(null);
+  const [evacuationZoneIsNearby, setEvacuationZoneIsNearby] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -648,8 +649,14 @@ export default function App() {
     }
   };
 
+  // A zone is considered "far" from the user if it's more than this many km
+  // away and they're not inside its geofence — beyond this, showing it as
+  // the default evacuation target would be actively misleading.
+  const FAR_ZONE_THRESHOLD_KM = 15;
+
   const openEvacuationPanel = (prediction = null) => {
     let targetPrediction = prediction;
+    let isNearby = true; // assume nearby unless we compute otherwise below
 
     // If no specific prediction was tapped (e.g. opened from a generic
     // "Get Evacuation Guidance" entry point) and the user has location
@@ -675,13 +682,31 @@ export default function App() {
       const pool = inside.length > 0 ? inside : withDistance;
       pool.sort((a, b) => a.distanceKm - b.distanceKm);
 
-      targetPrediction = pool[0]?.prediction ?? filteredPredictions[0] ?? null;
+      const best = pool[0];
+      targetPrediction = best?.prediction ?? filteredPredictions[0] ?? null;
+      // Nearby = user is inside the zone OR within the "far" threshold of it.
+      // If there's truly no nearby threat, this will be false and the panel
+      // shows an explicit "no threat near you" notice instead of silently
+      // presenting an unrelated distant zone as if it were relevant.
+      isNearby = best ? (best.insideZone || best.distanceKm <= FAR_ZONE_THRESHOLD_KM) : false;
     } else if (!targetPrediction) {
       targetPrediction = filteredPredictions?.[0] ?? null;
+      isNearby = !userLocation; // no location = can't judge, don't show a false warning
+    } else if (userLocation && targetPrediction?.zone?.latitude != null) {
+      // A specific prediction WAS passed (e.g. user tapped a zone directly) —
+      // still compute nearby-ness so a manually-selected distant zone can
+      // also get the "just for reference" framing if relevant.
+      const d = calculateDistanceKm(
+        userLocation.lat, userLocation.lon,
+        targetPrediction.zone.latitude, targetPrediction.zone.longitude
+      );
+      const r = (targetPrediction.zone.radius_m ?? 1000) / 1000;
+      isNearby = d <= r || d <= FAR_ZONE_THRESHOLD_KM;
     }
 
     setActiveAutoEvacuationKey(getPredictionKey(targetPrediction));
     setEvacuationTargetPrediction(targetPrediction);
+    setEvacuationZoneIsNearby(isNearby);
     setShowEvacuation(true);
   };
 
@@ -1171,6 +1196,7 @@ export default function App() {
                     onClose={closeEvacuationPanel}
                     onRequestLocation={locateUser}
                     activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
+              zoneIsNearby={evacuationZoneIsNearby}
                     allZones={allZones}
                   />
                 </div>
@@ -1235,6 +1261,7 @@ export default function App() {
                     onClose={closeEvacuationPanel}
                     onRequestLocation={locateUser}
                     activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
+              zoneIsNearby={evacuationZoneIsNearby}
                     allZones={allZones}
                   />
                 </div>
@@ -1624,6 +1651,7 @@ export default function App() {
                   onClose={closeEvacuationPanel}
                   onRequestLocation={locateUser}
                   activePrediction={evacuationTargetPrediction ?? selectedPrediction ?? filteredPredictions[0] ?? null}
+              zoneIsNearby={evacuationZoneIsNearby}
               allZones={allZones}
                 />
               }
