@@ -193,7 +193,18 @@ export default function EvacuationPanel({
   const [routeInfo, setRouteInfo] = useState(null);  // { destination, distanceKm, durationMin, steps }
   const [errorMsg, setErrorMsg] = useState('');
   const [expandedGuide, setExpandedGuide] = useState(null);
-  const [selectedCrowdPoi, setSelectedCrowdPoi] = useState(null); // for crowd: user-picked destination
+  const [selectedCrowdPoi, setSelectedCrowdPoi] = useState(null);
+  const [globalPois, setGlobalPois] = useState([]);
+
+  // For crowd disruption: fetch ALL POIs to let user pick any quieter spot
+  // (not just hospitals — any POI with lower crowd score than the alert score)
+  useEffect(() => {
+    if (primaryDisruption !== 'crowd') return;
+    fetch(`${getApiUrl()}/pois`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setGlobalPois(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [primaryDisruption]); // for crowd: user-picked destination
   const [expandedHotlines, setExpandedHotlines] = useState(false);
 
   // Derive the primary disruption type from the zone actually being viewed —
@@ -266,6 +277,11 @@ export default function EvacuationPanel({
     setErrorMsg('');
 
     try {
+      // Normalise lat/lon field names from either pois or safe-zones endpoint
+      if (forcedDestination) {
+        if (!forcedDestination.latitude && forcedDestination.lat) forcedDestination = { ...forcedDestination, latitude: forcedDestination.lat, longitude: forcedDestination.lon };
+      }
+
       // 1. Find the nearest safe POI that is NOT inside a threat zone
       const threatCircles = (activeThreatZones ?? []).map(z => ({
         lat: z.lat, lon: z.lon, radiusKm: (z.radius_m ?? 1000) / 1000,
@@ -401,10 +417,16 @@ export default function EvacuationPanel({
 
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-3 p-4">
 
-        {/* Medium severity heads-up — sticky so it stays visible when scrolling to route.
-             Check highestAlert (severity-ordered) not just activePrediction (tap-ordered) */}
-        {highestAlert?.severity?.toUpperCase() === 'MEDIUM' && (
-          <div className="sticky top-0 z-10 pb-1">
+        {/* Medium severity heads-up — sticky so it stays visible when scrolling to route */}
+        {(() => {
+          const sev = (
+            highestAlert?.severity ??
+            activePrediction?.severity ??
+            activePrediction?.risk_level ?? ''
+          ).toUpperCase();
+          return sev === 'MEDIUM';
+        })() && (
+          <div className="sticky top-0 z-10 pb-1 bg-white dark:bg-brand-elevated">
             <MediumSeverityBanner disruption={primaryDisruption} />
           </div>
         )}
@@ -465,9 +487,28 @@ export default function EvacuationPanel({
                   <p className="text-[10px] text-slate-600 dark:text-slate-500 font-semibold uppercase tracking-wide mb-2">
                     Choose a destination
                   </p>
-                  {safePois.slice(0, 6).map((poi, idx) => {
+                  {(() => {
+                    const threshold = activePrediction?.probability_percentage ?? 55;
+                    const zoneLat = activePrediction?.zone?.latitude;
+                    const zoneLon = activePrediction?.zone?.longitude;
+                    const zoneRadius = ((activePrediction?.zone?.radius_m ?? 1000) + 1000) / 1000;
+                    const poiSource = globalPois.length > 0
+                      ? globalPois.filter(p => {
+                          const score = parseFloat(p.crowd_score || 0);
+                          if (score >= threshold) return false;
+                          if (zoneLat && zoneLon) {
+                            const d = haversineKm(zoneLat, zoneLon, p.lat ?? p.latitude, p.lon ?? p.longitude);
+                            return d <= zoneRadius;
+                          }
+                          return true;
+                        }).sort((a, b) => (a.crowd_score || 0) - (b.crowd_score || 0))
+                      : safePois;
+                    return poiSource.slice(0, 8).map((poi, idx) => {
+                    // normalise lat/lon field names (pois endpoint uses lat/lon, safe-zones uses latitude/longitude)
+                    const lat = poi.latitude ?? poi.lat;
+                    const lon = poi.longitude ?? poi.lon;
                     const distKm = userLocation
-                      ? haversineKm(userLocation.lat, userLocation.lon, poi.latitude, poi.longitude).toFixed(1)
+                      ? haversineKm(userLocation.lat, userLocation.lon, lat, lon).toFixed(1)
                       : null;
                     const crowdPct = poi.crowd_score ? Math.round(poi.crowd_score) : null;
                     const crowdColor = !crowdPct ? 'text-slate-500' :
@@ -500,7 +541,8 @@ export default function EvacuationPanel({
                         </button>
                       </div>
                     );
-                  })}
+                  });
+                  })()}
                 </div>
               ) : (
                 <button
