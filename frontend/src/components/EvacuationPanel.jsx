@@ -19,7 +19,6 @@ import {
   AlertTriangle, MapPin, Loader2, ShieldCheck
 } from 'lucide-react';
 import { ResolutionBadgeExpanded } from './ResolutionBadge';
-import { MlRiskBadgeExpanded } from './MlRiskBadge';
 import { MlResolutionBadgeExpanded } from './MlResolutionBadge';
 
 // ── i18n-ready content block ────────────────────────────────────────────────
@@ -413,10 +412,6 @@ export default function EvacuationPanel({
           <MlResolutionBadgeExpanded alertId={activePrediction.id} />
         )}
 
-        {/* ML early-warning prediction */}
-        {(activePrediction?.zone?.zone_id ?? activePrediction?.zone?.id) && (
-          <MlRiskBadgeExpanded zoneId={activePrediction.zone?.zone_id ?? activePrediction.zone?.id} />
-        )}
 
         {/* Route section */}
         <div className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">

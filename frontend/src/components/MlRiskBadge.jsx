@@ -39,9 +39,8 @@ export function MlRiskBadgeCompact({ zoneId }) {
     <div className={`flex items-center gap-1.5 text-[10px] ${style.text}`}>
       <span>🤖</span>
       <span>
-        Early warning:{' '}
-        <span className="font-bold">{pct}% chance of escalation</span>
-        <span className="opacity-70 ml-1">(next {prediction.horizon_hours}h)</span>
+        <span className="font-bold">{pct}% chance of worsening</span>
+        <span className="opacity-70 ml-1">in the next {prediction.horizon_hours}h</span>
       </span>
     </div>
   );
@@ -55,7 +54,7 @@ export function MlRiskBadgeExpanded({ zoneId }) {
   const { prediction, loading, unavailable } = useMlPrediction(zoneId);
 
   if (loading) {
-    return <p className="text-[10px] text-slate-600 italic">Loading ML early-warning signal…</p>;
+    return <p className="text-[10px] text-slate-600 italic">Loading risk outlook…</p>;
   }
   if (unavailable || !prediction) return null;
 
@@ -67,7 +66,7 @@ export function MlRiskBadgeExpanded({ zoneId }) {
         <span className="text-base">🤖</span>
         <div>
           <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
-            ML Early Warning — next {prediction.horizon_hours}h
+            Risk Outlook — next {prediction.horizon_hours}h
           </p>
           <p className={`font-bold text-sm ${style.text}`}>
             Predicted: {prediction.predicted_severity}
@@ -91,8 +90,7 @@ export function MlRiskBadgeExpanded({ zoneId }) {
       </div>
 
       <p className="text-[10px] text-slate-500 leading-relaxed">
-        Model-predicted, based on current conditions and short-term trends —
-        distinct from the rule-based score above.
+        Based on current conditions and recent trends — this is a forward-looking estimate, not a confirmed alert.
       </p>
     </div>
   );
