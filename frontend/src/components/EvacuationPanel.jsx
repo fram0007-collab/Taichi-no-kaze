@@ -193,6 +193,7 @@ export default function EvacuationPanel({
   const [routeInfo, setRouteInfo] = useState(null);  // { destination, distanceKm, durationMin, steps }
   const [errorMsg, setErrorMsg] = useState('');
   const [expandedGuide, setExpandedGuide] = useState(null);
+  const [selectedCrowdPoi, setSelectedCrowdPoi] = useState(null); // for crowd: user-picked destination
   const [expandedHotlines, setExpandedHotlines] = useState(false);
 
   // Derive the primary disruption type from the zone actually being viewed —
@@ -250,7 +251,7 @@ export default function EvacuationPanel({
     : null;
 
   // ── Route calculation ──────────────────────────────────────────────────────
-  const calculateRoute = useCallback(async () => {
+  const calculateRoute = useCallback(async (forcedDestination = null) => {
     if (!userLocation) {
       onRequestLocation?.();
       return;
@@ -289,7 +290,7 @@ export default function EvacuationPanel({
         return;
       }
 
-      const destination = candidates[0];
+      const destination = forcedDestination ?? candidates[0];
 
       // 2. Build avoid areas from threat zones (max 10 for TomTom free tier)
       const avoidAreas = (activeThreatZones ?? [])
@@ -458,17 +459,62 @@ export default function EvacuationPanel({
 
           <div className="p-4">
             {phase === 'idle' && (
-              <button
-                onClick={calculateRoute}
-                className={`w-full py-3 rounded-xl active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                  primaryDisruption === 'traffic'
-                    ? 'bg-slate-600 hover:bg-slate-500'
-                    : 'bg-indigo-600 hover:bg-indigo-500'
-                }`}
-              >
-                <Navigation className="w-4 h-4" />
-                {primaryDisruption === 'traffic' ? 'Show Alternate Route' : 'Get Evacuation Route'}
-              </button>
+              primaryDisruption === 'crowd' && safePois && safePois.length > 0 ? (
+                /* Crowd: show POI list — user picks destination before routing */
+                <div className="space-y-2">
+                  <p className="text-[10px] text-slate-600 dark:text-slate-500 font-semibold uppercase tracking-wide mb-2">
+                    Choose a destination
+                  </p>
+                  {safePois.slice(0, 6).map((poi, idx) => {
+                    const distKm = userLocation
+                      ? haversineKm(userLocation.lat, userLocation.lon, poi.latitude, poi.longitude).toFixed(1)
+                      : null;
+                    const crowdPct = poi.crowd_score ? Math.round(poi.crowd_score) : null;
+                    const crowdColor = !crowdPct ? 'text-slate-500' :
+                      crowdPct >= 65 ? 'text-red-500' :
+                      crowdPct >= 35 ? 'text-amber-500' : 'text-emerald-500';
+                    return (
+                      <div key={idx}
+                        className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">{poi.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] text-slate-500 capitalize">{poi.category}</span>
+                            {distKm && <span className="text-[10px] text-slate-500">· {distKm} km</span>}
+                            {crowdPct != null && (
+                              <span className={`text-[10px] font-semibold ${crowdColor}`}>
+                                · 👥 {crowdPct}%
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedCrowdPoi(poi);
+                            calculateRoute(poi);
+                          }}
+                          className="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1"
+                        >
+                          <Navigation className="w-3 h-3" />
+                          Route
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <button
+                  onClick={calculateRoute}
+                  className={`w-full py-3 rounded-xl active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                    primaryDisruption === 'traffic'
+                      ? 'bg-slate-600 hover:bg-slate-500'
+                      : 'bg-indigo-600 hover:bg-indigo-500'
+                  }`}
+                >
+                  <Navigation className="w-4 h-4" />
+                  {primaryDisruption === 'traffic' ? 'Show Alternate Route' : 'Get Evacuation Route'}
+                </button>
+              )
             )}
 
             {phase === 'routing' && (
