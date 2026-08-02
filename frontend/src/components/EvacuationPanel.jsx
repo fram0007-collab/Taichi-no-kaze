@@ -400,8 +400,9 @@ export default function EvacuationPanel({
 
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-3 p-4">
 
-        {/* Medium severity heads-up — sticky so it stays visible when scrolling to route */}
-        {activePrediction?.severity?.toUpperCase() === 'MEDIUM' && (
+        {/* Medium severity heads-up — sticky so it stays visible when scrolling to route.
+             Check highestAlert (severity-ordered) not just activePrediction (tap-ordered) */}
+        {highestAlert?.severity?.toUpperCase() === 'MEDIUM' && (
           <div className="sticky top-0 z-10 pb-1">
             <MediumSeverityBanner disruption={primaryDisruption} />
           </div>
