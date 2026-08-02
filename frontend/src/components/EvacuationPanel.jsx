@@ -188,6 +188,7 @@ export default function EvacuationPanel({
   onClose,               // () => void
   onRequestLocation,     // () => void — triggers the location prompt in App
   activePrediction = null, // the primary active prediction (for resolution data)
+  allZones = [], // live zone_status data — current scores, NOT the stale alert-time snapshot
 }) {
   const [phase, setPhase] = useState('idle'); // idle | routing | done | error
   const [routeInfo, setRouteInfo] = useState(null);  // { destination, distanceKm, durationMin, steps }
@@ -195,16 +196,6 @@ export default function EvacuationPanel({
   const [expandedGuide, setExpandedGuide] = useState(null);
   const [selectedCrowdPoi, setSelectedCrowdPoi] = useState(null);
   const [globalPois, setGlobalPois] = useState([]);
-
-  // For crowd disruption: fetch ALL POIs to let user pick any quieter spot
-  // (not just hospitals — any POI with lower crowd score than the alert score)
-  useEffect(() => {
-    if (primaryDisruption !== 'crowd') return;
-    fetch(`${getApiUrl()}/pois`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setGlobalPois(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, [primaryDisruption]); // for crowd: user-picked destination
   const [expandedHotlines, setExpandedHotlines] = useState(false);
 
   // Derive the primary disruption type from the zone actually being viewed —
@@ -229,6 +220,17 @@ export default function EvacuationPanel({
   // Falls back to activePrediction (tapped alert) if zone has no other alerts.
   const highestAlert = sortedZoneAlerts[0] ?? activePrediction;
   const primaryDisruption = (highestAlert?.disruption_type ?? 'traffic').toLowerCase();
+
+  // For crowd disruption: fetch ALL POIs to let user pick any quieter spot
+  // (not just hospitals — any POI with lower crowd score than the alert score)
+  useEffect(() => {
+    if (primaryDisruption !== 'crowd') return;
+    fetch(`${getApiUrl()}/pois`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setGlobalPois(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [primaryDisruption]);
+
   const guide = CONTENT.guides[primaryDisruption] ?? CONTENT.guides.traffic;
   const hotlines = [
     ...COMMON_EMERGENCY_HOTLINES,
@@ -491,7 +493,14 @@ export default function EvacuationPanel({
                     Choose a destination
                   </p>
                   {(() => {
-                    const threshold = activePrediction?.probability_percentage ?? 55;
+                    // Use the LIVE zone_status.crowd_score, not the alert's
+                    // probability_percentage — that field is a snapshot taken
+                    // when the alert first fired and does not update afterward.
+                    // A zone can still show 78% from 2 hours ago even if the
+                    // crowd has since dispersed to 30%.
+                    const zoneId = activePrediction?.zone?.zone_id ?? activePrediction?.zone?.id;
+                    const liveZone = allZones.find(z => String(z.zone_id) === String(zoneId));
+                    const threshold = liveZone?.crowd_score ?? activePrediction?.probability_percentage ?? 55;
                     const zoneLat = activePrediction?.zone?.latitude;
                     const zoneLon = activePrediction?.zone?.longitude;
                     const zoneRadius = ((activePrediction?.zone?.radius_m ?? 1000) + 1000) / 1000;

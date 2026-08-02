@@ -1141,6 +1141,7 @@ export default function App() {
                     onClose={closeEvacuationPanel}
                     onRequestLocation={locateUser}
                     activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
+                    allZones={allZones}
                   />
                 </div>
               )}
@@ -1204,6 +1205,7 @@ export default function App() {
                     onClose={closeEvacuationPanel}
                     onRequestLocation={locateUser}
                     activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
+                    allZones={allZones}
                   />
                 </div>
               )}
@@ -1592,6 +1594,7 @@ export default function App() {
                   onClose={closeEvacuationPanel}
                   onRequestLocation={locateUser}
                   activePrediction={evacuationTargetPrediction ?? selectedPrediction ?? filteredPredictions[0] ?? null}
+              allZones={allZones}
                 />
               }
             />
