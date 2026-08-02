@@ -34,6 +34,8 @@ jobs:
           TRAFFIC_PROVIDER=tomtom
           ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
           DISPLAY_ALL_EARTHQUAKES=false
+          VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT=${{ secrets.VAPID_SUBJECT }}
           MOCK_SERVER_URL=
           CRON_SECRET=
           EOF
