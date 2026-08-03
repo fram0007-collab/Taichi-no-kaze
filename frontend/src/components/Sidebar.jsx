@@ -265,14 +265,14 @@ export default function Sidebar({
       {/* Active Notifications Block */}
       <div>
         <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center space-x-2 text-slate-100 font-bold text-lg min-w-0">
+          <div className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-bold text-lg min-w-0">
             <Bell className="w-5 h-5 text-indigo-400 shrink-0" />
             <h2 className="truncate">Predictive Warning Feed</h2>
           </div>
           <button
             type="button"
             onClick={() => setShowPredictionHelp(true)}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-700/80 bg-slate-900/50 text-slate-300 transition hover:border-indigo-500/60 hover:text-indigo-400"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 dark:border-slate-700/80 bg-slate-100 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 transition hover:border-indigo-500/60 hover:text-indigo-500 dark:hover:text-indigo-400"
             title="How to read predictions"
             aria-label="How to read predictions"
           >
@@ -348,7 +348,7 @@ export default function Sidebar({
                     ? tab.id === 'all'
                       ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
                       : tab.color + ' font-bold scale-105'
-                    : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
+                    : 'border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/30 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
                 {tab.label}
@@ -361,16 +361,16 @@ export default function Sidebar({
           {showingLowTier ? (
             lowZones.length === 0 ? (
               <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
-                <p className="text-xs text-slate-500 font-medium">All zones have active alerts or no data yet.</p>
+                <p className="text-xs text-slate-600 dark:text-slate-500 font-medium">All zones have active alerts or no data yet.</p>
               </div>
             ) : (
               lowZones.map(zs => (
                 <div key={zs.zone_id} className="p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-start justify-between gap-2">
                   <div>
                     <p className="text-xs font-bold text-emerald-400">{zs.zone?.name ?? `Zone ${zs.zone_id}`}</p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">No active alerts — being monitored</p>
+                    <p className="text-[10px] text-slate-600 dark:text-slate-500 mt-0.5">No active alerts — being monitored</p>
                     {zs.overall_risk_score > 0 && (
-                      <p className="text-[10px] text-slate-500">Risk score: {Number(zs.overall_risk_score).toFixed(1)}</p>
+                      <p className="text-[10px] text-slate-600 dark:text-slate-500">Risk score: {Number(zs.overall_risk_score).toFixed(1)}</p>
                     )}
                   </div>
                   <span className="text-[9px] px-1.5 py-0.5 rounded font-bold border border-emerald-500/20 text-emerald-400 bg-emerald-500/5 shrink-0">LOW</span>
@@ -379,7 +379,7 @@ export default function Sidebar({
             )
           ) : displayedWarnings.length === 0 ? (
             <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
-              <p className="text-xs text-slate-500 font-medium">No warnings match this filter.</p>
+              <p className="text-xs text-slate-600 dark:text-slate-500 font-medium">No warnings match this filter.</p>
             </div>
           ) : (
             displayedWarnings.map(pred => {
@@ -395,16 +395,16 @@ export default function Sidebar({
                   }`}
                 >
                   <div className="flex justify-between items-start">
-                    <span className="font-semibold text-sm text-slate-200">{pred.zone.name}</span>
+                    <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">{pred.zone.name}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getRiskColor(pred.risk_level)}`}>
                       {pred.risk_level}
                     </span>
                   </div>
-                  <div className="mt-2 text-xs text-slate-400 flex justify-between items-center">
-                    <span>Threat: <span className="text-slate-300 font-medium">{pred.disruption_type}</span></span>
+                  <div className="mt-2 text-xs text-slate-600 dark:text-slate-400 flex justify-between items-center">
+                    <span>Threat: <span className="text-slate-700 dark:text-slate-300 font-medium">{pred.disruption_type}</span></span>
                     <span>Peak: <span className="text-indigo-400 font-medium">{formatTime(pred.estimated_time_to_peak)}</span></span>
                   </div>
-                  <div className="mt-1.5 text-[10px] text-slate-500 flex justify-between items-center border-t border-slate-800/40 pt-1.5">
+                  <div className="mt-1.5 text-[10px] text-slate-600 dark:text-slate-500 flex justify-between items-center border-t border-slate-200 dark:border-slate-800/40 pt-1.5">
                     <span>Confidence Level</span>
                     <span className={getConfidenceColor(pred.probability_percentage)}>{pred.probability_percentage}%</span>
                   </div>
@@ -458,7 +458,7 @@ export default function Sidebar({
             <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 py-4 dark:border-slate-700/70">
               <div>
                 <h3 className="text-lg font-bold text-white">Prediction & ML Transparency</h3>
-                <p className="mt-1 text-sm text-slate-200">Understand warning cards, clear-time estimates, and prediction confidence.</p>
+                <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">Understand warning cards, clear-time estimates, and prediction confidence.</p>
               </div>
               <button
                 type="button"
@@ -662,14 +662,14 @@ export default function Sidebar({
 
       {/* BMKG Earthquake Live Telemetry Section */}
       <div className="pt-4 border-t border-slate-800/80">
-        <div className="flex items-center space-x-2 text-slate-100 font-bold text-lg mb-3">
+        <div className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-bold text-lg mb-3">
           <Layers className="w-5 h-5 text-red-500 animate-pulse" />
           <h2>BMKG Live Earthquakes</h2>
         </div>
         <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
           {earthquakes.length === 0 ? (
             <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
-              <p className="text-xs text-slate-500 font-medium">No recent earthquakes recorded.</p>
+              <p className="text-xs text-slate-600 dark:text-slate-500 font-medium">No recent earthquakes recorded.</p>
             </div>
           ) : (
             earthquakes.map((eq, idx) => {
@@ -685,30 +685,30 @@ export default function Sidebar({
                   }`}
                 >
                   <div className="flex justify-between items-center gap-2">
-                    <span className="font-semibold text-slate-200 truncate">{eq.wilayah}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{eq.wilayah}</span>
                     <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                       isMajor ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse' : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
                     }`}>
                       M {eq.magnitude.toFixed(1)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-[10px] text-slate-500 font-medium">
+                  <div className="flex justify-between text-[10px] text-slate-600 dark:text-slate-500 font-medium">
                     <span>{new Date(eq.datetime).toLocaleDateString()}</span>
                     <span>{new Date(eq.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   {eq.potensi && (
-                    <div className="text-[9.5px] text-indigo-400/90 font-semibold italic border-t border-slate-800/20 pt-1 mt-1">
+                    <div className="text-[9.5px] text-indigo-600 dark:text-indigo-400/90 font-semibold italic border-t border-slate-200 dark:border-slate-800/20 pt-1 mt-1">
                       {eq.potensi}
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-1.5 border-t border-slate-800/20">
-                    <span className="text-[10px] text-slate-500 font-medium">Depth: {eq.depth}</span>
+                    <span className="text-[10px] text-slate-600 dark:text-slate-500 font-medium">Depth: {eq.depth}</span>
                     <button
                       onClick={() => onSelectEarthquake && onSelectEarthquake(isSelected ? null : eq)}
                       className={`text-[9px] px-2 py-0.5 rounded font-extrabold tracking-wider uppercase transition-all duration-200 ${
                         isSelected 
                           ? 'bg-red-600 text-white shadow-glow animate-pulse'
-                          : 'bg-white text-slate-900 border border-slate-300 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700 dark:hover:text-white'
+                          : 'bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       {isSelected ? 'Viewing' : 'View'}
@@ -762,7 +762,7 @@ export default function Sidebar({
                   className={`text-[10px] px-2 py-1 rounded font-medium border transition-all duration-200 ${
                     poiFilter === tab.id
                       ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400 font-bold'
-                      : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
+                      : 'border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/30 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
                 >
                   {tab.label}
@@ -778,7 +778,7 @@ export default function Sidebar({
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center space-x-2 min-w-0">
                         {getPoiIcon(poi.category)}
-                        <span className="font-semibold text-slate-200 truncate">{poi.name}</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{poi.name}</span>
                       </div>
                       <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950/60 px-1.5 py-0.5 rounded shrink-0 ml-2">
                         {poi.category.replace('_', ' ')}

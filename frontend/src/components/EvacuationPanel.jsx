@@ -433,7 +433,7 @@ export default function EvacuationPanel({
           ).toUpperCase();
           return sev === 'MEDIUM';
         })() && (
-          <div className="sticky top-0 z-10 pb-1 bg-white dark:bg-brand-elevated">
+          <div className="pb-1">
             <MediumSeverityBanner disruption={primaryDisruption} />
           </div>
         )}
@@ -778,27 +778,27 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
   return (
     <div className="space-y-3 p-4 pt-0">
       {/* Step-by-step guide */}
-      <div className="rounded-xl border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 overflow-hidden">
+      <div className="rounded-xl border border-slate-700 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
         <button
           onClick={() => setGuideOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100/70 dark:hover:bg-slate-700/50 transition-colors"
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/50 transition-colors"
         >
           <div className="flex items-center gap-2">
             <span className="text-base">{guide.icon}</span>
-            <span className="font-bold text-sm text-slate-950 dark:text-slate-100">{guide.title}</span>
+            <span className="font-bold text-sm text-slate-100">{guide.title}</span>
           </div>
           {guideOpen
             ? <ChevronUp className="w-4 h-4 text-slate-400" />
             : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </button>
         {guideOpen && (
-          <div className="px-4 pb-4 space-y-2.5 border-t border-slate-200 dark:border-slate-700 pt-3">
+          <div className="px-4 pb-4 space-y-2.5 border-t border-slate-700 pt-3">
             {guide.steps.map((step, i) => (
               <div key={i} className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 text-[10px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">
                   {i + 1}
                 </span>
-                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{step}</p>
+                <p className="text-xs text-slate-300 leading-relaxed">{step}</p>
               </div>
             ))}
           </div>

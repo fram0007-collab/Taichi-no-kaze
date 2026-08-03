@@ -334,7 +334,12 @@ export default function App() {
   const [dismissedAutoEvacuationKeys, setDismissedAutoEvacuationKeys] = useState(() => new Set());
   const [activeAutoEvacuationKey, setActiveAutoEvacuationKey] = useState(null);
   const [evacuationTargetPrediction, setEvacuationTargetPrediction] = useState(null);
+  // A zone is considered "far" from the user if it's more than this many km
+  // away and they're not inside its geofence — beyond this, showing it as
+  // the default evacuation target would be actively misleading.
+  const FAR_ZONE_THRESHOLD_KM = 15;
   const [evacuationZoneIsNearby, setEvacuationZoneIsNearby] = useState(true);
+  const [evacuationWasAutoSelected, setEvacuationWasAutoSelected] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -649,11 +654,6 @@ export default function App() {
     }
   };
 
-  // A zone is considered "far" from the user if it's more than this many km
-  // away and they're not inside its geofence — beyond this, showing it as
-  // the default evacuation target would be actively misleading.
-  const FAR_ZONE_THRESHOLD_KM = 15;
-
   const openEvacuationPanel = (prediction = null) => {
     let targetPrediction = prediction;
     let isNearby = true; // assume nearby unless we compute otherwise below
@@ -707,8 +707,45 @@ export default function App() {
     setActiveAutoEvacuationKey(getPredictionKey(targetPrediction));
     setEvacuationTargetPrediction(targetPrediction);
     setEvacuationZoneIsNearby(isNearby);
+    // Track whether this pick was auto-selected (no specific zone tapped) —
+    // used below to know if we should re-run nearest-zone logic once
+    // userLocation becomes available (e.g. permission was granted AFTER
+    // the button was first tapped, so this initial pick used no location).
+    setEvacuationWasAutoSelected(!prediction);
     setShowEvacuation(true);
   };
+
+  // Re-run nearest-zone selection once userLocation becomes available,
+  // if the panel is already open AND the current target was auto-picked
+  // without location data (i.e. user tapped the button, THEN granted
+  // location permission — the initial pick shouldn't be the final answer).
+  useEffect(() => {
+    if (!showEvacuation || !evacuationWasAutoSelected || !userLocation) return;
+    if (!filteredPredictions?.length) return;
+
+    const withDistance = filteredPredictions
+      .map(p => {
+        const zLat = p.zone?.latitude;
+        const zLon = p.zone?.longitude;
+        if (zLat == null || zLon == null) return null;
+        const distanceKm = calculateDistanceKm(userLocation.lat, userLocation.lon, zLat, zLon);
+        const radiusKm = (p.zone?.radius_m ?? 1000) / 1000;
+        return { prediction: p, distanceKm, insideZone: distanceKm <= radiusKm };
+      })
+      .filter(Boolean);
+
+    const inside = withDistance.filter(w => w.insideZone);
+    const pool = inside.length > 0 ? inside : withDistance;
+    pool.sort((a, b) => a.distanceKm - b.distanceKm);
+    const best = pool[0];
+    if (!best) return;
+
+    setEvacuationTargetPrediction(best.prediction);
+    setActiveAutoEvacuationKey(getPredictionKey(best.prediction));
+    setEvacuationZoneIsNearby(best.insideZone || best.distanceKm <= FAR_ZONE_THRESHOLD_KM);
+    setEvacuationWasAutoSelected(false); // done — don't keep recalculating on every location ping
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLocation, showEvacuation, evacuationWasAutoSelected]);
 
   // Keep the evacuation panel following the currently selected zone WHILE
   // it's open. Without this, selecting a different zone/card after already
