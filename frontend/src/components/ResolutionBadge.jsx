@@ -77,16 +77,16 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
   const remainingLabel = formatRemainingTimeLabel(estimated_resolution_at);
 
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-slate-700 dark:text-slate-200">
+    <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-800 dark:text-slate-200">
       <span>🕐</span>
       <span>
         Est. clear{' '}
         <span className={`font-bold ${text}`}>
-          {uncertain ? 'Estimate uncertain' : time}
+          {uncertain ? 'Clear time uncertain' : time}
         </span>
         {remainingLabel && <span className="ml-1">· {remainingLabel}</span>}
         {uncertain ? (
-          <span className="ml-1 text-slate-600 dark:text-slate-300">(confidence &lt;60%)</span>
+          <span className="ml-1 text-slate-600 dark:text-slate-300">(confidence below 60%)</span>
         ) : (
           <span className="ml-1 text-slate-600 dark:text-slate-300">({conf}% confidence)</span>
         )}

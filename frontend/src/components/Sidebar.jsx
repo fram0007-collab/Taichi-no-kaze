@@ -708,7 +708,7 @@ export default function Sidebar({
                       className={`text-[9px] px-2 py-0.5 rounded font-extrabold tracking-wider uppercase transition-all duration-200 ${
                         isSelected 
                           ? 'bg-red-600 text-white shadow-glow animate-pulse'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'
+                          : 'bg-white text-slate-900 border border-slate-300 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700 dark:hover:text-white'
                       }`}
                     >
                       {isSelected ? 'Viewing' : 'View'}
