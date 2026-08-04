@@ -19,11 +19,11 @@ function formatWIB(isoString) {
   if (!isoString) return null;
   try {
     const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', {
+    return date.toLocaleTimeString('id-ID', {
       timeZone: 'Asia/Jakarta',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: true,
+      hour12: false,
     }) + ' WIB';
   } catch {
     return null;
@@ -43,13 +43,13 @@ function formatRelativeWIB(isoString) {
     const nowWIB  = new Date(now.getTime()  + (jakartaOffset - now.getTimezoneOffset())  * 60000);
 
     const sameDay = dateWIB.toDateString() === nowWIB.toDateString();
-    const time = date.toLocaleTimeString('en-US', {
+    const time = date.toLocaleTimeString('id-ID', {
       timeZone: 'Asia/Jakarta',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: true,
+      hour12: false,
     });
-    return sameDay ? `${time} WIB` : `Tomorrow ${time} WIB`;
+    return sameDay ? `${time} Jakarta time` : `Tomorrow ${time} Jakarta time`;
   } catch {
     return formatWIB(isoString);
   }
@@ -116,7 +116,7 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
   }[disruption_type?.toLowerCase()] ?? 'Based on current data and historical patterns.';
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/60 p-3 space-y-2">
+    <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <span className="text-base">🕐</span>
         <div>

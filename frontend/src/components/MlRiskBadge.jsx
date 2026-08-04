@@ -17,10 +17,10 @@ import { useMlPrediction } from '../hooks/useMlPrediction';
  */
 
 const SEVERITY_STYLE = {
-  HIGH:   { text: 'text-red-600 dark:text-red-400',    bar: 'bg-red-400',    border: 'border-red-200 dark:border-red-500/30',    bg: 'bg-white dark:bg-slate-900/40' },
-  MEDIUM: { text: 'text-amber-600 dark:text-amber-400',  bar: 'bg-amber-400',  border: 'border-amber-200 dark:border-amber-500/30',  bg: 'bg-white dark:bg-slate-900/40' },
-  LOW:    { text: 'text-slate-700 dark:text-slate-300',  bar: 'bg-slate-500',  border: 'border-slate-200 dark:border-slate-700',     bg: 'bg-white dark:bg-slate-900/40' },
-  NONE:   { text: 'text-slate-700 dark:text-slate-300',  bar: 'bg-slate-600',  border: 'border-slate-200 dark:border-slate-700',     bg: 'bg-white dark:bg-slate-900/40' },
+  HIGH:   { text: 'text-red-600 dark:text-red-400',    bar: 'bg-red-400',    border: 'border-red-500/20',    bg: 'bg-red-500/5' },
+  MEDIUM: { text: 'text-amber-600 dark:text-amber-400',  bar: 'bg-amber-400',  border: 'border-amber-500/20',  bg: 'bg-amber-500/5' },
+  LOW:    { text: 'text-slate-500 dark:text-slate-400',  bar: 'bg-slate-500',  border: 'border-slate-300 dark:border-slate-700',     bg: 'bg-slate-100/80 dark:bg-slate-900/40' },
+  NONE:   { text: 'text-slate-600 dark:text-slate-400',  bar: 'bg-slate-600',  border: 'border-slate-800',     bg: 'bg-slate-100/80 dark:bg-slate-900/40' },
 };
 
 // Below this, don't bother showing the badge — not worth the visual noise.
@@ -39,7 +39,7 @@ export function MlRiskBadgeCompact({ zoneId }) {
     <div className="flex items-center gap-1.5 text-[10px] text-slate-800 dark:text-slate-200">
       <span>🤖</span>
       <span>
-        <span className="font-semibold text-slate-800 dark:text-slate-200">Worsening risk:</span>{' '}
+        <span className="font-semibold">Worsening risk:</span>{' '}
         <span className={`font-semibold ${style.text}`}>{pct}% chance in the next {prediction.horizon_hours} hours</span>
       </span>
     </div>
