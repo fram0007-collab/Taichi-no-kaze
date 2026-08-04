@@ -1416,7 +1416,7 @@ export default function MapView({
                   <div className="text-xs text-slate-600 dark:text-slate-400 mb-2">{details}</div>
                   {POI_DISRUPTION_SUITABILITY[zone.category] && (
                     <div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide mb-1">
+                      <div className="text-[10px] text-slate-700 dark:text-slate-400 font-semibold uppercase tracking-wide mb-1">
                         Recommended during:
                       </div>
                       <div className="flex flex-wrap gap-1">
@@ -1432,7 +1432,7 @@ export default function MapView({
                   {typeof zone.crowd_score === 'number' && (
                     <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
                       <div className="flex items-center justify-between text-[10px] mb-1">
-                        <span className="text-slate-500 dark:text-slate-400 font-semibold">👥 Current Crowd</span>
+                        <span className="text-slate-700 dark:text-slate-400 font-semibold">👥 Current Crowd</span>
                         <span className={`font-bold ${zone.crowd_score >= 65 ? 'text-red-400' : zone.crowd_score >= 35 ? 'text-orange-400' : 'text-emerald-400'}`}>
                           {zone.crowd_score >= 65 ? 'High' : zone.crowd_score >= 35 ? 'Moderate' : 'Low'}
                           <span className="ml-1 opacity-70 font-normal">({Math.round(zone.crowd_score)}/100)</span>

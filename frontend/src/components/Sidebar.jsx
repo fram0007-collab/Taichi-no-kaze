@@ -681,7 +681,7 @@ export default function Sidebar({
                   className={`p-3 rounded-lg border text-xs space-y-1.5 transition-all duration-200 ${
                     isSelected 
                       ? 'border-red-500 bg-red-500/10 shadow-[0_0_12px_rgba(239,68,68,0.25)]' 
-                      : 'border-slate-800 bg-slate-900/30 hover:border-slate-700/80'
+                      : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/30 dark:hover:border-slate-700/80'
                   }`}
                 >
                   <div className="flex justify-between items-center gap-2">

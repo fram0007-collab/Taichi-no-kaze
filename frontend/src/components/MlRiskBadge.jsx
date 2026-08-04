@@ -39,8 +39,7 @@ export function MlRiskBadgeCompact({ zoneId }) {
     <div className={`flex items-center gap-1.5 text-[10px] ${style.text}`}>
       <span>🤖</span>
       <span>
-        <span className="font-bold">{pct}% chance of worsening</span>
-        <span className="opacity-70 ml-1">in the next {prediction.horizon_hours}h</span>
+        <span className="font-semibold">Worsening risk: {pct}% chance in the next {prediction.horizon_hours} hours</span>
       </span>
     </div>
   );
