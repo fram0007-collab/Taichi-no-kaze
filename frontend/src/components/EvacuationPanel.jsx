@@ -823,7 +823,7 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
             : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </button>
         {hotlinesOpen && (
-          <div className="border-t border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700/60">
+          <div className="border-t border-slate-700 divide-y divide-slate-700/60">
             {hotlines.map((h, i) => (
               <div key={i} className="flex items-center justify-between px-4 py-3 gap-3">
                 <div className="min-w-0">

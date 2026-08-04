@@ -80,15 +80,15 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
     <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-800 dark:text-slate-200">
       <span>🕐</span>
       <span>
-        <span className="text-slate-800 dark:text-slate-200">Est. clear</span>{' '}
+        Est. clear{' '}
         <span className={`font-bold ${text}`}>
           {uncertain ? 'Clear time uncertain' : time}
         </span>
-        {remainingLabel && <span className="ml-1 text-slate-700 dark:text-slate-300">· {remainingLabel}</span>}
+        {remainingLabel && <span className="ml-1">· {remainingLabel}</span>}
         {uncertain ? (
-          <span className="ml-1 text-slate-700 dark:text-slate-300">(confidence below 60%)</span>
+          <span className="ml-1 text-slate-600 dark:text-slate-300">(confidence below 60%)</span>
         ) : (
-          <span className="ml-1 text-slate-700 dark:text-slate-300">({conf}% confidence)</span>
+          <span className="ml-1 text-slate-600 dark:text-slate-300">({conf}% confidence)</span>
         )}
       </span>
     </div>
@@ -116,11 +116,11 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
   }[disruption_type?.toLowerCase()] ?? 'Based on current data and historical patterns.';
 
   return (
-    <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3 space-y-2">
+    <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/60 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <span className="text-base">🕐</span>
         <div>
-          <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold uppercase tracking-wide">
+          <p className="text-[10px] text-slate-600 dark:text-slate-300 font-semibold uppercase tracking-wide">
             Estimated Resolution
           </p>
           <p className={`font-bold text-sm ${text}`}>
@@ -137,7 +137,7 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
       {/* Confidence bar */}
       <div>
         <div className="flex items-center justify-between text-[10px] mb-1">
-          <span className="text-slate-700 dark:text-slate-300">Prediction reliability</span>
+          <span className="text-slate-600 dark:text-slate-300">Prediction reliability</span>
           <span className={`font-bold ${text}`}>{conf}%</span>
         </div>
         <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
@@ -147,13 +147,13 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
           />
         </div>
         {conf < 60 && (
-          <p className="text-[9px] text-slate-700 dark:text-slate-300 mt-1 italic">
+          <p className="text-[9px] text-slate-600 dark:text-slate-300 mt-1 italic">
             Prediction reliability is low — we have hidden the specific time to avoid giving a misleading estimate.
           </p>
         )}
       </div>
 
-      <p className="text-[10px] text-slate-700 dark:text-slate-300 leading-relaxed">{disclaimer}</p>
+      <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed">{disclaimer}</p>
     </div>
   );
 }
