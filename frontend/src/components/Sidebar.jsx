@@ -390,12 +390,12 @@ export default function Sidebar({
                   onClick={() => onSelectPrediction(pred)}
                   className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
                     isSelected 
-                      ? 'border-indigo-500 bg-indigo-500/10' 
-                      : 'border-slate-800 bg-slate-900/50 hover:bg-slate-900'
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' 
+                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900'
                   }`}
                 >
                   <div className="flex justify-between items-start">
-                    <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">{pred.zone.name}</span>
+                    <span className="font-semibold text-sm text-slate-950 dark:text-slate-200">{pred.zone.name}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getRiskColor(pred.risk_level)}`}>
                       {pred.risk_level}
                     </span>
@@ -409,7 +409,7 @@ export default function Sidebar({
                     <span className={getConfidenceColor(pred.probability_percentage)}>{pred.probability_percentage}%</span>
                   </div>
                   {pred.estimated_resolution_at && (
-                    <div className="mt-1.5 pt-1.5 border-t border-slate-800/40">
+                    <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800/40">
                       <ResolutionBadgeCompact
                         estimated_resolution_at={pred.estimated_resolution_at}
                         resolution_confidence={pred.resolution_confidence}
@@ -419,7 +419,7 @@ export default function Sidebar({
                       </div>
                     </div>
                   )}
-                  <div className="mt-1.5 pt-1.5 border-t border-slate-800/40">
+                  <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800/40">
                     <MlRiskBadgeCompact zoneId={pred.zone?.zone_id ?? pred.zone?.id} />
                   </div>
                 </div>
@@ -701,14 +701,14 @@ export default function Sidebar({
                       {eq.potensi}
                     </div>
                   )}
-                  <div className="flex justify-between items-center pt-1.5 border-t border-slate-800/20">
+                  <div className="flex justify-between items-center pt-1.5 border-t border-slate-200 dark:border-slate-800/20">
                     <span className="text-[10px] text-slate-600 dark:text-slate-500 font-medium">Depth: {eq.depth}</span>
                     <button
                       onClick={() => onSelectEarthquake && onSelectEarthquake(isSelected ? null : eq)}
                       className={`text-[9px] px-2 py-0.5 rounded font-extrabold tracking-wider uppercase transition-all duration-200 ${
                         isSelected 
                           ? 'bg-red-600 text-white shadow-glow animate-pulse'
-                          : 'bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                          : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white'
                       }`}
                     >
                       {isSelected ? 'Viewing' : 'View'}

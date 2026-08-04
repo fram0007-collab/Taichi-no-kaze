@@ -36,10 +36,11 @@ export function MlRiskBadgeCompact({ zoneId }) {
   const pct = Math.round(prediction.probability_high * 100);
 
   return (
-    <div className={`flex items-center gap-1.5 text-[10px] ${style.text}`}>
+    <div className="flex items-center gap-1.5 text-[10px] text-slate-800 dark:text-slate-200">
       <span>🤖</span>
       <span>
-        <span className="font-semibold">Worsening risk: {pct}% chance in the next {prediction.horizon_hours} hours</span>
+        <span className="font-semibold">Worsening risk:</span>{' '}
+        <span className={`font-semibold ${style.text}`}>{pct}% chance in the next {prediction.horizon_hours} hours</span>
       </span>
     </div>
   );

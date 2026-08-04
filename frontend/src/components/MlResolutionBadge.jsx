@@ -52,12 +52,13 @@ export function MlResolutionBadgeCompact({ alertId }) {
   const remainingLabel = formatRemainingTimeLabel(prediction.estimated_resolution_at);
 
   return (
-    <div className={`flex items-center gap-1.5 text-[10px] ${text}`}>
+    <div className="flex items-center gap-1.5 text-[10px] text-slate-800 dark:text-slate-200">
       <span>🧠</span>
       <span>
-        AI prediction: <span className="font-bold">{time}</span>
-        {remainingLabel && <span className="opacity-80 ml-1">· {remainingLabel}</span>}
-        <span className="opacity-70 ml-1">({conf}% confidence)</span>
+        <span className="font-medium">AI prediction:</span>{' '}
+        <span className={`font-bold ${text}`}>{time}</span>
+        {remainingLabel && <span className="ml-1 text-slate-700 dark:text-slate-300">· {remainingLabel}</span>}
+        <span className="ml-1 text-slate-700 dark:text-slate-300">({conf}% confidence)</span>
       </span>
     </div>
   );
@@ -77,11 +78,11 @@ export function MlResolutionBadgeExpanded({ alertId }) {
   const remainingLabel = formatRemainingTimeLabel(prediction.estimated_resolution_at);
 
   return (
-    <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/60 p-3 space-y-2">
+    <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <span className="text-base">🧠</span>
         <div>
-          <p className="text-[10px] text-slate-600 dark:text-slate-300 font-semibold uppercase tracking-wide">
+          <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold uppercase tracking-wide">
             AI-Powered Prediction
           </p>
           <p className={`font-bold text-sm ${text}`}>{time}</p>
@@ -95,7 +96,7 @@ export function MlResolutionBadgeExpanded({ alertId }) {
 
       <div>
         <div className="flex items-center justify-between text-[10px] mb-1">
-          <span className="text-slate-600 dark:text-slate-300">Prediction reliability</span>
+          <span className="text-slate-700 dark:text-slate-300">Prediction reliability</span>
           <span className={`font-bold ${text}`}>{conf}%</span>
         </div>
         <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
@@ -103,7 +104,7 @@ export function MlResolutionBadgeExpanded({ alertId }) {
         </div>
       </div>
 
-      <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed">
+      <p className="text-[10px] text-slate-700 dark:text-slate-300 leading-relaxed">
         Estimated time remaining: {prediction.hours_remaining_low}–{prediction.hours_remaining_high} hours.
         This prediction is based on patterns from past alerts in this area — it learns and improves over time as more real events are recorded.
       </p>
