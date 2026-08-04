@@ -141,27 +141,28 @@ const createPoiIcon = (category, isSuppressed = false, crowdScore = 0) => {
   });
 };
 const createSafeZoneIcon = (type) => {
-  let emoji = "🛟";
+  let emoji = "�️";
  
   if (type === "Evacuation Point") {
-    emoji = "🏕️";
+    emoji = "🛡️";
   } else if (type === "High Ground") {
-    emoji = "⛰️";
+    emoji = "🛡️";
   }
  
   return L.divIcon({
     html: `
       <div class="flex items-center justify-center
                   w-10 h-10 rounded-full
-                  bg-emerald-500
-                  border-4 border-white
-                  shadow-lg text-lg">
+                  bg-emerald-600
+                  border-[3px] border-white
+                  shadow-[0_0_0_2px_rgba(255,255,255,0.85)] text-lg">
         ${emoji}
       </div>
     `,
     className: "safe-zone-marker",
     iconSize: [40, 40],
-    iconAnchor: [20, 20]
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -24]
   });
 };
 // Helper to determine styling of Jakarta's waterways based on alert and category
@@ -778,7 +779,7 @@ export default function MapView({
             { id: 'threat_earthquake', label: 'Earthquake 🌋', color: 'text-red-400' }
           ].map(layer => (
             <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
-              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-500'} group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
+              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-600 dark:text-slate-400'} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
               <input
                 type="checkbox"
                 checked={activeLayers[layer.id]}
@@ -803,7 +804,7 @@ export default function MapView({
             { id: 'safe_zones', label: 'Safe Zones 🛟', color: 'text-emerald-400' },
           ].map(layer => (
             <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
-              <span className={`text-[11px] font-semibold ${layer.color} group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
+              <span className={`text-[11px] font-semibold ${layer.color} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
               <input
                 type="checkbox"
                 checked={activeLayers[layer.id]}
@@ -1410,8 +1411,8 @@ export default function MapView({
               <Popup>
                 <div className="font-sans min-w-[220px] p-2.5 text-slate-900 dark:text-slate-100">
                   <div className="font-bold text-sm text-slate-950 dark:text-slate-100 mb-0.5">{zone.name}</div>
-                  <div className="text-emerald-500 dark:text-emerald-400 text-xs font-semibold mb-2">
-                    {POI_DISRUPTION_SUITABILITY[zone.category]?.emoji || '🛟'} {type}
+                  <div className="text-emerald-600 dark:text-emerald-400 text-xs font-semibold mb-2">
+                    {POI_DISRUPTION_SUITABILITY[zone.category]?.emoji || '🛡️'} {type}
                   </div>
                   <div className="text-xs text-slate-600 dark:text-slate-400 mb-2">{details}</div>
                   {POI_DISRUPTION_SUITABILITY[zone.category] && (

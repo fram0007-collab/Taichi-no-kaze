@@ -195,6 +195,7 @@ export default function EvacuationPanel({
   const [phase, setPhase] = useState('idle'); // idle | routing | done | error
   const [routeInfo, setRouteInfo] = useState(null);  // { destination, distanceKm, durationMin, steps }
   const [errorMsg, setErrorMsg] = useState('');
+  const [showAvoidedZones, setShowAvoidedZones] = useState(false);
   const [expandedGuide, setExpandedGuide] = useState(null);
   const [selectedCrowdPoi, setSelectedCrowdPoi] = useState(null);
   const [globalPois, setGlobalPois] = useState([]);
@@ -479,7 +480,7 @@ export default function EvacuationPanel({
         )}
 
         {/* Route section */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 overflow-hidden">
+        <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/60 overflow-hidden">
           <div className="px-4 pt-4 pb-3 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-2 mb-1">
               <Navigation className="w-4 h-4 text-indigo-400" />
@@ -602,7 +603,7 @@ export default function EvacuationPanel({
                 </div>
                 <button
                   onClick={() => setPhase('idle')}
-                  className="w-full py-2.5 rounded-xl border border-slate-600 text-slate-300 text-sm font-semibold hover:bg-slate-700 transition-colors"
+                  className="w-full py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
                 >
                   Try Again
                 </button>
@@ -612,15 +613,15 @@ export default function EvacuationPanel({
             {phase === 'done' && routeInfo && (
               <div className="space-y-3">
                 {/* Destination */}
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                  <ShieldCheck className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                   <div className="min-w-0">
-                    <p className="font-bold text-emerald-400 text-sm truncate">{routeInfo.destination.name}</p>
-                    <p className="text-xs text-slate-400 capitalize">{routeInfo.destination.category?.replace('_', ' ')}</p>
+                    <p className="font-bold text-emerald-700 dark:text-emerald-400 text-sm truncate">{routeInfo.destination.name}</p>
+                    <p className="text-xs text-slate-700 dark:text-slate-400 capitalize">{routeInfo.destination.category?.replace('_', ' ')}</p>
                   </div>
                   <div className="ml-auto text-right shrink-0">
-                    <p className="font-bold text-white text-sm">{routeInfo.distanceKm} km</p>
-                    <p className="text-xs text-slate-400">~{routeInfo.durationMin} min walk</p>
+                    <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{routeInfo.distanceKm} km</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">~{routeInfo.durationMin} min walk</p>
                   </div>
                 </div>
 
@@ -634,9 +635,31 @@ export default function EvacuationPanel({
 
                 {/* Avoided zones notice */}
                 {routeInfo.avoidedZones.length > 0 && (
-                  <div className="flex items-start gap-2 text-amber-400 text-xs">
-                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                    <span>Route avoids: {routeInfo.avoidedZones.join(', ')}</span>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-semibold">
+                          {routeInfo.avoidedZones.length > 1
+                            ? (routeInfo.avoidedZones.length <= 5 ? 'Avoiding several active disruption zones nearby.' : `Avoiding ${routeInfo.avoidedZones.length} active disruption zones.`)
+                            : `Avoiding ${routeInfo.avoidedZones[0]}.`}
+                        </p>
+                        {showAvoidedZones && (
+                          <ul className="mt-2 space-y-1 text-slate-700 dark:text-slate-300">
+                            {routeInfo.avoidedZones.map((zone) => (
+                              <li key={zone} className="list-disc ml-4">{zone}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAvoidedZones((value) => !value)}
+                      className="mt-2 text-[11px] font-semibold underline underline-offset-2 text-amber-700 dark:text-amber-300"
+                    >
+                      {showAvoidedZones ? 'Hide avoided zones' : 'Show avoided zones'}
+                    </button>
                   </div>
                 )}
 
@@ -714,7 +737,7 @@ function MediumSeverityBanner({ disruption }) {
   const advice = MEDIUM_ADVICE[disruption] ?? MEDIUM_ADVICE.weather;
 
   return (
-    <div className="rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-500/8 overflow-hidden">
+    <div className="rounded-xl border border-amber-200 bg-white dark:border-amber-500/30 dark:bg-amber-500/8 overflow-hidden">
       <button
         onClick={() => setExpanded(e => !e)}
         className="w-full flex items-start gap-3 px-4 py-3 text-left"
@@ -755,7 +778,7 @@ function PanelHeader({ title, subtitle, onClose }) {
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-lg">🚨</span>
         <div className="min-w-0">
-          <span className="font-bold text-slate-100 text-sm block">{title}</span>
+          <span className="font-bold text-slate-900 dark:text-slate-100 text-sm block">{title}</span>
           {subtitle && (
             <span className="text-[11px] text-slate-600 dark:text-slate-400 truncate block">{subtitle}</span>
           )}
@@ -763,7 +786,7 @@ function PanelHeader({ title, subtitle, onClose }) {
       </div>
       <button
         onClick={onClose}
-        className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:text-slate-200 transition-colors shrink-0"
+        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors shrink-0"
       >
         <X className="w-4 h-4" />
       </button>

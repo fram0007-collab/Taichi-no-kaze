@@ -107,7 +107,12 @@ export default function Sidebar({
       normalizedStr = timeStr + 'Z';
     }
     const date = new Date(normalizedStr);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Jakarta',
+    }) + ' WIB';
   };
 
   const getRiskColor = (risk) => {
@@ -259,7 +264,7 @@ export default function Sidebar({
   }, [predictions, mlPrediction, selectedPrediction]);
 
   return (
-    <div className="w-full flex flex-col h-full bg-brand-elevated border-l border-slate-800 overflow-hidden">
+    <div className="w-full flex flex-col h-full bg-white border-l border-slate-200 dark:bg-slate-950/95 dark:border-slate-800 overflow-hidden">
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
       {/* Active Notifications Block */}
@@ -330,7 +335,7 @@ export default function Sidebar({
         )}
 
         {/* Severity Filter Tabs */}
-        <div className="flex flex-wrap gap-1 mb-4 pb-2 border-b border-slate-800/40">
+        <div className="flex flex-wrap gap-1 mb-4 pb-2 border-b border-slate-200 dark:border-slate-700/60">
           {[
             { id: 'all', label: 'All' },
             { id: 'Critical', label: 'Critical', color: 'border-red-500/20 text-red-400 bg-red-500/5' },
@@ -360,8 +365,8 @@ export default function Sidebar({
         <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
           {showingLowTier ? (
             lowZones.length === 0 ? (
-              <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
-                <p className="text-xs text-slate-600 dark:text-slate-500 font-medium">All zones have active alerts or no data yet.</p>
+              <div className="text-center py-6 border border-dashed border-slate-200 bg-white rounded-xl dark:border-slate-700 dark:bg-slate-900/40">
+                <p className="text-xs text-slate-700 dark:text-slate-400 font-medium">All zones have active alerts or no data yet.</p>
               </div>
             ) : (
               lowZones.map(zs => (
@@ -378,8 +383,8 @@ export default function Sidebar({
               ))
             )
           ) : displayedWarnings.length === 0 ? (
-            <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
-              <p className="text-xs text-slate-600 dark:text-slate-500 font-medium">No warnings match this filter.</p>
+            <div className="text-center py-6 border border-dashed border-slate-200 bg-white rounded-xl dark:border-slate-700 dark:bg-slate-900/40">
+              <p className="text-xs text-slate-700 dark:text-slate-400 font-medium">No warnings match this filter.</p>
             </div>
           ) : (
             displayedWarnings.map(pred => {
@@ -391,25 +396,25 @@ export default function Sidebar({
                   className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
                     isSelected 
                       ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' 
-                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-900'
                   }`}
                 >
                   <div className="flex justify-between items-start">
-                    <span className="font-semibold text-sm text-slate-950 dark:text-slate-200">{pred.zone.name}</span>
+                    <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">{pred.zone.name}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getRiskColor(pred.risk_level)}`}>
                       {pred.risk_level}
                     </span>
                   </div>
-                  <div className="mt-2 text-xs text-slate-600 dark:text-slate-400 flex justify-between items-center">
-                    <span>Threat: <span className="text-slate-700 dark:text-slate-300 font-medium">{pred.disruption_type}</span></span>
-                    <span>Peak: <span className="text-indigo-400 font-medium">{formatTime(pred.estimated_time_to_peak)}</span></span>
+                  <div className="mt-2 text-xs text-slate-700 dark:text-slate-400 flex justify-between items-center">
+                    <span>Threat: <span className="text-slate-800 dark:text-slate-300 font-medium">{pred.disruption_type}</span></span>
+                    <span>Peak: <span className="text-indigo-600 dark:text-indigo-400 font-medium">{formatTime(pred.estimated_time_to_peak)}</span></span>
                   </div>
-                  <div className="mt-1.5 text-[10px] text-slate-600 dark:text-slate-500 flex justify-between items-center border-t border-slate-200 dark:border-slate-800/40 pt-1.5">
+                  <div className="mt-1.5 text-[10px] text-slate-700 dark:text-slate-400 flex justify-between items-center border-t border-slate-200 dark:border-slate-700/60 pt-1.5">
                     <span>Confidence Level</span>
                     <span className={getConfidenceColor(pred.probability_percentage)}>{pred.probability_percentage}%</span>
                   </div>
                   {pred.estimated_resolution_at && (
-                    <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800/40">
+                    <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-700/60">
                       <ResolutionBadgeCompact
                         estimated_resolution_at={pred.estimated_resolution_at}
                         resolution_confidence={pred.resolution_confidence}
@@ -431,7 +436,7 @@ export default function Sidebar({
         {filteredByType.length > PREVIEW_COUNT && !showAllWarnings && (
           <button 
             onClick={() => setShowAllWarnings(true)}
-            className="w-full text-center text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold py-2 mt-3 bg-slate-900/40 border border-slate-800/80 rounded-xl hover:bg-slate-900/70 transition-all duration-200"
+            className="w-full text-center text-[11px] text-indigo-600 hover:text-indigo-500 font-semibold py-2 mt-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all duration-200 dark:bg-slate-900/40 dark:border-slate-700 dark:text-indigo-400 dark:hover:bg-slate-900"
           >
             See More
           </button>
@@ -439,7 +444,7 @@ export default function Sidebar({
         {showAllWarnings && filteredByType.length > PREVIEW_COUNT && (
           <button 
             onClick={() => setShowAllWarnings(false)}
-            className="w-full text-center text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold py-2 mt-3 bg-slate-900/40 border border-slate-800/80 rounded-xl hover:bg-slate-900/70 transition-all duration-200"
+            className="w-full text-center text-[11px] text-indigo-600 hover:text-indigo-500 font-semibold py-2 mt-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all duration-200 dark:bg-slate-900/40 dark:border-slate-700 dark:text-indigo-400 dark:hover:bg-slate-900"
           >
             See Less
           </button>
@@ -457,7 +462,7 @@ export default function Sidebar({
           >
             <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 py-4 dark:border-slate-700/70">
               <div>
-                <h3 className="text-lg font-bold text-white">Prediction & ML Transparency</h3>
+                <h3 className="text-lg font-bold text-slate-950 dark:text-slate-100">Prediction & ML Transparency</h3>
                 <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">Understand warning cards, clear-time estimates, and prediction confidence.</p>
               </div>
               <button
@@ -661,15 +666,15 @@ export default function Sidebar({
       )}
 
       {/* BMKG Earthquake Live Telemetry Section */}
-      <div className="pt-4 border-t border-slate-800/80">
+      <div className="pt-4 border-t border-slate-200 dark:border-slate-800/80">
         <div className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-bold text-lg mb-3">
           <Layers className="w-5 h-5 text-red-500 animate-pulse" />
           <h2>BMKG Live Earthquakes</h2>
         </div>
         <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
           {earthquakes.length === 0 ? (
-            <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
-              <p className="text-xs text-slate-600 dark:text-slate-500 font-medium">No recent earthquakes recorded.</p>
+            <div className="text-center py-6 border border-dashed border-slate-200 bg-white rounded-xl dark:border-slate-700 dark:bg-slate-900/40">
+              <p className="text-xs text-slate-700 dark:text-slate-400 font-medium">No recent earthquakes recorded.</p>
             </div>
           ) : (
             earthquakes.map((eq, idx) => {
@@ -680,8 +685,8 @@ export default function Sidebar({
                   key={eq.id || idx} 
                   className={`p-3 rounded-lg border text-xs space-y-1.5 transition-all duration-200 ${
                     isSelected 
-                      ? 'border-red-500 bg-red-500/10 shadow-[0_0_12px_rgba(239,68,68,0.25)]' 
-                      : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/30 dark:hover:border-slate-700/80'
+                      ? 'border-red-500 bg-red-50 shadow-[0_0_12px_rgba(239,68,68,0.15)] dark:bg-red-500/10 dark:shadow-[0_0_12px_rgba(239,68,68,0.25)]' 
+                      : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-slate-600'
                   }`}
                 >
                   <div className="flex justify-between items-center gap-2">
@@ -694,7 +699,7 @@ export default function Sidebar({
                   </div>
                   <div className="flex justify-between text-[10px] text-slate-600 dark:text-slate-500 font-medium">
                     <span>{new Date(eq.datetime).toLocaleDateString()}</span>
-                    <span>{new Date(eq.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>{new Date(eq.datetime).toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: true })} WIB</span>
                   </div>
                   {eq.potensi && (
                     <div className="text-[9.5px] text-indigo-600 dark:text-indigo-400/90 font-semibold italic border-t border-slate-200 dark:border-slate-800/20 pt-1 mt-1">
@@ -723,25 +728,25 @@ export default function Sidebar({
 
       {/* Selected Zone Analytical Projections */}
       {selectedPrediction ? (
-        <div className="flex-1 flex flex-col space-y-6 pt-4 border-t border-slate-800">
+        <div className="flex-1 flex flex-col space-y-6 pt-4 border-t border-slate-200 dark:border-slate-800">
           <div>
             <div className="flex items-center space-x-2 text-indigo-400 font-semibold mb-1">
               <MapPin className="w-4 h-4" />
               <span className="text-xs uppercase tracking-wider">Selected Zone Analysis</span>
             </div>
-            <h1 className="text-2xl font-bold text-slate-100">{selectedPrediction?.zone?.name ?? 'Unknown Zone'}</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{selectedPrediction?.zone?.name ?? 'Unknown Zone'}</h1>
             
             <div className="grid grid-cols-1 gap-3 mt-4">
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2 text-center">
-                <p className="text-[10px] text-slate-400">Baseline Speed</p>
-                <p className="text-lg font-bold text-slate-200">{selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'} <span className="text-xs font-normal">km/h</span></p>
+              <div className="bg-white border border-slate-200 rounded-lg p-2 text-center dark:bg-slate-900/40 dark:border-slate-700">
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">Baseline Speed</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-slate-200">{selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'} <span className="text-xs font-normal">km/h</span></p>
               </div>
             </div>
           </div>
 
           {/* Dynamic Infrastructure POI Section */}
-          <div className="space-y-3 pt-2 border-t border-slate-800/50">
-            <h3 className="text-sm font-semibold text-slate-300 flex items-center space-x-2">
+          <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800/50">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center space-x-2">
               <Layers className="w-4 h-4 text-indigo-400" />
               <span>Nearby Infrastructure & POIs</span>
             </h3>
@@ -820,7 +825,7 @@ export default function Sidebar({
           </div>
 
           {/* Dynamic Weather & Speed Projections */}
-          <div className="flex-1 flex flex-col space-y-4 pt-2 border-t border-slate-800/50">
+          <div className="flex-1 flex flex-col space-y-4 pt-2 border-t border-slate-200 dark:border-slate-800/50">
             <div className="flex justify-between items-center">
               <h3 className="text-sm font-semibold text-slate-300 flex items-center space-x-2">
                 <CloudRain className="w-4 h-4 text-sky-400" />
@@ -946,7 +951,7 @@ export default function Sidebar({
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col justify-center items-center text-center p-8 border-t border-slate-800 text-slate-400 space-y-2">
+        <div className="flex-1 flex flex-col justify-center items-center text-center p-8 border-t border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400 space-y-2">
           <MapPin className="w-8 h-8 text-slate-600 animate-bounce" />
           <p className="text-sm font-semibold">No Zone Geofence Inspected</p>
           <p className="text-xs text-slate-500 max-w-xs">

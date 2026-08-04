@@ -26,10 +26,10 @@ function formatRelativeWIB(isoString) {
     const dateWIB = new Date(date.getTime() + (jakartaOffset - date.getTimezoneOffset()) * 60000);
     const nowWIB = new Date(now.getTime() + (jakartaOffset - now.getTimezoneOffset()) * 60000);
     const sameDay = dateWIB.toDateString() === nowWIB.toDateString();
-    const time = date.toLocaleTimeString('id-ID', {
-      timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false,
+    const time = date.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: true,
     });
-    return sameDay ? `${time} Jakarta time` : `Tomorrow ${time} Jakarta time`;
+    return sameDay ? `${time} WIB` : `Tomorrow ${time} WIB`;
   } catch {
     return null;
   }
@@ -55,7 +55,7 @@ export function MlResolutionBadgeCompact({ alertId }) {
     <div className="flex items-center gap-1.5 text-[10px] text-slate-800 dark:text-slate-200">
       <span>🧠</span>
       <span>
-        <span className="font-medium">AI prediction:</span>{' '}
+        <span className="font-medium text-slate-800 dark:text-slate-200">AI prediction:</span>{' '}
         <span className={`font-bold ${text}`}>{time}</span>
         {remainingLabel && <span className="ml-1 text-slate-700 dark:text-slate-300">· {remainingLabel}</span>}
         <span className="ml-1 text-slate-700 dark:text-slate-300">({conf}% confidence)</span>
@@ -78,7 +78,7 @@ export function MlResolutionBadgeExpanded({ alertId }) {
   const remainingLabel = formatRemainingTimeLabel(prediction.estimated_resolution_at);
 
   return (
-    <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3 space-y-2">
+    <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/60 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <span className="text-base">🧠</span>
         <div>
