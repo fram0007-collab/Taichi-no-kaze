@@ -615,12 +615,12 @@ export default function EvacuationPanel({
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <ShieldCheck className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
                   <div className="min-w-0">
-                    <p className="font-bold text-emerald-400 text-sm truncate">{routeInfo.destination.name}</p>
-                    <p className="text-xs text-slate-400 capitalize">{routeInfo.destination.category?.replace('_', ' ')}</p>
+                    <p className="font-bold text-emerald-500 text-sm truncate">{routeInfo.destination.name}</p>
+                    <p className="text-xs text-slate-500 capitalize">{routeInfo.destination.category?.replace('_', ' ')}</p>
                   </div>
                   <div className="ml-auto text-right shrink-0">
                     <p className="font-bold text-white text-sm">{routeInfo.distanceKm} km</p>
-                    <p className="text-xs text-slate-400">~{routeInfo.durationMin} min walk</p>
+                    <p className="text-xs text-slate-500">~{routeInfo.durationMin} min walk</p>
                   </div>
                 </div>
 
@@ -667,7 +667,7 @@ export default function EvacuationPanel({
 
         {/* Step-by-step guide(s) — one per active disruption type at this zone */}
         {zoneGuidances.length > 1 && (
-          <p className="px-4 text-[11px] font-semibold text-amber-400 uppercase tracking-wide">
+          <p className="px-4 text-[11px] font-semibold text-amber-500 uppercase tracking-wide">
             This zone has {zoneGuidances.length} active disruption types
           </p>
         )}
@@ -735,10 +735,10 @@ function MediumSeverityBanner({ disruption }) {
 
       {expanded && (
         <div className="px-4 pb-4 pt-0">
-          <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+          <p className="text-sm !text-slate-700 dark:!text-slate-300 leading-relaxed">
             {advice.body}
           </p>
-          <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-500 font-medium">
+          <p className="mt-2 text-[11px] !text-amber-600 dark:!text-amber-500 font-medium">
             Evacuation routes and safe areas below are available as a precaution — you do not need to use them unless conditions worsen.
           </p>
         </div>
