@@ -724,7 +724,7 @@ function MediumSeverityBanner({ disruption }) {
           <p className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-0.5">
             Medium alert — monitor & prepare
           </p>
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+          <p className="text-sm font-semibold !text-slate-800 dark:!text-slate-100">
             {advice.headline}
           </p>
         </div>

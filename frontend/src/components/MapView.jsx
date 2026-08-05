@@ -1410,7 +1410,7 @@ export default function MapView({
             >
               <Popup>
                 <div className="font-sans min-w-[220px] p-2.5 text-slate-900 dark:text-slate-100">
-                  <div className="font-bold text-sm text-slate-950 dark:text-slate-100 mb-0.5">{zone.name}</div>
+                  <div className="font-bold text-sm !text-slate-950 dark:!text-slate-100 mb-0.5">{zone.name}</div>
                   <div className="text-emerald-600 dark:text-emerald-400 text-xs font-semibold mb-2">
                     {POI_DISRUPTION_SUITABILITY[zone.category]?.emoji || '🛡️'} {type}
                   </div>
