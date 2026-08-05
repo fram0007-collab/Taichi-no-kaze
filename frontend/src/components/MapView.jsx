@@ -141,12 +141,12 @@ const createPoiIcon = (category, isSuppressed = false, crowdScore = 0) => {
   });
 };
 const createSafeZoneIcon = (type) => {
-  let emoji = "�️";
+  let emoji = "🛡️";
  
   if (type === "Evacuation Point") {
-    emoji = "🛡️";
+    emoji = "&#x1F3D5;"; // 🏕️
   } else if (type === "High Ground") {
-    emoji = "🛡️";
+    emoji = "⛰️";
   }
  
   return L.divIcon({
@@ -801,7 +801,7 @@ export default function MapView({
             { id: 'mall', label: 'Malls 🏬', color: 'text-rose-400' },
             { id: 'market', label: 'Markets 🏪', color: 'text-amber-400' },
             { id: 'station', label: 'Stations 🚉', color: 'text-green-400' },
-            { id: 'safe_zones', label: 'Safe Zones 🛟', color: 'text-emerald-400' },
+            { id: 'safe_zones', label: 'Safe Zones 🛡️', color: 'text-emerald-400' },
           ].map(layer => (
             <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
               <span className={`text-[11px] font-semibold ${layer.color} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
