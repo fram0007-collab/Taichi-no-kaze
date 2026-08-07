@@ -181,7 +181,7 @@ export default function Sidebar({
         isExample: true,
         rows: [
           { label: 'Standard estimate', valueLabel: '2.7 hours remaining', confidence: '65% confidence', percent: 70, tint: 'bg-indigo-500' },
-          { label: 'ML estimate', valueLabel: '2.0 hours remaining', confidence: '47% confidence', percent: 50, tint: 'bg-cyan-500' },
+          { label: 'AI prediction', valueLabel: '2.0 hours remaining', confidence: '47% confidence', percent: 50, tint: 'bg-cyan-500' },
         ],
       };
     }
@@ -205,7 +205,7 @@ export default function Sidebar({
     }
     if (mlHours != null) {
       rows.push({
-        label: 'ML estimate',
+        label: 'AI prediction',
         valueLabel: `${formatHoursLabel(mlHours)} remaining`,
         confidence: `${Math.round(mlPrediction?.resolution_confidence || 0)}% confidence`,
         percent: Math.min(100, Math.max(20, Math.round(mlHours / 3 * 100))),
@@ -524,7 +524,7 @@ export default function Sidebar({
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">The rule-based clear-time estimate from the current risk level and thresholds.</p>
                       </div>
                       <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
-                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">ML estimate</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">AI prediction</p>
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">The model-based clear-time estimate from historical patterns and live signals.</p>
                       </div>
                       <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/70">
@@ -540,7 +540,7 @@ export default function Sidebar({
 
                   <section className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Example</p>
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">If a crowd warning says Peak 17:40, the area may be most crowded around 17:40. If the ML estimate says 20.24 WIB with 65% confidence, the model estimates the disruption may reduce around 20.24 WIB, but the time can still change as new data arrives.</p>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">If a crowd warning says Peak 17:40, the area may be most crowded around 17:40. If the AI prediction says 20.24 WIB with 65% confidence, the model estimates the disruption may reduce around 20.24 WIB, but the time can still change as new data arrives.</p>
                   </section>
 
                   <section className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
@@ -548,7 +548,7 @@ export default function Sidebar({
                       <BarChart3 className="h-4 w-4 text-indigo-500" />
                       <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Selected alert comparison</h4>
                     </div>
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Time remaining from now is shown here so you can compare the rule-based estimate with the ML estimate.</p>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Time remaining from now is shown here so you can compare the rule-based estimate with the AI prediction.</p>
                     {selectedAlertComparison.rows.length > 0 ? (
                       <div className="mt-3 space-y-3">
                         {selectedAlertComparison.rows.map((row) => (
@@ -616,7 +616,7 @@ export default function Sidebar({
                       <Clock3 className="h-4 w-4 text-indigo-500" />
                       <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Estimated Clear Time Timeline</h4>
                     </div>
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">This timeline groups active warnings by how soon they are estimated to clear. It uses the ML estimate when available, otherwise it uses the standard clear-time estimate.</p>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">This timeline groups active warnings by how soon they are estimated to clear. It uses the AI prediction when available, otherwise it uses the standard clear-time estimate.</p>
                     <div className="mt-3 space-y-2">
                       {clearTimeTimeline.length > 0 ? clearTimeTimeline.map((bucket) => (
                         <div key={bucket.label} className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
