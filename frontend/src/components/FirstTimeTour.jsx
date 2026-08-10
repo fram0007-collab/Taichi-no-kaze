@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Shield,
   ChevronRight,
@@ -11,8 +11,10 @@ import {
   RefreshCw,
   Sparkles,
   Navigation,
-  Bell
+  Bell,
+  Loader2,
 } from 'lucide-react';
+import { ILLUSTRATIONS } from './TourIllustrations';
 
 const TOUR_STEPS = [
   {
@@ -20,7 +22,6 @@ const TOUR_STEPS = [
     title: 'Welcome to DIS-RUPTURE',
     subtitle: 'Your Jabodetabek Commute, Protected',
     content: 'DIS-RUPTURE pairs live flood reports with real-time traffic and weather forecasts to keep you moving safely across Jabodetabek.',
-    target: null,
     icon: Shield,
     accent: 'from-indigo-500 to-purple-600',
   },
@@ -29,7 +30,6 @@ const TOUR_STEPS = [
     title: 'Explore Your Surroundings',
     subtitle: 'Smart Zones & Safety Buffers',
     content: 'Tap any area on the map to see real-time traffic speeds, active flood danger zones, crowd levels, and local rain forecasts.',
-    target: '[data-tour="map-container"]',
     icon: MapPin,
     accent: 'from-purple-500 to-pink-600',
   },
@@ -38,7 +38,6 @@ const TOUR_STEPS = [
     title: 'Customize Your View',
     subtitle: 'Toggle Map Layers',
     content: 'Use the Layers button to show or hide hospitals, police stations, malls, and other points of interest on the map.',
-    target: '[data-tour="layers-trigger"]',
     icon: Layers,
     accent: 'from-fuchsia-500 to-purple-600',
   },
@@ -47,7 +46,6 @@ const TOUR_STEPS = [
     title: 'Zone Details & Live Alerts',
     subtitle: 'Filter Risk & Search Locations',
     content: 'Use the side panel (or Feed tab on mobile) to filter zones by risk level (Critical, High, Medium), check estimated clearance times, and search key locations.',
-    target: '[data-tour="sidebar-filters"]',
     icon: Layers,
     accent: 'from-blue-500 to-cyan-600',
   },
@@ -56,9 +54,6 @@ const TOUR_STEPS = [
     title: 'Get Evacuation Guidance',
     subtitle: 'Step-by-Step Safety Routes',
     content: 'When a threat is active, tap "Get Evacuation Guidance" for a safe route. Medium alerts show lighter "Monitor & Prepare" guidance, while High and Critical alerts give urgent step-by-step routing away from danger.',
-    target: (isMobile) => isMobile
-      ? '[data-tour="evacuation-trigger-mobile"]'
-      : '[data-tour="evacuation-trigger-desktop"]',
     icon: Navigation,
     accent: 'from-red-500 to-orange-600',
   },
@@ -66,36 +61,59 @@ const TOUR_STEPS = [
     id: 'dashboard',
     title: 'Threat Intelligence Dashboard',
     subtitle: 'See the Bigger Picture',
-    content: 'Open the Dashboard for an overall view of active threats, zone rankings by risk, and drill down into any zone’s full history and trends.',
-    target: (isMobile) => isMobile
-      ? '[data-tour="dashboard-trigger-mobile"]'
-      : '[data-tour="dashboard-trigger"]',
+    content: 'Open the Dashboard for an overall view of active threats, zone rankings by risk, and drill down into any zone\u2019s full history and trends.',
     icon: Activity,
     accent: 'from-teal-500 to-cyan-600',
   },
   {
     id: 'notifications',
-    title: 'Stay Alerted, Even When You’re Not Looking',
+    title: 'Stay Alerted, Even When You\u2019re Not Looking',
     subtitle: 'Enable Push Notifications',
-    content: 'Turn on notifications to get alerted the moment a new disruption is detected — no need to keep the app open.',
-    target: '[data-tour="notifications-trigger"]',
+    content: 'Turn on notifications to get alerted the moment a new disruption is detected \u2014 no need to keep the app open.',
     icon: Bell,
     accent: 'from-amber-500 to-orange-600',
   },
   {
     id: 'closing',
-    title: 'You’re All Set!',
+    title: 'You\u2019re All Set!',
     subtitle: 'Real-Time Intelligence at Your Fingertips',
     content: 'Explore live flood maps, AI-powered recovery forecasts, and automated risk warnings across Jabodetabek. You can replay this guide anytime from the Guide button.',
-    target: null,
     icon: CheckCircle2,
     accent: 'from-emerald-500 to-teal-600',
   },
 ];
 
-export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, isMobile = false, theme = 'light' }) {
+/**
+ * FirstTimeTour
+ * ───────────────────────────────────────────────────────────────────────────
+ * Two modes, controlled by `isStartupSequence`:
+ *
+ * 1. STARTUP MODE (isStartupSequence=true) — replaces the old loading-bar
+ *    screen entirely. Shown on every app launch while real data loads in
+ *    the background. No X/close button — the only way through is the
+ *    "Launch App" button, which stays visible on every slide but is
+ *    disabled (greyed out) until `isReady` becomes true. A small status
+ *    indicator next to it shows live/loading state. Illustrations are
+ *    static stylized mockups (TourIllustrations.jsx), NOT live DOM
+ *    highlights, since the real app may still be loading behind this.
+ *
+ * 2. REPLAY MODE (isStartupSequence=false, default) — the original
+ *    "Guide" button behavior for revisiting the tour after the app has
+ *    already loaded. Has an X to close, doesn't gate on readiness.
+ * ───────────────────────────────────────────────────────────────────────────
+ */
+export default function FirstTimeTour({
+  isOpen,
+  onClose,
+  onComplete,
+  isStartupSequence = false,
+  isReady = true,
+  dbStatus,
+  isFallback,
+  isMobile = false,
+  theme = 'light',
+}) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [targetRect, setTargetRect] = useState(null);
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
   const [slideDirection, setSlideDirection] = useState('left');
@@ -106,48 +124,7 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
   const step = steps[currentStep] || steps[0];
   const isLastStep = currentStep === steps.length - 1;
   const StepIcon = step.icon;
-
-  // step.target can be a fixed CSS selector string, OR a function of
-  // (isMobile) => selector, for steps that highlight different elements
-  // depending on which layout is currently active (e.g. the evacuation
-  // button lives in a different place on mobile vs desktop).
-  const resolvedTarget = typeof step.target === 'function'
-    ? step.target(isMobile)
-    : step.target;
-
-  // Track position of highlighted target element
-  useEffect(() => {
-    if (!isOpen || !resolvedTarget) {
-      setTargetRect(null);
-      return;
-    }
-
-    const updateRect = () => {
-      const el = document.querySelector(resolvedTarget);
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        // Only set rect if element is actually visible on screen
-        if (rect.width > 0 && rect.height > 0) {
-          setTargetRect({
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height,
-          });
-          return;
-        }
-      }
-      setTargetRect(null);
-    };
-
-    updateRect();
-    window.addEventListener('resize', updateRect);
-    window.addEventListener('scroll', updateRect, true);
-    return () => {
-      window.removeEventListener('resize', updateRect);
-      window.removeEventListener('scroll', updateRect, true);
-    };
-  }, [isOpen, currentStep, resolvedTarget, isMobile]);
+  const Illustration = ILLUSTRATIONS[step.id];
 
   if (!isOpen) return null;
 
@@ -158,7 +135,13 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
 
   const handleNext = () => {
     if (isLastStep) {
-      handleComplete();
+      if (isStartupSequence) {
+        if (isReady) onComplete?.();
+        // if not ready, Next on the last slide does nothing — the Launch
+        // button below is the only path forward, and it's disabled
+      } else {
+        handleReplayComplete();
+      }
     } else {
       goToStep(currentStep + 1, 'left');
     }
@@ -175,12 +158,13 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
     goToStep(idx, idx > currentStep ? 'left' : 'right');
   };
 
-  const handleComplete = () => {
-    // Session-based, not lifetime — clears when the browser tab/app is
-    // fully closed, so the tour naturally reappears on the next visit
-    // unless the user has enabled "Always show tour" in Settings.
-    sessionStorage.setItem('hasSeenTourThisSession', 'true');
-    onClose();
+  const handleReplayComplete = () => {
+    onClose?.();
+  };
+
+  const handleLaunch = () => {
+    if (!isReady) return;
+    onComplete?.();
   };
 
   // Touch Swipe Gesture Handlers for Mobile
@@ -205,13 +189,10 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
     const distanceY = touchStart.y - touchEnd.y;
     const minSwipeDistance = 40;
 
-    // Check if horizontal drag distance exceeds threshold and is greater than vertical drag
     if (Math.abs(distanceX) > Math.abs(distanceY) && Math.abs(distanceX) > minSwipeDistance) {
       if (distanceX > 0) {
-        // Swiped Left -> Advance to Next
         handleNext();
       } else {
-        // Swiped Right -> Return to Previous
         handlePrev();
       }
     }
@@ -219,28 +200,15 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
     setTouchEnd(null);
   };
 
-  // Drag offset for interactive gesture tracking
   const dragOffsetX = touchStart && touchEnd ? (touchEnd.x - touchStart.x) * 0.35 : 0;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-3 sm:p-6 pointer-events-auto select-none">
-      {/* Semi-transparent Backdrop (keeping map and UI crisp and readable underneath) */}
-      <div className={`absolute inset-0 transition-opacity duration-300 ${isLight ? 'bg-slate-900/20' : 'bg-slate-950/40'}`}></div>
-
-      {/* Target Spotlight Highlight Ring with subtle backdrop glow */}
-      {targetRect && (
-        <div
-          className={`absolute rounded-xl border-2 transition-all duration-300 pointer-events-none animate-pulse ${isLight
-            ? 'border-indigo-600 shadow-[0_0_20px_rgba(79,70,229,0.4)]'
-            : 'border-indigo-400 shadow-[0_0_25px_rgba(99,102,241,0.6)]'
-            }`}
-          style={{
-            top: `${Math.max(6, targetRect.top - 4)}px`,
-            left: `${Math.max(6, targetRect.left - 4)}px`,
-            width: `${targetRect.width + 8}px`,
-            height: `${targetRect.height + 8}px`,
-          }}
-        />
+    <div className={`fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-3 sm:p-6 pointer-events-auto select-none ${isStartupSequence ? (isLight ? 'bg-slate-50' : 'bg-brand-dark') : ''}`}>
+      {/* Backdrop — only semi-transparent in replay mode (so the real app
+          shows through slightly); in startup mode it's a solid background
+          since there's nothing meaningful behind it yet */}
+      {!isStartupSequence && (
+        <div className={`absolute inset-0 transition-opacity duration-300 ${isLight ? 'bg-slate-900/20' : 'bg-slate-950/40'}`}></div>
       )}
 
       {/* Responsive Tour Card Box with Swipe Gesture Support */}
@@ -258,7 +226,7 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
         <div className={`h-2.5 w-full bg-gradient-to-r ${step.accent} transition-all duration-500`} />
 
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
-          {/* Header row: Badge, Steps indicator, & Close */}
+          {/* Header row: Badge, Steps indicator, & Close (replay mode only) */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border flex items-center gap-1.5 ${isLight
@@ -290,19 +258,28 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
               </div>
             </div>
 
-            <button
-              onClick={handleComplete}
-              className={`p-1.5 rounded-lg transition-colors ${isLight
-                ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                }`}
-              title="Skip Tour"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {!isStartupSequence && (
+              <button
+                onClick={handleReplayComplete}
+                className={`p-1.5 rounded-lg transition-colors ${isLight
+                  ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
 
-          {/* Inner Content Section - Only this text/icon area slides */}
+          {/* Illustration */}
+          {Illustration && (
+            <div className={`rounded-xl overflow-hidden border ${isLight ? 'border-slate-200' : 'border-slate-800'}`} style={{ aspectRatio: '320 / 180' }}>
+              <Illustration isLight={isLight} />
+            </div>
+          )}
+
+          {/* Inner Content Section - text/icon area slides */}
           <div className="overflow-hidden py-1">
             <div
               key={step.id}
@@ -350,18 +327,35 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
             </p>
           </div>
 
-
           {/* Footer Controls */}
-          <div className={`flex items-center justify-between pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-            <button
-              onClick={handleComplete}
-              className={`text-xs font-semibold uppercase tracking-wider transition-colors ${isLight ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
-                }`}
-            >
-              Skip Tour
-            </button>
+          <div className={`flex items-center justify-between pt-3 border-t gap-3 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+            {isStartupSequence ? (
+              <div className="flex items-center gap-1.5 min-w-0">
+                {isReady ? (
+                  <>
+                    <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />
+                    <span className={`text-[10px] font-bold uppercase tracking-wide ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>Ready</span>
+                  </>
+                ) : (
+                  <>
+                    <Loader2 className={`w-3.5 h-3.5 shrink-0 animate-spin ${isLight ? 'text-indigo-500' : 'text-indigo-400'}`} />
+                    <span className={`text-[10px] font-semibold truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Preparing live data\u2026
+                    </span>
+                  </>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={handleReplayComplete}
+                className={`text-xs font-semibold uppercase tracking-wider transition-colors ${isLight ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+              >
+                Skip Tour
+              </button>
+            )}
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 shrink-0">
               {currentStep > 0 && (
                 <button
                   onClick={handlePrev}
@@ -375,13 +369,42 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
                 </button>
               )}
 
-              <button
-                onClick={handleNext}
-                className={`px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r ${step.accent} hover:opacity-90 transition-opacity shadow-lg flex items-center space-x-1`}
-              >
-                <span>{isLastStep ? 'Start Exploring' : 'Next'}</span>
-                {!isLastStep && <ChevronRight className="w-4 h-4" />}
-              </button>
+              {!isLastStep && (
+                <button
+                  onClick={handleNext}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r ${step.accent} hover:opacity-90 transition-opacity shadow-lg flex items-center space-x-1`}
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              )}
+
+              {/* Launch/Complete button — always visible in startup mode
+                  (on every slide, per design), disabled until isReady.
+                  In replay mode, only shown as the final "Got it" step. */}
+              {isStartupSequence ? (
+                <button
+                  onClick={handleLaunch}
+                  disabled={!isReady}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center space-x-1 ${
+                    isReady
+                      ? `text-white bg-gradient-to-r ${step.accent} hover:opacity-90 cursor-pointer`
+                      : `cursor-not-allowed ${isLight ? 'bg-slate-200 text-slate-400' : 'bg-slate-800 text-slate-600'}`
+                  }`}
+                >
+                  <span>Launch App</span>
+                  {isReady && <ChevronRight className="w-4 h-4" />}
+                </button>
+              ) : (
+                isLastStep && (
+                  <button
+                    onClick={handleReplayComplete}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r ${step.accent} hover:opacity-90 transition-opacity shadow-lg flex items-center space-x-1`}
+                  >
+                    <span>Got It</span>
+                  </button>
+                )
+              )}
             </div>
           </div>
 
