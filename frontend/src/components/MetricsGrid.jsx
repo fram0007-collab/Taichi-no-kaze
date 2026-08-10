@@ -12,7 +12,7 @@ export default function MetricsGrid({ predictions = [] }) {
     : 0;
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+    <div data-tour="helicopter-banner" className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
       {/* Card 1: Critical Risks */}
       <div className="glass-panel rounded-xl p-4 flex items-center space-x-4">
         <div className={`p-3 rounded-lg ${criticalCount > 0 ? 'bg-red-500/10 text-risk-critical animate-pulse' : 'bg-slate-500/10 text-slate-400'}`}>

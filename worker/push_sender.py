@@ -71,26 +71,17 @@ def _matches_preferences(alert: dict, prefs: dict) -> bool:
     if not prefs:
         return True  # no preferences = receive everything
 
-    # Respect explicit opt-out — but treat missing/null enabled as opted IN
-    # (many subscriptions saved with enabled=false before the UI fixed this)
-    enabled = prefs.get("enabled")
-    if enabled is False:
+    # Severity filter
+    min_severity = (prefs.get("min_severity") or "MEDIUM").upper()
+    severity_rank = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+    alert_rank = severity_rank.get((alert.get("severity") or "MEDIUM").upper(), 1)
+    min_rank = severity_rank.get(min_severity, 1)
+    if alert_rank < min_rank:
         return False
 
     # Disruption type filter
-    types = prefs.get("types") or {}
-    dtype = (alert.get("disruption_type") or "").lower()
-    # Map flood/waterway aliases
-    if dtype in ("flood", "river"):
-        dtype = "waterway"
-    if types and not types.get(dtype, True):
-        return False
-
-    # Severity filter (optional min_severity field)
-    severity_rank = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
-    min_severity = (prefs.get("min_severity") or "MEDIUM").upper()
-    alert_rank = severity_rank.get((alert.get("severity") or "MEDIUM").upper(), 1)
-    if alert_rank < severity_rank.get(min_severity, 1):
+    allowed_types = prefs.get("disruption_types")
+    if allowed_types and alert.get("disruption_type") not in allowed_types:
         return False
 
     return True

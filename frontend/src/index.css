@@ -113,6 +113,37 @@ body,
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Tour Card Slide Animations */
+@keyframes tourSlideLeft {
+  from {
+    opacity: 0.3;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tourSlideRight {
+  from {
+    opacity: 0.3;
+    transform: translateX(-28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-tour-slide-left {
+  animation: tourSlideLeft 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-tour-slide-right {
+  animation: tourSlideRight 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Premium Light Mode Overrides */
 .light-mode {
   background-color: #F8FAFC !important;
@@ -153,24 +184,50 @@ body,
 }
 
 .light-mode .text-slate-400 {
-  color: #64748B !important;
+  color: #475569 !important;
 }
 
 .light-mode .border-slate-800,
 .light-mode .border-slate-900,
-.light-mode .border-slate-800\/80 {
+.light-mode .border-slate-800\/80,
+.light-mode .border-slate-700 {
   border-color: #E2E8F0 !important;
 }
 
 .light-mode .bg-slate-900,
-.light-mode .bg-slate-950,
-.light-mode .bg-slate-900\/30,
-.light-mode .bg-slate-900\/40,
-.light-mode .bg-slate-900\/50,
-.light-mode .bg-slate-950\/40,
-.light-mode .bg-slate-950\/60 {
+.light-mode .bg-slate-950 {
   background-color: #F1F5F9 !important;
   color: #1E293B !important;
+}
+
+.light-mode .bg-slate-800 {
+  background-color: #F1F5F9 !important;
+  color: #1E293B !important;
+}
+
+/* Ensure buttons with solid accent backgrounds preserve white text in Light Mode */
+.light-mode .bg-indigo-600,
+.light-mode .bg-indigo-500,
+.light-mode .bg-indigo-700,
+.light-mode .bg-indigo-600 *,
+.light-mode .bg-indigo-500 *,
+.light-mode .bg-indigo-700 *,
+.light-mode button.bg-indigo-600,
+.light-mode button.bg-indigo-500 {
+  color: #FFFFFF !important;
+}
+
+/* High contrast color overrides for Light Mode indicators & telemetry labels */
+.light-mode .text-indigo-400 {
+  color: #4F46E5 !important;
+}
+
+.light-mode .text-emerald-400 {
+  color: #059669 !important;
+}
+
+.light-mode .text-amber-400 {
+  color: #D97706 !important;
 }
 
 /* Light mode for Leaflet overlays */
