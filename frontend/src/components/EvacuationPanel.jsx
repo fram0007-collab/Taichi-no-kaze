@@ -18,8 +18,8 @@ import {
   X, Phone, Navigation, ChevronDown, ChevronUp,
   AlertTriangle, MapPin, Loader2, ShieldCheck
 } from 'lucide-react';
+import { getApiUrl } from '../utils/getApiUrl';
 import { ResolutionBadgeExpanded } from './ResolutionBadge';
-import { MlRiskBadgeExpanded } from './MlRiskBadge';
 import { MlResolutionBadgeExpanded } from './MlResolutionBadge';
 
 // ── i18n-ready content block ────────────────────────────────────────────────
@@ -189,38 +189,55 @@ export default function EvacuationPanel({
   onClose,               // () => void
   onRequestLocation,     // () => void — triggers the location prompt in App
   activePrediction = null, // the primary active prediction (for resolution data)
+  allZones = [], // live zone_status data — current scores, NOT the stale alert-time snapshot
+  zoneIsNearby = true, // false when no active threat is near the user's actual location
 }) {
   const [phase, setPhase] = useState('idle'); // idle | routing | done | error
   const [routeInfo, setRouteInfo] = useState(null);  // { destination, distanceKm, durationMin, steps }
   const [errorMsg, setErrorMsg] = useState('');
   const [expandedGuide, setExpandedGuide] = useState(null);
+  const [selectedCrowdPoi, setSelectedCrowdPoi] = useState(null);
+  const [globalPois, setGlobalPois] = useState([]);
   const [expandedHotlines, setExpandedHotlines] = useState(false);
 
   // Derive the primary disruption type from the zone actually being viewed —
   // NOT predictions[0], which is an unrelated list that doesn't track what
   // the user selected (this previously caused guidance to always show
   // whichever disruption type happened to sort first in that list).
-  const primaryDisruption = (activePrediction?.disruption_type ?? predictions?.[0]?.disruption_type ?? 'traffic').toLowerCase();
-  const guide = CONTENT.guides[primaryDisruption] ?? CONTENT.guides.traffic;
-  const hotlines = [
-    ...COMMON_EMERGENCY_HOTLINES,
-    ...(CONTENT.hotlines[primaryDisruption] ?? CONTENT.hotlines.traffic),
-  ];
-
-  // A single zone can have MULTIPLE simultaneous OPEN alerts of different
-  // disruption types (worker/engine.py maintains one OPEN alert per zone
-  // PER disruption type — e.g. a zone can be both flooding and crowd-surging
-  // at once). Show one guidance accordion per distinct type actually active
-  // at this zone, ordered by severity, instead of only ever showing one.
+  // Compute all alerts for this zone first, sorted by severity descending.
+  // This lets primaryDisruption be determined by the HIGHEST severity threat
+  // rather than whichever alert happened to be tapped — so safe zone logic
+  // always reflects the most critical condition in the zone.
   const currentZoneId = activePrediction?.zone?.zone_id ?? activePrediction?.zone?.id ?? null;
   const zoneAlerts = currentZoneId != null
     ? (predictions ?? []).filter(p => String(p?.zone?.zone_id ?? p?.zone?.id) === String(currentZoneId))
     : (activePrediction ? [activePrediction] : []);
 
-  const SEVERITY_RANK = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+  const SEVERITY_RANK = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
   const sortedZoneAlerts = [...zoneAlerts].sort(
     (a, b) => (SEVERITY_RANK[b.severity?.toUpperCase()] ?? 0) - (SEVERITY_RANK[a.severity?.toUpperCase()] ?? 0)
   );
+
+  // Primary disruption = highest severity active threat in this zone.
+  // Falls back to activePrediction (tapped alert) if zone has no other alerts.
+  const highestAlert = sortedZoneAlerts[0] ?? activePrediction;
+  const primaryDisruption = (highestAlert?.disruption_type ?? 'traffic').toLowerCase();
+
+  // For crowd disruption: fetch ALL POIs to let user pick any quieter spot
+  // (not just hospitals — any POI with lower crowd score than the alert score)
+  useEffect(() => {
+    if (primaryDisruption !== 'crowd') return;
+    fetch(`${getApiUrl()}/pois`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setGlobalPois(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [primaryDisruption]);
+
+  const guide = CONTENT.guides[primaryDisruption] ?? CONTENT.guides.traffic;
+  const hotlines = [
+    ...COMMON_EMERGENCY_HOTLINES,
+    ...(CONTENT.hotlines[primaryDisruption] ?? CONTENT.hotlines.traffic),
+  ];
 
   const seenTypes = new Set();
   const zoneGuidances = [];
@@ -249,7 +266,7 @@ export default function EvacuationPanel({
     : null;
 
   // ── Route calculation ──────────────────────────────────────────────────────
-  const calculateRoute = useCallback(async () => {
+  const calculateRoute = useCallback(async (forcedDestination = null) => {
     if (!userLocation) {
       onRequestLocation?.();
       return;
@@ -264,6 +281,14 @@ export default function EvacuationPanel({
     setErrorMsg('');
 
     try {
+      // Normalise lat/lon field names from either pois (/api/pois → lat/lon)
+      // or safe-zones (/api/safe-zones → latitude/longitude)
+      const dest = forcedDestination
+        ? (forcedDestination.latitude
+            ? forcedDestination
+            : { ...forcedDestination, latitude: forcedDestination.lat, longitude: forcedDestination.lon })
+        : null;
+
       // 1. Find the nearest safe POI that is NOT inside a threat zone
       const threatCircles = (activeThreatZones ?? []).map(z => ({
         lat: z.lat, lon: z.lon, radiusKm: (z.radius_m ?? 1000) / 1000,
@@ -288,7 +313,7 @@ export default function EvacuationPanel({
         return;
       }
 
-      const destination = candidates[0];
+      const destination = dest ?? candidates[0];
 
       // 2. Build avoid areas from threat zones (max 10 for TomTom free tier)
       const avoidAreas = (activeThreatZones ?? [])
@@ -298,8 +323,8 @@ export default function EvacuationPanel({
       // 3. Call TomTom Routing API
       // avoidAreas is only supported via POST body — not as a GET query param.
       const origin = `${userLocation.lat},${userLocation.lon}`;
-      const dest   = `${destination.latitude},${destination.longitude}`;
-      const url = `https://api.tomtom.com/routing/1/calculateRoute/${origin}:${dest}/json` +
+      const coordStr = `${destination.latitude},${destination.longitude}`;
+      const url = `https://api.tomtom.com/routing/1/calculateRoute/${origin}:${coordStr}/json` +
         `?key=${tomtomApiKey}` +
         `&travelMode=pedestrian` +
         `&instructionsType=text` +
@@ -399,6 +424,20 @@ export default function EvacuationPanel({
 
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-3 p-4">
 
+        {/* Medium severity heads-up — sticky so it stays visible when scrolling to route */}
+        {(() => {
+          const sev = (
+            highestAlert?.severity ??
+            activePrediction?.severity ??
+            activePrediction?.risk_level ?? ''
+          ).toUpperCase();
+          return sev === 'MEDIUM';
+        })() && (
+          <div className="pb-1">
+            <MediumSeverityBanner disruption={primaryDisruption} />
+          </div>
+        )}
+
         {/* Resolution prediction */}
         {activePrediction?.estimated_resolution_at && (
           <ResolutionBadgeExpanded
@@ -413,32 +452,139 @@ export default function EvacuationPanel({
           <MlResolutionBadgeExpanded alertId={activePrediction.id} />
         )}
 
-        {/* ML early-warning prediction */}
-        {(activePrediction?.zone?.zone_id ?? activePrediction?.zone?.id) && (
-          <MlRiskBadgeExpanded zoneId={activePrediction.zone?.zone_id ?? activePrediction.zone?.id} />
+
+          {/* Multiple threats notice */}
+        {sortedZoneAlerts.length > 1 && (
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2">
+            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+              ⚠️ This zone has <strong>{sortedZoneAlerts.length} active threats</strong>:{' '}
+              {sortedZoneAlerts.map(a => a.disruption_type).join(', ')}.{' '}
+              Safe zone guidance below applies to the <strong>{primaryDisruption}</strong> threat.
+            </p>
+          </div>
+        )}
+
+        {/* No nearby threat notice — shown when the user's location doesn't
+             correspond to any active alert zone, so we don't silently show
+             guidance for an unrelated distant zone as if it were relevant */}
+        {!zoneIsNearby && (
+          <div className="rounded-lg border border-emerald-300 dark:border-emerald-700/50 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2.5 flex items-start gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+            <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+              <strong>No active threat detected near your current location.</strong>{' '}
+              The zone shown below (<strong>{zoneNameLabel}</strong>) is the nearest active alert in the system,
+              but it may be far from where you are. This guidance is shown for reference only.
+            </p>
+          </div>
         )}
 
         {/* Route section */}
-        <div className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">
-          <div className="px-4 pt-4 pb-3 border-b border-slate-700">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 overflow-hidden">
+          <div className="px-4 pt-4 pb-3 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-2 mb-1">
               <Navigation className="w-4 h-4 text-indigo-400" />
-              <span className="font-bold text-sm text-slate-100">Nearest Safe Location</span>
+              <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                {primaryDisruption === 'crowd'
+                  ? 'Find a Less Crowded Area'
+                  : primaryDisruption === 'traffic'
+                  ? 'Alternate Route'
+                  : 'Nearest Safe Location'}
+              </span>
             </div>
-            <p className="text-xs text-slate-400">
-              Route avoids all active threat zones. Walking directions.
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              {primaryDisruption === 'crowd'
+                ? 'Showing nearby places currently less crowded than this area.'
+                : primaryDisruption === 'traffic'
+                ? 'Shows an alternate route away from congestion.'
+                : 'Route avoids all active threat zones. Walking directions.'}
             </p>
           </div>
 
           <div className="p-4">
             {phase === 'idle' && (
-              <button
-                onClick={calculateRoute}
-                className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
-              >
-                <Navigation className="w-4 h-4" />
-                Get Evacuation Route
-              </button>
+              primaryDisruption === 'crowd' && safePois && safePois.length > 0 ? (
+                /* Crowd: show POI list — user picks destination before routing */
+                <div className="space-y-2">
+                  <p className="text-[10px] text-slate-600 dark:text-slate-500 font-semibold uppercase tracking-wide mb-2">
+                    Choose a destination
+                  </p>
+                  {(() => {
+                    // Use the LIVE zone_status.crowd_score, not the alert's
+                    // probability_percentage — that field is a snapshot taken
+                    // when the alert first fired and does not update afterward.
+                    // A zone can still show 78% from 2 hours ago even if the
+                    // crowd has since dispersed to 30%.
+                    const zoneId = activePrediction?.zone?.zone_id ?? activePrediction?.zone?.id;
+                    const liveZone = allZones.find(z => String(z.zone_id) === String(zoneId));
+                    const threshold = liveZone?.crowd_score ?? activePrediction?.probability_percentage ?? 55;
+                    const zoneLat = activePrediction?.zone?.latitude;
+                    const zoneLon = activePrediction?.zone?.longitude;
+                    const zoneRadius = ((activePrediction?.zone?.radius_m ?? 1000) + 1000) / 1000;
+                    const poiSource = globalPois.length > 0
+                      ? globalPois.filter(p => {
+                          const score = parseFloat(p.crowd_score || 0);
+                          if (score >= threshold) return false;
+                          if (zoneLat && zoneLon) {
+                            const d = haversineKm(zoneLat, zoneLon, p.lat ?? p.latitude, p.lon ?? p.longitude);
+                            return d <= zoneRadius;
+                          }
+                          return true;
+                        }).sort((a, b) => (a.crowd_score || 0) - (b.crowd_score || 0))
+                      : safePois;
+                    return poiSource.slice(0, 8).map((poi, idx) => {
+                    // normalise lat/lon field names (pois endpoint uses lat/lon, safe-zones uses latitude/longitude)
+                    const lat = poi.latitude ?? poi.lat;
+                    const lon = poi.longitude ?? poi.lon;
+                    const distKm = userLocation
+                      ? haversineKm(userLocation.lat, userLocation.lon, lat, lon).toFixed(1)
+                      : null;
+                    const crowdPct = poi.crowd_score ? Math.round(poi.crowd_score) : null;
+                    const crowdColor = !crowdPct ? 'text-slate-500' :
+                      crowdPct >= 65 ? 'text-red-500' :
+                      crowdPct >= 35 ? 'text-amber-500' : 'text-emerald-500';
+                    return (
+                      <div key={idx}
+                        className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">{poi.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] text-slate-500 capitalize">{poi.category}</span>
+                            {distKm && <span className="text-[10px] text-slate-500">· {distKm} km</span>}
+                            {crowdPct != null && (
+                              <span className={`text-[10px] font-semibold ${crowdColor}`}>
+                                · 👥 {crowdPct}%
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedCrowdPoi(poi);
+                            calculateRoute(poi);
+                          }}
+                          className="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1"
+                        >
+                          <Navigation className="w-3 h-3" />
+                          Route
+                        </button>
+                      </div>
+                    );
+                  });
+                  })()}
+                </div>
+              ) : (
+                <button
+                  onClick={() => calculateRoute()}
+                  className={`w-full py-3 rounded-xl active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                    primaryDisruption === 'traffic'
+                      ? 'bg-slate-600 hover:bg-slate-500'
+                      : 'bg-indigo-600 hover:bg-indigo-500'
+                  }`}
+                >
+                  <Navigation className="w-4 h-4" />
+                  {primaryDisruption === 'traffic' ? 'Show Alternate Route' : 'Get Evacuation Route'}
+                </button>
+              )
             )}
 
             {phase === 'routing' && (
@@ -469,12 +615,12 @@ export default function EvacuationPanel({
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <ShieldCheck className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
                   <div className="min-w-0">
-                    <p className="font-bold text-emerald-400 text-sm truncate">{routeInfo.destination.name}</p>
-                    <p className="text-xs text-slate-400 capitalize">{routeInfo.destination.category?.replace('_', ' ')}</p>
+                    <p className="font-bold text-emerald-500 text-sm truncate">{routeInfo.destination.name}</p>
+                    <p className="text-xs text-slate-500 capitalize">{routeInfo.destination.category?.replace('_', ' ')}</p>
                   </div>
                   <div className="ml-auto text-right shrink-0">
                     <p className="font-bold text-white text-sm">{routeInfo.distanceKm} km</p>
-                    <p className="text-xs text-slate-400">~{routeInfo.durationMin} min walk</p>
+                    <p className="text-xs text-slate-500">~{routeInfo.durationMin} min walk</p>
                   </div>
                 </div>
 
@@ -509,7 +655,7 @@ export default function EvacuationPanel({
 
                 {/* Recalculate */}
                 <button
-                  onClick={calculateRoute}
+                  onClick={() => calculateRoute()}
                   className="w-full py-2 rounded-xl border border-slate-600 text-slate-400 text-xs font-semibold hover:bg-slate-700 transition-colors"
                 >
                   Recalculate Route
@@ -521,7 +667,7 @@ export default function EvacuationPanel({
 
         {/* Step-by-step guide(s) — one per active disruption type at this zone */}
         {zoneGuidances.length > 1 && (
-          <p className="px-4 text-[11px] font-semibold text-amber-400 uppercase tracking-wide">
+          <p className="px-4 text-[11px] font-semibold text-amber-500 uppercase tracking-wide">
             This zone has {zoneGuidances.length} active disruption types
           </p>
         )}
@@ -533,23 +679,91 @@ export default function EvacuationPanel({
   );
 }
 
+// ── Medium severity banner ───────────────────────────────────────────────────
+
+const MEDIUM_ADVICE = {
+  traffic: {
+    icon: '🚗',
+    headline: 'Traffic is heavy but manageable',
+    body: 'You do not need to evacuate. Consider delaying your trip, using public transport (MRT / TransJakarta), or waiting 30–60 minutes for congestion to ease. Monitor conditions and leave early if it worsens.',
+  },
+  crowd: {
+    icon: '👥',
+    headline: 'Area is getting crowded',
+    body: 'No need to leave urgently. Avoid the densest spots, stay aware of your surroundings, and move to a quieter nearby area if you feel uncomfortable. Check back — crowd levels can change quickly.',
+  },
+  weather: {
+    icon: '⛈️',
+    headline: 'Weather risk is building',
+    body: 'Conditions are concerning but not yet severe. Move indoors if possible, avoid flooded roads and underpasses, and keep an eye on BMKG updates. Be ready to move to higher ground if rainfall intensifies.',
+  },
+  waterway: {
+    icon: '🌊',
+    headline: 'River levels are rising',
+    body: 'No immediate evacuation needed yet. Stay away from riverbanks and low-lying areas. If you are near the river, start preparing an emergency bag. Act immediately if the level reaches Siaga 2.',
+  },
+  earthquake: {
+    icon: '🌍',
+    headline: 'Tremor detected in the area',
+    body: 'Stay calm. Move away from windows and heavy objects. If inside, take cover under a sturdy table. Check BMKG for aftershock advisories before resuming normal activity.',
+  },
+};
+
+function MediumSeverityBanner({ disruption }) {
+  const [expanded, setExpanded] = useState(false);
+  const advice = MEDIUM_ADVICE[disruption] ?? MEDIUM_ADVICE.weather;
+
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-500/8 overflow-hidden">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-start gap-3 px-4 py-3 text-left"
+      >
+        <span className="text-lg shrink-0 mt-0.5">{advice.icon}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-0.5">
+            Medium alert — monitor & prepare
+          </p>
+          <p className="text-sm font-semibold !text-slate-800 dark:!text-slate-100">
+            {advice.headline}
+          </p>
+        </div>
+        <span className="text-amber-500 text-xs mt-1 shrink-0">
+          {expanded ? '▲' : '▼'}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 pt-0">
+          <p className="text-sm !text-slate-700 dark:!text-slate-300 leading-relaxed">
+            {advice.body}
+          </p>
+          <p className="mt-2 text-[11px] !text-amber-600 dark:!text-amber-500 font-medium">
+            Evacuation routes and safe areas below are available as a precaution — you do not need to use them unless conditions worsen.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function PanelHeader({ title, subtitle, onClose }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0">
+    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-lg">🚨</span>
         <div className="min-w-0">
           <span className="font-bold text-slate-100 text-sm block">{title}</span>
           {subtitle && (
-            <span className="text-[11px] text-slate-400 truncate block">{subtitle}</span>
+            <span className="text-[11px] text-slate-600 dark:text-slate-400 truncate block">{subtitle}</span>
           )}
         </div>
       </div>
       <button
         onClick={onClose}
-        className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0"
+        className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:text-slate-200 transition-colors shrink-0"
       >
         <X className="w-4 h-4" />
       </button>
@@ -564,27 +778,27 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
   return (
     <div className="space-y-3 p-4 pt-0">
       {/* Step-by-step guide */}
-      <div className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 overflow-hidden">
         <button
           onClick={() => setGuideOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/50 transition-colors"
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
         >
           <div className="flex items-center gap-2">
             <span className="text-base">{guide.icon}</span>
-            <span className="font-bold text-sm text-slate-100">{guide.title}</span>
+            <span className="font-bold text-sm text-slate-950 dark:text-slate-100">{guide.title}</span>
           </div>
           {guideOpen
             ? <ChevronUp className="w-4 h-4 text-slate-400" />
             : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </button>
         {guideOpen && (
-          <div className="px-4 pb-4 space-y-2.5 border-t border-slate-700 pt-3">
+          <div className="px-4 pb-4 space-y-2.5 border-t border-slate-200 dark:border-slate-700 pt-3">
             {guide.steps.map((step, i) => (
               <div key={i} className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 text-[10px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">
                   {i + 1}
                 </span>
-                <p className="text-xs text-slate-300 leading-relaxed">{step}</p>
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{step}</p>
               </div>
             ))}
           </div>
@@ -592,14 +806,14 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
       </div>
 
       {/* Emergency hotlines */}
-      <div className="rounded-xl border border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-slate-800/60 overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 overflow-hidden">
         <button
           onClick={() => setHotlinesOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/50 transition-colors"
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
         >
           <div className="flex items-center gap-2">
             <Phone className="w-4 h-4 text-emerald-400" />
-            <span className="font-bold text-sm text-slate-100">Emergency Contacts</span>
+            <span className="font-bold text-sm text-slate-950 dark:text-slate-100">Emergency Contacts</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
               {hotlines.length}
             </span>
@@ -609,7 +823,7 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
             : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </button>
         {hotlinesOpen && (
-          <div className="border-t border-slate-700 divide-y divide-slate-700/60">
+          <div className="border-t border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700/60">
             {hotlines.map((h, i) => (
               <div key={i} className="flex items-center justify-between px-4 py-3 gap-3">
                 <div className="min-w-0">

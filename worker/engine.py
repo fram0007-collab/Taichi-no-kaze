@@ -51,7 +51,8 @@ except ImportError:
         def send_push_for_alert(alert, db_conn): return 0
 
 EARTH_RADIUS_KM = 6371.0
-SEVERITY_HIGH   = 65.0
+SEVERITY_HIGH     = 65.0
+SEVERITY_CRITICAL = 82.0   # Genuinely exceptional — matches crowd HIGH threshold
 SEVERITY_MEDIUM = 35.0
 ALERT_MIN_PROB  = 30.0
 
@@ -403,7 +404,8 @@ def compute_earthquake_score(zone_lat, zone_lon, recent_quakes) -> float:
 
 # ── Severity & Actions ────────────────────────────────────────────────────────
 def score_to_severity(score: float) -> str:
-    if score >= SEVERITY_HIGH:   return "HIGH"
+    if score >= SEVERITY_CRITICAL: return "CRITICAL"
+    if score >= SEVERITY_HIGH:     return "HIGH"
     elif score >= SEVERITY_MEDIUM: return "MEDIUM"
     return "LOW"
 
@@ -986,7 +988,12 @@ class PredictiveDisruptionEngine:
                         RiskAlert.disruption_type == dim_name,
                     ).update({"status": "CLOSED", "resolved_at": now}, synchronize_session=False)
                     continue
-                dim_severity = "HIGH" if dim_score >= high_thresh else "MEDIUM"
+                if dim_score >= SEVERITY_CRITICAL:
+                    dim_severity = "CRITICAL"
+                elif dim_score >= high_thresh:
+                    dim_severity = "HIGH"
+                else:
+                    dim_severity = "MEDIUM"
                 dim_action   = build_recommended_action(dim_name, dim_severity)
                 # Upsert: find ANY existing OPEN alert for this zone+disruption type
                 # (no time window — one OPEN alert per zone per disruption type at all times)

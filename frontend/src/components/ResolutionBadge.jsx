@@ -49,7 +49,7 @@ function formatRelativeWIB(isoString) {
       minute: '2-digit',
       hour12: false,
     });
-    return sameDay ? `${time} WIB` : `Tomorrow ${time} WIB`;
+    return sameDay ? `${time} Jakarta time` : `Tomorrow ${time} Jakarta time`;
   } catch {
     return formatWIB(isoString);
   }
@@ -59,9 +59,9 @@ function formatRelativeWIB(isoString) {
  * Confidence colour — green >75, amber 50-75, red <50.
  */
 function confColor(pct) {
-  if (pct >= 75) return { text: 'text-emerald-400', bar: 'bg-emerald-400' };
-  if (pct >= 50) return { text: 'text-amber-400',   bar: 'bg-amber-400'   };
-  return            { text: 'text-red-400',    bar: 'bg-red-400'    };
+  if (pct >= 75) return { text: 'text-emerald-600 dark:text-emerald-400', bar: 'bg-emerald-400' };
+  if (pct >= 50) return { text: 'text-amber-600 dark:text-amber-400',   bar: 'bg-amber-400'   };
+  return            { text: 'text-red-600 dark:text-red-400',    bar: 'bg-red-400'    };
 }
 
 /**
@@ -77,18 +77,18 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
   const remainingLabel = formatRemainingTimeLabel(estimated_resolution_at);
 
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-slate-700 dark:text-slate-200">
+    <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-800 dark:text-slate-200">
       <span>🕐</span>
       <span>
-        Est. clear{' '}
+        <span className="text-slate-800 dark:text-slate-200">Est. clear</span>{' '}
         <span className={`font-bold ${text}`}>
-          {uncertain ? 'Estimate uncertain' : time}
+          {uncertain ? 'Clear time uncertain' : time}
         </span>
-        {remainingLabel && <span className="ml-1">· {remainingLabel}</span>}
+        {remainingLabel && <span className="ml-1 text-slate-700 dark:text-slate-300">· {remainingLabel}</span>}
         {uncertain ? (
-          <span className="ml-1 text-slate-600 dark:text-slate-300">(confidence &lt;60%)</span>
+          <span className="ml-1 text-slate-700 dark:text-slate-300">(confidence below 60%)</span>
         ) : (
-          <span className="ml-1 text-slate-600 dark:text-slate-300">({conf}% confidence)</span>
+          <span className="ml-1 text-slate-700 dark:text-slate-300">({conf}% confidence)</span>
         )}
       </span>
     </div>
@@ -116,11 +116,11 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
   }[disruption_type?.toLowerCase()] ?? 'Based on current data and historical patterns.';
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-3 space-y-2">
+    <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <span className="text-base">🕐</span>
         <div>
-          <p className="text-[10px] text-slate-300 font-semibold uppercase tracking-wide">
+          <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold uppercase tracking-wide">
             Estimated Resolution
           </p>
           <p className={`font-bold text-sm ${text}`}>
@@ -137,23 +137,23 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
       {/* Confidence bar */}
       <div>
         <div className="flex items-center justify-between text-[10px] mb-1">
-          <span className="text-slate-300">Prediction confidence</span>
+          <span className="text-slate-700 dark:text-slate-300">Prediction reliability</span>
           <span className={`font-bold ${text}`}>{conf}%</span>
         </div>
-        <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
+        <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full ${bar} transition-all duration-700`}
             style={{ width: `${conf}%` }}
           />
         </div>
         {conf < 60 && (
-          <p className="text-[9px] text-slate-300 mt-1 italic">
-            Confidence below 60% — specific timestamp suppressed to avoid false precision.
+          <p className="text-[9px] text-slate-700 dark:text-slate-300 mt-1 italic">
+            Prediction reliability is low — we have hidden the specific time to avoid giving a misleading estimate.
           </p>
         )}
       </div>
 
-      <p className="text-[10px] text-slate-300 leading-relaxed">{disclaimer}</p>
+      <p className="text-[10px] text-slate-700 dark:text-slate-300 leading-relaxed">{disclaimer}</p>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ResolutionBadgeCompact } from './ResolutionBadge';
-import { MlRiskBadgeExpanded } from './MlRiskBadge';
 import { MlResolutionBadgeCompact } from './MlResolutionBadge';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
@@ -150,10 +149,6 @@ export default function BottomSheet({
             </div>
           )}
 
-          {/* ML early-warning prediction — same component used in the desktop Sidebar/EvacuationPanel */}
-          {(selectedPrediction.zone?.zone_id ?? selectedPrediction.zone?.id) && (
-            <MlRiskBadgeExpanded zoneId={selectedPrediction.zone?.zone_id ?? selectedPrediction.zone?.id} />
-          )}
 
           {/* Dynamic Infrastructure POI Section */}
           <div className="space-y-3 pt-2 border-t border-slate-800/40">

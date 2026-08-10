@@ -9,8 +9,7 @@ import AdminDashboard from './components/AdminDashboard';
 import { ResolutionBadgeCompact } from './components/ResolutionBadge';
 import { MlRiskBadgeCompact } from './components/MlRiskBadge';
 import { MlResolutionBadgeCompact } from './components/MlResolutionBadge';
-import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity, BookOpen } from 'lucide-react';
-import FirstTimeTour from './components/FirstTimeTour';
+import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity } from 'lucide-react';
 import { getApiUrl } from './utils/getApiUrl';
 import Dashboard from './components/Dashboard';
 import NotificationPreferences from './components/NotificationPreferences';
@@ -98,13 +97,21 @@ export default function App() {
   // Fetch safe POIs when disruptions are active in user radius
   useEffect(() => {
     if (!showEvacuation) return;
-    const dtype = predictions?.[0]?.disruption_type ?? '';
-    const qs = dtype ? `?disruption_types=${dtype}` : '';
+    // Use the selected prediction's disruption type, not just predictions[0]
+    const dtype = selectedPrediction?.disruption_type ?? predictions?.[0]?.disruption_type ?? '';
+    const params = new URLSearchParams();
+    if (dtype) params.set('disruption_types', dtype);
+    // For crowd disruptions, pass the alert score as the crowd threshold
+    // so we surface POIs that are genuinely quieter than the affected zone
+    if (dtype === 'crowd' && selectedPrediction?.probability_percentage) {
+      params.set('crowd_score_threshold', String(selectedPrediction.probability_percentage));
+    }
+    const qs = params.toString() ? `?${params.toString()}` : '';
     fetch(`${API_URL}/safe-zones${qs}`)
       .then(r => r.json())
       .then(d => setSafePois(Array.isArray(d) ? d : (d.safe_zones ?? [])))
       .catch(() => setSafePois([]));
-  }, [showEvacuation, predictions, API_URL]);
+  }, [showEvacuation, predictions, selectedPrediction, API_URL]);
   const [nearMeRadius, setNearMeRadius] = useState(5); // in km (default 5km)
 
   // Derived state: predictions filtered by spatial proximity if nearMeFilterActive is true
@@ -208,13 +215,13 @@ export default function App() {
     return window.location.pathname === '/admin' ? 'admin' : 'map';
   });
 
-  // First time tour state — opens automatically if user hasn't completed tour
-  const [showTour, setShowTour] = useState(() => {
-    return localStorage.getItem('hasSeenTour') !== 'true';
-  });
+  // Animated Loading Screen states and logic
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [dbStatus, setDbStatus] = useState("connecting");
   const [dbLatency, setDbLatency] = useState(0);
   const [realDbEmpty, setRealDbEmpty] = useState(true);
+  const [allowFallbackBypass, setAllowFallbackBypass] = useState(false);
 
   // Trigger automatic bypass of loading screen after 30 seconds max if database is still unseeded
   useEffect(() => {
@@ -249,6 +256,35 @@ export default function App() {
       setRealDbEmpty(isFallback);
     }
   }, [loading, predictions, isFallback]);
+
+  // Complete progress bar immediately and fade out loading screen once loading finishes
+  useEffect(() => {
+    if (!loading && showLoadingScreen) {
+      // Dismiss loading screen when backend is reachable OR after 30s timeout
+      if (!isFallback || allowFallbackBypass || dbStatus === 'healthy') {
+        setLoadingProgress(100);
+        const delay = setTimeout(() => {
+          setShowLoadingScreen(false);
+        }, 500);
+        return () => clearTimeout(delay);
+      }
+    }
+  }, [loading, isFallback, allowFallbackBypass, showLoadingScreen]);
+
+  // Increment progress organically while loading is active
+  useEffect(() => {
+    if (!showLoadingScreen) return;
+    const interval = setInterval(() => {
+      setLoadingProgress(prev => {
+        // Hold progress at 85% if database is still empty (waiting for background worker)
+        if (realDbEmpty && prev >= 85) return 85;
+        if (prev >= 98) return 98; // Hold just before completion
+        return prev + Math.random() * 6;
+      });
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [showLoadingScreen, realDbEmpty]);
   
   // Listen for browser history back/forward events
   useEffect(() => {
@@ -298,6 +334,12 @@ export default function App() {
   const [dismissedAutoEvacuationKeys, setDismissedAutoEvacuationKeys] = useState(() => new Set());
   const [activeAutoEvacuationKey, setActiveAutoEvacuationKey] = useState(null);
   const [evacuationTargetPrediction, setEvacuationTargetPrediction] = useState(null);
+  // A zone is considered "far" from the user if it's more than this many km
+  // away and they're not inside its geofence — beyond this, showing it as
+  // the default evacuation target would be actively misleading.
+  const FAR_ZONE_THRESHOLD_KM = 15;
+  const [evacuationZoneIsNearby, setEvacuationZoneIsNearby] = useState(true);
+  const [evacuationWasAutoSelected, setEvacuationWasAutoSelected] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -574,7 +616,7 @@ export default function App() {
           const subscription = await subscribeToPush(
             import.meta.env.VITE_VAPID_PUBLIC_KEY || '',
             API_URL,
-            notificationPreferences,
+            { ...notificationPreferences, enabled: true },
           );
           setPushSubscriptionActive(Boolean(subscription));
           setPushStatus('active');
@@ -613,11 +655,97 @@ export default function App() {
   };
 
   const openEvacuationPanel = (prediction = null) => {
-    const targetPrediction = prediction ?? filteredPredictions?.[0] ?? null;
+    let targetPrediction = prediction;
+    let isNearby = true; // assume nearby unless we compute otherwise below
+
+    // If no specific prediction was tapped (e.g. opened from a generic
+    // "Get Evacuation Guidance" entry point) and the user has location
+    // enabled, find the alert whose zone the user is ACTUALLY inside or
+    // nearest to — rather than defaulting to filteredPredictions[0], which
+    // is sorted by severity/time and can point to a completely unrelated
+    // zone the user isn't anywhere near. This prevents showing guidance
+    // for a threat in a different part of Jabodetabek than where the user is.
+    if (!targetPrediction && userLocation && filteredPredictions?.length > 0) {
+      const withDistance = filteredPredictions
+        .map(p => {
+          const zLat = p.zone?.latitude;
+          const zLon = p.zone?.longitude;
+          if (zLat == null || zLon == null) return null;
+          const distanceKm = calculateDistanceKm(userLocation.lat, userLocation.lon, zLat, zLon);
+          const radiusKm = (p.zone?.radius_m ?? 1000) / 1000;
+          return { prediction: p, distanceKm, insideZone: distanceKm <= radiusKm };
+        })
+        .filter(Boolean);
+
+      // Prefer a zone the user is literally inside; otherwise nearest zone.
+      const inside = withDistance.filter(w => w.insideZone);
+      const pool = inside.length > 0 ? inside : withDistance;
+      pool.sort((a, b) => a.distanceKm - b.distanceKm);
+
+      const best = pool[0];
+      targetPrediction = best?.prediction ?? filteredPredictions[0] ?? null;
+      // Nearby = user is inside the zone OR within the "far" threshold of it.
+      // If there's truly no nearby threat, this will be false and the panel
+      // shows an explicit "no threat near you" notice instead of silently
+      // presenting an unrelated distant zone as if it were relevant.
+      isNearby = best ? (best.insideZone || best.distanceKm <= FAR_ZONE_THRESHOLD_KM) : false;
+    } else if (!targetPrediction) {
+      targetPrediction = filteredPredictions?.[0] ?? null;
+      isNearby = !userLocation; // no location = can't judge, don't show a false warning
+    } else if (userLocation && targetPrediction?.zone?.latitude != null) {
+      // A specific prediction WAS passed (e.g. user tapped a zone directly) —
+      // still compute nearby-ness so a manually-selected distant zone can
+      // also get the "just for reference" framing if relevant.
+      const d = calculateDistanceKm(
+        userLocation.lat, userLocation.lon,
+        targetPrediction.zone.latitude, targetPrediction.zone.longitude
+      );
+      const r = (targetPrediction.zone.radius_m ?? 1000) / 1000;
+      isNearby = d <= r || d <= FAR_ZONE_THRESHOLD_KM;
+    }
+
     setActiveAutoEvacuationKey(getPredictionKey(targetPrediction));
     setEvacuationTargetPrediction(targetPrediction);
+    setEvacuationZoneIsNearby(isNearby);
+    // Track whether this pick was auto-selected (no specific zone tapped) —
+    // used below to know if we should re-run nearest-zone logic once
+    // userLocation becomes available (e.g. permission was granted AFTER
+    // the button was first tapped, so this initial pick used no location).
+    setEvacuationWasAutoSelected(!prediction);
     setShowEvacuation(true);
   };
+
+  // Re-run nearest-zone selection once userLocation becomes available,
+  // if the panel is already open AND the current target was auto-picked
+  // without location data (i.e. user tapped the button, THEN granted
+  // location permission — the initial pick shouldn't be the final answer).
+  useEffect(() => {
+    if (!showEvacuation || !evacuationWasAutoSelected || !userLocation) return;
+    if (!filteredPredictions?.length) return;
+
+    const withDistance = filteredPredictions
+      .map(p => {
+        const zLat = p.zone?.latitude;
+        const zLon = p.zone?.longitude;
+        if (zLat == null || zLon == null) return null;
+        const distanceKm = calculateDistanceKm(userLocation.lat, userLocation.lon, zLat, zLon);
+        const radiusKm = (p.zone?.radius_m ?? 1000) / 1000;
+        return { prediction: p, distanceKm, insideZone: distanceKm <= radiusKm };
+      })
+      .filter(Boolean);
+
+    const inside = withDistance.filter(w => w.insideZone);
+    const pool = inside.length > 0 ? inside : withDistance;
+    pool.sort((a, b) => a.distanceKm - b.distanceKm);
+    const best = pool[0];
+    if (!best) return;
+
+    setEvacuationTargetPrediction(best.prediction);
+    setActiveAutoEvacuationKey(getPredictionKey(best.prediction));
+    setEvacuationZoneIsNearby(best.insideZone || best.distanceKm <= FAR_ZONE_THRESHOLD_KM);
+    setEvacuationWasAutoSelected(false); // done — don't keep recalculating on every location ping
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLocation, showEvacuation, evacuationWasAutoSelected]);
 
   // Keep the evacuation panel following the currently selected zone WHILE
   // it's open. Without this, selecting a different zone/card after already
@@ -767,6 +895,99 @@ export default function App() {
     fetchTimeline(prediction.zone.id, selectedHours);
   };
 
+  if (showLoadingScreen) {
+    return (
+      <div className={`flex flex-col items-center justify-center h-screen w-screen font-sans ${theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-brand-dark text-slate-100'}`}>
+        <div className="flex flex-col items-center max-w-md px-6 text-center space-y-6">
+          
+          {/* Animated Pulsing Rotating Shield */}
+          <div className="relative flex items-center justify-center">
+            <div className="absolute w-24 h-24 rounded-full bg-indigo-500/10 border border-indigo-500/20 shadow-glow animate-pulse"></div>
+            <div className="p-5 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-glow-orange animate-pulse">
+              <Shield className="w-12 h-12" />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <h1 className="text-xl md:text-2xl font-extrabold tracking-wide uppercase bg-gradient-to-r from-slate-100 via-indigo-200 to-indigo-400 bg-clip-text text-transparent">
+              DIS-RUPTURE
+            </h1>
+            <p className="text-[10px] text-slate-400 font-semibold tracking-widest uppercase">
+              Early Warning Command Center
+            </p>
+          </div>
+          
+          {/* Progress Bar Container */}
+          <div className="w-80 space-y-3">
+            <div className="w-full bg-slate-800/80 border border-slate-700/40 h-2.5 rounded-full overflow-hidden shadow-inner">
+              <div 
+                className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-300 rounded-full"
+                style={{ width: `${loadingProgress}%` }}
+              ></div>
+            </div>
+            
+            {/* Dynamic Status Steps */}
+            <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider h-4 animate-pulse">
+              {loadingProgress < 25 && "Initializing command deck and secure systems..."}
+              {loadingProgress >= 25 && loadingProgress < 50 && "Establishing secure Neon PostgreSQL link..."}
+              {loadingProgress >= 50 && loadingProgress < 75 && "Polling live TomTom flow & Open-Meteo forecasts..."}
+              {loadingProgress >= 75 && loadingProgress < 85 && "Clustering POIs and caching Jabodetabek warning zones..."}
+              {loadingProgress >= 85 && realDbEmpty && "Worker executing initial analytics cycle (Waiting for DB seed)..."}
+              {loadingProgress >= 85 && !realDbEmpty && loadingProgress < 100 && "Zoning complete. Building map geofences..."}
+              {loadingProgress >= 100 && "System calibrated. Booting dashboard..."}
+            </p>
+          </div>
+
+          {/* Diagnostic Console Card */}
+          <div className="w-80 p-4 rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-sm text-left text-xs space-y-2">
+            <div className="flex justify-between border-b border-slate-800 pb-1.5 mb-1.5 font-bold uppercase tracking-wider text-slate-400 text-[10px]">
+              <span>System Calibration Feed</span>
+              <span className="text-indigo-400 animate-pulse">Live</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Neon Database:</span>
+              <span className={`font-semibold ${
+                dbStatus === 'healthy' ? 'text-emerald-400' :
+                dbStatus === 'connecting' ? 'text-amber-400 animate-pulse' : 'text-rose-400'
+              }`}>
+                {dbStatus === 'healthy' ? `CONNECTED (${dbLatency}ms)` :
+                 dbStatus === 'connecting' ? 'CONNECTING...' : 'OFFLINE'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Analytics Worker:</span>
+              <span className={`font-semibold ${
+                realDbEmpty ? 'text-amber-400 animate-pulse' : 'text-emerald-400'
+              }`}>
+                {realDbEmpty ? 'ANALYZING THREAT CYCLES...' : 'CALIBRATED & ACTIVE'}
+              </span>
+            </div>
+            {realDbEmpty && (
+              <div className="text-[10px] text-slate-500 border-t border-slate-800/60 pt-1.5 mt-1.5 italic text-center">
+                Initial ingestion sweeps take roughly 15-25 seconds to compile.
+              </div>
+            )}
+          </div>
+
+          {/* Manual Bypass Action */}
+          {realDbEmpty && (
+            <button
+              onClick={() => setShowLoadingScreen(false)}
+              className="px-4 py-2 rounded-lg bg-slate-800/80 border border-slate-700/60 text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 transition-all text-xs font-bold active:scale-[0.98]"
+            >
+              Skip & Launch Sandbox Mode (Simulated Data)
+            </button>
+          )}
+
+          <p className="text-[9px] text-slate-500 font-semibold tracking-wider uppercase pt-2">
+            Securing Greater Metropolitan Geofences
+          </p>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex flex-col h-screen h-[100dvh] w-screen overflow-hidden font-sans ${theme === 'light' ? 'light-mode' : 'bg-brand-dark text-slate-100'}`}>
       
@@ -810,15 +1031,6 @@ export default function App() {
                 ) : (
                   <Sun className="w-4 h-4 text-amber-400" />
                 )}
-              </button>
-
-              <button
-                onClick={() => setShowTour(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-all text-xs font-semibold"
-                title="Replay First Time Tour"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Guide</span>
               </button>
 
               <button
@@ -975,13 +1187,31 @@ export default function App() {
               {/* Evacuation guidance trigger */}
               {filteredPredictions.length > 0 && !showEvacuation && (
                 <div className="px-3 py-2 shrink-0">
-                  <button
-                    onClick={() => openEvacuationPanel(selectedPrediction || filteredPredictions[0])}
-                    className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
-                  >
-                    <span>🚨</span>
-                    Get Evacuation Guidance
-                  </button>
+                  {(() => {
+                    const _p = selectedPrediction || filteredPredictions[0];
+                    const _sev = _p?.severity?.toUpperCase();
+                    const _isMed = _sev === 'MEDIUM';
+                    return (
+                      <button
+                        onClick={() => openEvacuationPanel(selectedPrediction || null)}
+                        className={`w-full py-3 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                          _isMed
+                            ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-900/20'
+                            : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/30'
+                        }`}
+                      >
+                        <span>{_isMed ? '⚠️' : '🚨'}</span>
+                        <span className="flex flex-col items-center">
+                          {_isMed ? 'Monitor & Prepare' : 'Get Evacuation Guidance'}
+                          {_isMed && (
+                            <span className="text-[10px] font-normal opacity-80">
+                              Conditions developing — tap for guidance
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1003,6 +1233,8 @@ export default function App() {
                     onClose={closeEvacuationPanel}
                     onRequestLocation={locateUser}
                     activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
+              zoneIsNearby={evacuationZoneIsNearby}
+                    allZones={allZones}
                   />
                 </div>
               )}
@@ -1022,15 +1254,31 @@ export default function App() {
               </div>
 
               {/* Evacuation button — mobile feed tab */}
-              {filteredPredictions.length > 0 && !showEvacuation && (
-                <button
-                  onClick={() => { openEvacuationPanel(selectedPrediction || filteredPredictions[0]); setMobileTab('feed'); }}
-                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
-                >
-                  <span>🚨</span>
-                  Get Evacuation Guidance
-                </button>
-              )}
+              {filteredPredictions.length > 0 && !showEvacuation && (() => {
+                const _p = selectedPrediction || filteredPredictions[0];
+                const _sev = _p?.severity?.toUpperCase();
+                const _isMed = _sev === 'MEDIUM';
+                return (
+                  <button
+                    onClick={() => { openEvacuationPanel(selectedPrediction || null); setMobileTab('feed'); }}
+                    className={`w-full py-3 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                      _isMed
+                        ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-900/20'
+                        : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/30'
+                    }`}
+                  >
+                    <span>{_isMed ? '⚠️' : '🚨'}</span>
+                    <span className="flex flex-col items-center">
+                      {_isMed ? 'Monitor & Prepare' : 'Get Evacuation Guidance'}
+                      {_isMed && (
+                        <span className="text-[10px] font-normal opacity-80">
+                          Conditions developing — tap for guidance
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })()}
 
               {/* Evacuation panel — mobile */}
               {showEvacuation && (
@@ -1050,6 +1298,8 @@ export default function App() {
                     onClose={closeEvacuationPanel}
                     onRequestLocation={locateUser}
                     activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
+              zoneIsNearby={evacuationZoneIsNearby}
+                    allZones={allZones}
                   />
                 </div>
               )}
@@ -1163,21 +1413,21 @@ export default function App() {
           )}
 
           {mobileTab === 'settings' && (
-            <div className={`overflow-y-auto p-5 space-y-6 scrollbar-thin ${theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-brand-dark text-slate-100'}`} style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}>
-              <div className={`flex items-center space-x-2 pb-2 border-b ${theme === 'light' ? 'border-slate-200' : 'border-slate-800'}`}>
-                <Settings className={`w-5 h-5 ${theme === 'light' ? 'text-indigo-600' : 'text-indigo-400'}`} />
-                <h2 className={`text-base font-bold ${theme === 'light' ? 'text-slate-900' : 'text-slate-200'}`}>Mobile Command Center</h2>
+            <div className="overflow-y-auto p-5 space-y-6 bg-brand-dark text-slate-100 scrollbar-thin" style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}>
+              <div className="flex items-center space-x-2 pb-2 border-b border-slate-800">
+                <Settings className="w-5 h-5 text-indigo-400" />
+                <h2 className="text-base font-bold text-slate-200">Mobile Command Center</h2>
               </div>
 
               {/* Theme Toggle Selection Block */}
-              <div className={`rounded-xl p-4 space-y-3 border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/40 border-slate-800/80'}`}>
-                <h3 className={`text-xs uppercase font-extrabold tracking-wider ${theme === 'light' ? 'text-slate-700' : 'text-slate-400'}`}>User Interface Theme</h3>
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
+                <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400">User Interface Theme</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <button 
                     onClick={() => setTheme('light')}
                     className={`flex items-center justify-center space-x-2 py-2.5 rounded-lg border text-xs font-semibold transition-all ${
                       theme === 'light' 
-                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold shadow-sm' 
+                        ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400' 
                         : 'border-slate-800 bg-slate-900/60 text-slate-400'
                     }`}
                   >
@@ -1189,9 +1439,7 @@ export default function App() {
                     className={`flex items-center justify-center space-x-2 py-2.5 rounded-lg border text-xs font-semibold transition-all ${
                       theme === 'dark' 
                         ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400' 
-                        : theme === 'light'
-                          ? 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          : 'border-slate-800 bg-slate-900/60 text-slate-400'
+                        : 'border-slate-800 bg-slate-900/60 text-slate-400'
                     }`}
                   >
                     <Moon className="w-4 h-4" />
@@ -1224,13 +1472,13 @@ export default function App() {
               />
 
               {/* Waterway Buffer Configuration (Mobile settings block) */}
-              <div className={`rounded-xl p-4 space-y-4 border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/40 border-slate-800/80'}`}>
-                <h3 className={`text-xs uppercase font-extrabold tracking-wider ${theme === 'light' ? 'text-slate-700' : 'text-slate-400'}`}>Waterway Buffer Overlay</h3>
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-4">
+                <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400">Waterway Buffer Overlay</h3>
                 
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
-                    <span className={`font-semibold ${theme === 'light' ? 'text-slate-700' : 'text-slate-400'}`}>Flood Trigger Threshold</span>
-                    <span className={`font-bold font-mono ${theme === 'light' ? 'text-indigo-600' : 'text-indigo-400'}`}>{waterwayThreshold}%</span>
+                    <span className="text-slate-400 font-semibold">Flood Trigger Threshold</span>
+                    <span className="text-indigo-400 font-bold font-mono">{waterwayThreshold}%</span>
                   </div>
                   <input
                     type="range"
@@ -1238,15 +1486,15 @@ export default function App() {
                     max="95"
                     value={waterwayThreshold}
                     onChange={(e) => setWaterwayThreshold(Number(e.target.value))}
-                    className={`w-full h-1.5 rounded-lg accent-indigo-600 cursor-pointer ${theme === 'light' ? 'bg-slate-200' : 'bg-slate-950'}`}
+                    className="w-full h-1.5 rounded-lg bg-slate-950 accent-indigo-500 cursor-pointer"
                   />
-                  <p className={`text-[10px] ${theme === 'light' ? 'text-slate-600' : 'text-slate-500'}`}>Show danger buffers for waterways at or above this volume capacity.</p>
+                  <p className="text-[10px] text-slate-500">Show danger buffers for waterways at or above this volume capacity.</p>
                 </div>
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
-                    <span className={`font-semibold ${theme === 'light' ? 'text-slate-700' : 'text-slate-400'}`}>Danger Buffer Range</span>
-                    <span className={`font-bold font-mono ${theme === 'light' ? 'text-indigo-600' : 'text-indigo-400'}`}>{waterwayBuffer}m</span>
+                    <span className="text-slate-400 font-semibold">Danger Buffer Range</span>
+                    <span className="text-indigo-400 font-bold font-mono">{waterwayBuffer}m</span>
                   </div>
                   <input
                     type="range"
@@ -1254,18 +1502,18 @@ export default function App() {
                     max="300"
                     value={waterwayBuffer}
                     onChange={(e) => setWaterwayBuffer(Number(e.target.value))}
-                    className={`w-full h-1.5 rounded-lg accent-indigo-600 cursor-pointer ${theme === 'light' ? 'bg-slate-200' : 'bg-slate-950'}`}
+                    className="w-full h-1.5 rounded-lg bg-slate-950 accent-indigo-500 cursor-pointer"
                   />
-                  <p className={`text-[10px] ${theme === 'light' ? 'text-slate-600' : 'text-slate-500'}`}>The surrounding physical distance at threat when the river overflows.</p>
+                  <p className="text-[10px] text-slate-500">The surrounding physical distance at threat when the river overflows.</p>
                 </div>
               </div>
 
               {/* Telemetry Operations Block */}
-              <div className={`rounded-xl p-4 space-y-3 border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/40 border-slate-800/80'}`}>
-                <h3 className={`text-xs uppercase font-extrabold tracking-wider ${theme === 'light' ? 'text-slate-700' : 'text-slate-400'}`}>Telemetry Data Operations</h3>
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
+                <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400">Telemetry Data Operations</h3>
                 <button 
                   onClick={handlePollTelemetry}
-                  className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all active:scale-[0.98] shadow-sm"
+                  className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-slate-100 text-xs font-bold transition-all active:scale-[0.98]"
                 >
                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                   <span>Poll Live Telemetry Feeds</span>
@@ -1275,34 +1523,30 @@ export default function App() {
                 <button
                   onClick={() => { locateUser(); setMobileTab('map'); }}
                   disabled={locating}
-                  className={`w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg border text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 ${
-                    theme === 'light'
-                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800'
-                      : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-100'
-                  }`}
+                  className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50"
                 >
                   <Locate className={`w-4 h-4 ${locating ? 'animate-spin' : ''}`} />
                   <span>{locating ? 'Locating…' : 'Use My Location'}</span>
                 </button>
                 {locationError && (
-                  <p className="text-xs text-red-500 text-center font-medium">{locationError}</p>
+                  <p className="text-xs text-red-400 text-center">{locationError}</p>
                 )}
               </div>
               
               {/* System Status Metrics */}
-              <div className={`rounded-xl p-4 space-y-2 text-xs border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/40 border-slate-800/80'}`}>
-                <h3 className={`text-xs uppercase font-extrabold tracking-wider mb-3 ${theme === 'light' ? 'text-slate-700' : 'text-slate-400'}`}>System Diagnostics</h3>
-                <div className={`flex justify-between py-1 border-b ${theme === 'light' ? 'border-slate-100' : 'border-slate-800/40'}`}>
-                  <span className={theme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'}>Database Status:</span>
-                  <span className={`font-semibold ${theme === 'light' ? 'text-emerald-700' : 'text-emerald-400'}`}>Connected</span>
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-2 text-xs">
+                <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400 mb-3">System Diagnostics</h3>
+                <div className="flex justify-between py-1 border-b border-slate-800/40">
+                  <span className="text-slate-400">Database Status:</span>
+                  <span className="font-semibold text-emerald-400">Connected</span>
                 </div>
-                <div className={`flex justify-between py-1 border-b ${theme === 'light' ? 'border-slate-100' : 'border-slate-800/40'}`}>
-                  <span className={theme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'}>Zoning Engine:</span>
-                  <span className={`font-semibold ${theme === 'light' ? 'text-indigo-700' : 'text-indigo-400'}`}>Active</span>
+                <div className="flex justify-between py-1 border-b border-slate-800/40">
+                  <span className="text-slate-400">Zoning Engine:</span>
+                  <span className="font-semibold text-indigo-400">Active</span>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span className={theme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'}>Simulated Feeds:</span>
-                  <span className={isFallback ? (theme === 'light' ? 'font-semibold text-amber-700' : 'font-semibold text-amber-400') : (theme === 'light' ? 'font-semibold text-emerald-700' : 'font-semibold text-emerald-400')}>
+                  <span className="text-slate-400">Simulated Feeds:</span>
+                  <span className={isFallback ? 'font-semibold text-amber-400' : 'font-semibold text-emerald-400'}>
                     {isFallback ? 'Active' : 'Offline (Prod mode)'}
                   </span>
                 </div>
@@ -1412,7 +1656,6 @@ export default function App() {
           {/* Right panel: Timeline feeds, historical charts & trend lines */}
           <div className="flex w-[30%] min-w-[360px] h-full shrink-0">
             <Sidebar 
-              theme={theme}
               predictions={filteredPredictions}
               selectedPrediction={selectedPrediction}
               onSelectPrediction={handleSelectZone}
@@ -1427,7 +1670,7 @@ export default function App() {
               nearMeRadius={nearMeRadius}
               onClearNearMeFilter={() => setNearMeFilterActive(false)}
               allZones={allZones}
-              onGetEvacuation={() => openEvacuationPanel(selectedPrediction || filteredPredictions[0])}
+              onGetEvacuation={() => openEvacuationPanel(selectedPrediction || null)}
               showEvacuationPanel={showEvacuation}
               evacuationPanelNode={
                 <EvacuationPanel
@@ -1445,6 +1688,8 @@ export default function App() {
                   onClose={closeEvacuationPanel}
                   onRequestLocation={locateUser}
                   activePrediction={evacuationTargetPrediction ?? selectedPrediction ?? filteredPredictions[0] ?? null}
+              zoneIsNearby={evacuationZoneIsNearby}
+              allZones={allZones}
                 />
               }
             />
@@ -1549,16 +1794,6 @@ export default function App() {
         isOpen={showDashboard}
         onClose={() => setShowDashboard(false)}
         allZones={allZones}
-      />
-
-      {/* First Time Visit Tour Modal */}
-      <FirstTimeTour
-        isOpen={showTour}
-        onClose={() => setShowTour(false)}
-        dbStatus={dbStatus}
-        isFallback={isFallback}
-        isMobile={isMobile}
-        theme={theme}
       />
     </div>
   );
