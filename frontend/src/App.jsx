@@ -220,10 +220,29 @@ export default function App() {
   const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [dbStatus, setDbStatus] = useState("connecting");
-  // First time tour state — opens automatically if user hasn't completed tour
-  const [showTour, setShowTour] = useState(() => {
-    return localStorage.getItem('hasSeenTour') !== 'true';
+  // First time tour state.
+  // - "alwaysShowTour" is a persistent user preference (Settings toggle) —
+  //   when true, the tour shows on every app launch regardless of history.
+  // - Otherwise, the tour shows once per browser SESSION (sessionStorage,
+  //   cleared when the tab/app is fully closed) rather than once per
+  //   lifetime (localStorage), so returning users see it again next visit
+  //   without needing to keep toggling a setting.
+  const [alwaysShowTour, setAlwaysShowTour] = useState(() => {
+    return localStorage.getItem('alwaysShowTour') === 'true';
   });
+  const [showTour, setShowTour] = useState(() => {
+    const always = localStorage.getItem('alwaysShowTour') === 'true';
+    if (always) return true;
+    return sessionStorage.getItem('hasSeenTourThisSession') !== 'true';
+  });
+
+  const handleToggleAlwaysShowTour = () => {
+    setAlwaysShowTour(prev => {
+      const next = !prev;
+      localStorage.setItem('alwaysShowTour', next ? 'true' : 'false');
+      return next;
+    });
+  };
   const [dbLatency, setDbLatency] = useState(0);
   const [realDbEmpty, setRealDbEmpty] = useState(true);
   const [allowFallbackBypass, setAllowFallbackBypass] = useState(false);
@@ -1458,6 +1477,35 @@ export default function App() {
                   >
                     <Moon className="w-4 h-4" />
                     <span>Dark Mode</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Starter Guide Preference */}
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
+                <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400">Starter Guide</h3>
+                <div className="flex items-center justify-between">
+                  <div className="pr-3">
+                    <p className="text-sm font-semibold text-slate-200">Show guide every time I open the app</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {alwaysShowTour
+                        ? 'The guide will appear every time you launch the app.'
+                        : 'The guide appears once per visit (until you close the app), or tap "Guide" anytime to replay it.'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleToggleAlwaysShowTour}
+                    role="switch"
+                    aria-checked={alwaysShowTour}
+                    className={`shrink-0 relative w-11 h-6 rounded-full transition-colors ${
+                      alwaysShowTour ? 'bg-indigo-500' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                        alwaysShowTour ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
                   </button>
                 </div>
               </div>

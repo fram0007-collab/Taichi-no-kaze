@@ -127,7 +127,10 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
   };
 
   const handleComplete = () => {
-    localStorage.setItem('hasSeenTour', 'true');
+    // Session-based, not lifetime — clears when the browser tab/app is
+    // fully closed, so the tour naturally reappears on the next visit
+    // unless the user has enabled "Always show tour" in Settings.
+    sessionStorage.setItem('hasSeenTourThisSession', 'true');
     onClose();
   };
 
