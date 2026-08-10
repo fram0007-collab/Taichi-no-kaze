@@ -17,10 +17,10 @@ import { useMlPrediction } from '../hooks/useMlPrediction';
  */
 
 const SEVERITY_STYLE = {
-  HIGH:   { text: 'text-red-600 dark:text-red-400',    bar: 'bg-red-400',    border: 'border-red-500/20',    bg: 'bg-red-500/5' },
-  MEDIUM: { text: 'text-amber-600 dark:text-amber-400',  bar: 'bg-amber-400',  border: 'border-amber-500/20',  bg: 'bg-amber-500/5' },
-  LOW:    { text: 'text-slate-500 dark:text-slate-400',  bar: 'bg-slate-500',  border: 'border-slate-300 dark:border-slate-700',     bg: 'bg-slate-100/80 dark:bg-slate-900/40' },
-  NONE:   { text: 'text-slate-600 dark:text-slate-400',  bar: 'bg-slate-600',  border: 'border-slate-800',     bg: 'bg-slate-100/80 dark:bg-slate-900/40' },
+  HIGH:   { text: 'text-red-400',    bar: 'bg-red-400',    border: 'border-red-500/20',    bg: 'bg-red-500/5' },
+  MEDIUM: { text: 'text-amber-400',  bar: 'bg-amber-400',  border: 'border-amber-500/20',  bg: 'bg-amber-500/5' },
+  LOW:    { text: 'text-slate-400',  bar: 'bg-slate-500',  border: 'border-slate-700',     bg: 'bg-slate-900/40' },
+  NONE:   { text: 'text-slate-500',  bar: 'bg-slate-600',  border: 'border-slate-800',     bg: 'bg-slate-900/40' },
 };
 
 // Below this, don't bother showing the badge — not worth the visual noise.
@@ -36,11 +36,12 @@ export function MlRiskBadgeCompact({ zoneId }) {
   const pct = Math.round(prediction.probability_high * 100);
 
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-slate-800 dark:text-slate-200">
+    <div className={`flex items-center gap-1.5 text-[10px] ${style.text}`}>
       <span>🤖</span>
       <span>
-        <span className="font-semibold">Worsening risk:</span>{' '}
-        <span className={`font-semibold ${style.text}`}>{pct}% chance in the next {prediction.horizon_hours} hours</span>
+        Early warning:{' '}
+        <span className="font-bold">{pct}% chance of escalation</span>
+        <span className="opacity-70 ml-1">(next {prediction.horizon_hours}h)</span>
       </span>
     </div>
   );
@@ -54,7 +55,7 @@ export function MlRiskBadgeExpanded({ zoneId }) {
   const { prediction, loading, unavailable } = useMlPrediction(zoneId);
 
   if (loading) {
-    return <p className="text-[10px] text-slate-600 italic">Loading risk outlook…</p>;
+    return <p className="text-[10px] text-slate-600 italic">Loading ML early-warning signal…</p>;
   }
   if (unavailable || !prediction) return null;
 
@@ -65,8 +66,8 @@ export function MlRiskBadgeExpanded({ zoneId }) {
       <div className="flex items-center gap-2">
         <span className="text-base">🤖</span>
         <div>
-          <p className="text-[10px] text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wide">
-            Risk Outlook — next {prediction.horizon_hours}h
+          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
+            ML Early Warning — next {prediction.horizon_hours}h
           </p>
           <p className={`font-bold text-sm ${style.text}`}>
             Predicted: {prediction.predicted_severity}
@@ -77,20 +78,21 @@ export function MlRiskBadgeExpanded({ zoneId }) {
       <div className="space-y-1">
         {Object.entries(prediction.probabilities).map(([label, p]) => (
           <div key={label} className="flex items-center gap-2 text-[10px]">
-            <span className="w-14 text-slate-600 dark:text-slate-400">{label}</span>
-            <div className="flex-1 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+            <span className="w-14 text-slate-500">{label}</span>
+            <div className="flex-1 bg-slate-700 h-1.5 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full ${SEVERITY_STYLE[label]?.bar ?? 'bg-slate-500'} transition-all duration-700`}
                 style={{ width: `${Math.round(p * 100)}%` }}
               />
             </div>
-            <span className="w-9 text-right text-slate-500 dark:text-slate-400">{Math.round(p * 100)}%</span>
+            <span className="w-9 text-right text-slate-400">{Math.round(p * 100)}%</span>
           </div>
         ))}
       </div>
 
-      <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed">
-        Based on current conditions and recent trends — this is a forward-looking estimate, not a confirmed alert.
+      <p className="text-[10px] text-slate-500 leading-relaxed">
+        Model-predicted, based on current conditions and short-term trends —
+        distinct from the rule-based score above.
       </p>
     </div>
   );

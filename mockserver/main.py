@@ -388,7 +388,7 @@ async def bmkg_earthquake(request: Request):
             return JSONResponse(content=res_json, status_code=resp.status_code)
     
     is_critical = state["services"]["bmkg"]["critical"]
-    now_str = datetime.now(timezone.utc).isoformat()
+    now_str = datetime.now(timezone.utc).isoformat(timespec='seconds')
     
     if is_critical:
         random_mag = round(random.uniform(7.4, 8.8), 1)
