@@ -748,6 +748,7 @@ export default function MapView({
           <div className="absolute top-6 right-6 z-[999] pointer-events-none">
    
     <button
+      data-tour="layers-trigger"
       onClick={() => setShowLayerPanel(!showLayerPanel)}
       className="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all font-bold pointer-events-auto"
     >

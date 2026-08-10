@@ -287,6 +287,7 @@ export default function Sidebar({
           return (
             <div className="mb-3">
               <button
+                data-tour="evacuation-trigger-desktop"
                 onClick={onGetEvacuation}
                 className={`w-full py-2.5 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
                   _isMed

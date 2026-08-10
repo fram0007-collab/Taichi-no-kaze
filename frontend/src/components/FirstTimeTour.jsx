@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   RefreshCw,
   Sparkles,
-  Navigation
+  Navigation,
+  Bell
 } from 'lucide-react';
 
 const TOUR_STEPS = [
@@ -18,7 +19,7 @@ const TOUR_STEPS = [
     id: 'welcome',
     title: 'Welcome to DIS-RUPTURE',
     subtitle: 'Your Jabodetabek Commute, Protected',
-    content: 'DIS-RUPTURE pairs live flood reports with real-time traffic and weather forecasts to keep you moving safely across Jabodetabek',
+    content: 'DIS-RUPTURE pairs live flood reports with real-time traffic and weather forecasts to keep you moving safely across Jabodetabek.',
     target: null,
     icon: Shield,
     accent: 'from-indigo-500 to-purple-600',
@@ -27,25 +28,65 @@ const TOUR_STEPS = [
     id: 'map',
     title: 'Explore Your Surroundings',
     subtitle: 'Smart Zones & Safety Buffers',
-    content: 'Tap any area on the map to see real-time traffic speeds, active flood danger zones, and local rain forecasts.',
+    content: 'Tap any area on the map to see real-time traffic speeds, active flood danger zones, crowd levels, and local rain forecasts.',
     target: '[data-tour="map-container"]',
     icon: MapPin,
     accent: 'from-purple-500 to-pink-600',
   },
   {
+    id: 'layers',
+    title: 'Customize Your View',
+    subtitle: 'Toggle Map Layers',
+    content: 'Use the Layers button to show or hide hospitals, police stations, malls, and other points of interest on the map.',
+    target: '[data-tour="layers-trigger"]',
+    icon: Layers,
+    accent: 'from-fuchsia-500 to-purple-600',
+  },
+  {
     id: 'zonedetails',
     title: 'Zone Details & Live Alerts',
-    subtitle: 'Filter Risk & Plan Routes',
-    content: 'Use the side panel to filter zones by risk level (Critical, High, Medium), check estimated flood clearance times, search key locations, and plan safe evacuation routes.',
+    subtitle: 'Filter Risk & Search Locations',
+    content: 'Use the side panel (or Feed tab on mobile) to filter zones by risk level (Critical, High, Medium), check estimated clearance times, and search key locations.',
     target: '[data-tour="sidebar-filters"]',
     icon: Layers,
     accent: 'from-blue-500 to-cyan-600',
   },
   {
+    id: 'evacuation',
+    title: 'Get Evacuation Guidance',
+    subtitle: 'Step-by-Step Safety Routes',
+    content: 'When a threat is active, tap "Get Evacuation Guidance" for a safe route. Medium alerts show lighter "Monitor & Prepare" guidance, while High and Critical alerts give urgent step-by-step routing away from danger.',
+    target: (isMobile) => isMobile
+      ? '[data-tour="evacuation-trigger-mobile"]'
+      : '[data-tour="evacuation-trigger-desktop"]',
+    icon: Navigation,
+    accent: 'from-red-500 to-orange-600',
+  },
+  {
+    id: 'dashboard',
+    title: 'Threat Intelligence Dashboard',
+    subtitle: 'See the Bigger Picture',
+    content: 'Open the Dashboard for an overall view of active threats, zone rankings by risk, and drill down into any zone’s full history and trends.',
+    target: (isMobile) => isMobile
+      ? '[data-tour="dashboard-trigger-mobile"]'
+      : '[data-tour="dashboard-trigger"]',
+    icon: Activity,
+    accent: 'from-teal-500 to-cyan-600',
+  },
+  {
+    id: 'notifications',
+    title: 'Stay Alerted, Even When You’re Not Looking',
+    subtitle: 'Enable Push Notifications',
+    content: 'Turn on notifications to get alerted the moment a new disruption is detected — no need to keep the app open.',
+    target: '[data-tour="notifications-trigger"]',
+    icon: Bell,
+    accent: 'from-amber-500 to-orange-600',
+  },
+  {
     id: 'closing',
     title: 'You’re All Set!',
     subtitle: 'Real-Time Intelligence at Your Fingertips',
-    content: 'Explore live flood maps, AI-powered recovery forecasts, and automated risk warnings across Jabodetabek.',
+    content: 'Explore live flood maps, AI-powered recovery forecasts, and automated risk warnings across Jabodetabek. You can replay this guide anytime from the Guide button.',
     target: null,
     icon: CheckCircle2,
     accent: 'from-emerald-500 to-teal-600',
@@ -66,15 +107,23 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
   const isLastStep = currentStep === steps.length - 1;
   const StepIcon = step.icon;
 
+  // step.target can be a fixed CSS selector string, OR a function of
+  // (isMobile) => selector, for steps that highlight different elements
+  // depending on which layout is currently active (e.g. the evacuation
+  // button lives in a different place on mobile vs desktop).
+  const resolvedTarget = typeof step.target === 'function'
+    ? step.target(isMobile)
+    : step.target;
+
   // Track position of highlighted target element
   useEffect(() => {
-    if (!isOpen || !step.target) {
+    if (!isOpen || !resolvedTarget) {
       setTargetRect(null);
       return;
     }
 
     const updateRect = () => {
-      const el = document.querySelector(step.target);
+      const el = document.querySelector(resolvedTarget);
       if (el) {
         const rect = el.getBoundingClientRect();
         // Only set rect if element is actually visible on screen
@@ -98,7 +147,7 @@ export default function FirstTimeTour({ isOpen, onClose, dbStatus, isFallback, i
       window.removeEventListener('resize', updateRect);
       window.removeEventListener('scroll', updateRect, true);
     };
-  }, [isOpen, currentStep, step.target, isMobile]);
+  }, [isOpen, currentStep, resolvedTarget, isMobile]);
 
   if (!isOpen) return null;
 

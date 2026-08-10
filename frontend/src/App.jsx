@@ -1089,6 +1089,7 @@ export default function App() {
               </button>
 
               <button
+                data-tour="dashboard-trigger"
                 onClick={() => setShowDashboard(true)}
                 className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600/30 hover:text-indigo-300 transition-all text-xs font-semibold"
                 title="Threat Intelligence Dashboard"
@@ -1097,6 +1098,7 @@ export default function App() {
               </button>
 
               <button
+                data-tour="notifications-trigger"
                 onClick={() => setShowNotificationPreferences(true)}
                 className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all text-xs font-semibold"
                 title="Notification preferences"
@@ -1241,6 +1243,7 @@ export default function App() {
                     const _isMed = _sev === 'MEDIUM';
                     return (
                       <button
+                        data-tour="evacuation-trigger-mobile"
                         onClick={() => openEvacuationPanel(selectedPrediction || null)}
                         className={`w-full py-3 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
                           _isMed
@@ -1662,6 +1665,7 @@ export default function App() {
               )}
             </button>
             <button
+              data-tour="dashboard-trigger-mobile"
               onClick={() => setShowDashboard(true)}
               className="flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all text-slate-400 hover:text-indigo-400"
             >
