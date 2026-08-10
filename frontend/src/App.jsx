@@ -1057,14 +1057,29 @@ export default function App() {
                 )}
               </button>
 
-              <button
-                onClick={() => setShowTour(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-all text-xs font-semibold"
-                title="Replay First Time Tour"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Guide</span>
-              </button>
+              <div className="flex items-center rounded-lg bg-indigo-500/10 border border-indigo-500/20 overflow-hidden">
+                <button
+                  onClick={() => setShowTour(true)}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-all text-xs font-semibold"
+                  title="Replay First Time Tour"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Guide</span>
+                </button>
+                <button
+                  onClick={handleToggleAlwaysShowTour}
+                  role="switch"
+                  aria-checked={alwaysShowTour}
+                  title={alwaysShowTour ? 'Guide shows on every launch — click to turn off' : 'Always show guide on launch — click to turn on'}
+                  className={`px-2 py-1.5 border-l border-indigo-500/20 transition-all ${
+                    alwaysShowTour ? 'bg-indigo-500/30 text-indigo-300' : 'text-indigo-400/50 hover:text-indigo-300 hover:bg-indigo-500/10'
+                  }`}
+                >
+                  <span className={`block w-7 h-3.5 rounded-full relative transition-colors ${alwaysShowTour ? 'bg-indigo-500' : 'bg-slate-700'}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform ${alwaysShowTour ? 'translate-x-3.5' : 'translate-x-0'}`} />
+                  </span>
+                </button>
+              </div>
 
               <button
                 onClick={() => setShowAboutModal(true)}
