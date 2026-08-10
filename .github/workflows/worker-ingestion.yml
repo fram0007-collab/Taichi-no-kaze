@@ -35,6 +35,8 @@ jobs:
           ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
           DISPLAY_ALL_EARTHQUAKES=false
           MOCK_SERVER_URL=
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
           CRON_SECRET=
           EOF
 
