@@ -9,8 +9,9 @@ import AdminDashboard from './components/AdminDashboard';
 import { ResolutionBadgeCompact } from './components/ResolutionBadge';
 import { MlRiskBadgeCompact } from './components/MlRiskBadge';
 import { MlResolutionBadgeCompact } from './components/MlResolutionBadge';
-import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity, BookOpen } from 'lucide-react';
 import { getApiUrl } from './utils/getApiUrl';
+import FirstTimeTour from './components/FirstTimeTour';
 import Dashboard from './components/Dashboard';
 import NotificationPreferences from './components/NotificationPreferences';
 import { calculateDistanceKm } from './utils/haversine';
@@ -219,6 +220,10 @@ export default function App() {
   const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [dbStatus, setDbStatus] = useState("connecting");
+  // First time tour state — opens automatically if user hasn't completed tour
+  const [showTour, setShowTour] = useState(() => {
+    return localStorage.getItem('hasSeenTour') !== 'true';
+  });
   const [dbLatency, setDbLatency] = useState(0);
   const [realDbEmpty, setRealDbEmpty] = useState(true);
   const [allowFallbackBypass, setAllowFallbackBypass] = useState(false);
@@ -1034,6 +1039,15 @@ export default function App() {
               </button>
 
               <button
+                onClick={() => setShowTour(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-all text-xs font-semibold"
+                title="Replay First Time Tour"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Guide</span>
+              </button>
+
+              <button
                 onClick={() => setShowAboutModal(true)}
                 className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all text-xs font-semibold"
               >
@@ -1150,7 +1164,7 @@ export default function App() {
               )}
 
               {/* Interactive Leaflet Map — explicit pixel height prevents Leaflet offset bug */}
-              <div style={{ width: mapWidth || '100%', height: mapHeight || '100%', touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none', flexShrink: 0 }}>
+              <div data-tour="map-container" style={{ width: mapWidth || '100%', height: mapHeight || '100%', touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none', flexShrink: 0 }}>
                 <MapView 
                   key={mapKey}
                   predictions={predictions} 
@@ -1242,7 +1256,7 @@ export default function App() {
           )}
 
           {mobileTab === 'feed' && (
-            <div className="overflow-y-auto p-4 space-y-4 bg-brand-dark text-slate-100 scrollbar-thin" style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}>
+            <div data-tour="sidebar-filters" className="overflow-y-auto p-4 space-y-4 bg-brand-dark text-slate-100 scrollbar-thin" style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}>
               <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                 <div className="flex items-center space-x-2">
                   <Bell className="w-5 h-5 text-indigo-400" />
@@ -1629,7 +1643,7 @@ export default function App() {
             )}
 
             {/* Expanded Leaflet Map */}
-            <div className="flex-1 min-h-0 w-full h-full">
+            <div data-tour="map-container" className="flex-1 min-h-0 w-full h-full">
               <MapView 
                 predictions={predictions} 
                 selectedZone={selectedPrediction}
@@ -1654,7 +1668,7 @@ export default function App() {
           </div>
 
           {/* Right panel: Timeline feeds, historical charts & trend lines */}
-          <div className="flex w-[30%] min-w-[360px] h-full shrink-0">
+          <div data-tour="sidebar-filters" className="flex w-[30%] min-w-[360px] h-full shrink-0">
             <Sidebar 
               predictions={filteredPredictions}
               selectedPrediction={selectedPrediction}
@@ -1794,6 +1808,16 @@ export default function App() {
         isOpen={showDashboard}
         onClose={() => setShowDashboard(false)}
         allZones={allZones}
+      />
+
+      {/* First Time Visit Tour Modal */}
+      <FirstTimeTour
+        isOpen={showTour}
+        onClose={() => setShowTour(false)}
+        dbStatus={dbStatus}
+        isFallback={isFallback}
+        isMobile={isMobile}
+        theme={theme}
       />
     </div>
   );
