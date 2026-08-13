@@ -41,6 +41,9 @@ def test_send_alert_to_matching_subscriptions_respects_preferences(monkeypatch):
         "zone_name": "Pondok Aren",
         "distance_km": 3.2,
         "zone_id": 7,
+        "latitude": -6.27,
+        "longitude": 106.72,
+        "radius_km": 2.5,
     }
 
     send_alert_to_matching_subscriptions(alert, {"enabled": True, "radiusKm": 5, "types": {"flood": True}}, sender=fake_sender)
@@ -49,3 +52,26 @@ def test_send_alert_to_matching_subscriptions_respects_preferences(monkeypatch):
     assert calls[0][0] == "https://example.test/push/2"
     assert calls[0][1]["alert_id"] == 77
     assert calls[0][1]["severity"] == "HIGH"
+    assert calls[0][1]["zone_lat"] == -6.27
+    assert calls[0][1]["zone_lng"] == 106.72
+    assert calls[0][1]["threshold_km"] == 2.5
+
+
+def test_build_push_payload_includes_spatial_metadata():
+    alert = {
+        "alert_id": 88,
+        "disruption_type": "traffic",
+        "severity": "MEDIUM",
+        "zone_name": "Sudirman",
+        "latitude": -6.21,
+        "longitude": 106.82,
+    }
+    preferences = {"enabled": True, "types": {"traffic": True}}
+
+    payload = push_notifications.build_push_payload(alert, preferences)
+
+    assert payload is not None
+    assert payload["zone_lat"] == -6.21
+    assert payload["zone_lng"] == 106.82
+    assert payload["threshold_km"] == 2.0
+

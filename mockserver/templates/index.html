@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DIS-RUPTURE | External API Mock Server</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         :root {
             --bg: #0b0f19;
@@ -607,6 +609,113 @@
             </div>
         </div>
 
+        <!-- Disruption Zone Creator GUI Map Card -->
+        <div id="zoneCreatorCard" class="card">
+            <h2>
+                <span>Disruption Zone Creator (Interactive Map & Fixtures)</span>
+                <span class="badge badge-mock">GUI Fixture Builder</span>
+            </h2>
+            <div style="display: grid; grid-template-columns: 1fr 380px; gap: 1.5rem; margin-top: 1rem;">
+                <!-- Left: Interactive Leaflet Map -->
+                <div>
+                    <div id="zone-map" style="height: 440px; width: 100%; border-radius: 8px; border: 1px solid var(--border); background: #000; z-index: 1;"></div>
+                    <p style="font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem;">
+                        📍 <strong>Click anywhere on the map</strong> to place/move the disruption zone marker. The circle overlay previews the live impact radius in real time.
+                    </p>
+                </div>
+
+                <!-- Right: Form & Parameters -->
+                <div style="display: flex; flex-direction: column; gap: 0.75rem; background: #0d1322; padding: 1rem; border-radius: 8px; border: 1px solid var(--border);">
+                    <h3 style="margin: 0; font-size: 1rem; color: var(--accent);" id="form-title">Create New Zone</h3>
+                    <input type="hidden" id="editing-zone-id" value="">
+
+                    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                        <label style="font-size: 0.75rem; color: var(--muted);">Zone Name / Location</label>
+                        <input type="text" id="zone-name" placeholder="e.g. Ciliwung Overflow Zone" style="background: #151d30; border: 1px solid var(--border); color: #fff; padding: 0.4rem 0.6rem; border-radius: 4px;">
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label style="font-size: 0.75rem; color: var(--muted);">Latitude</label>
+                            <input type="number" step="any" id="zone-lat" value="-6.2088" style="background: #151d30; border: 1px solid var(--border); color: #fff; padding: 0.4rem 0.6rem; border-radius: 4px;" oninput="updateMapFromInputs()">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label style="font-size: 0.75rem; color: var(--muted);">Longitude</label>
+                            <input type="number" step="any" id="zone-lng" value="106.8456" style="background: #151d30; border: 1px solid var(--border); color: #fff; padding: 0.4rem 0.6rem; border-radius: 4px;" oninput="updateMapFromInputs()">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label style="font-size: 0.75rem; color: var(--muted);">Disruption Type</label>
+                            <select id="zone-type" style="background: #151d30; border: 1px solid var(--border); color: #fff; padding: 0.4rem 0.6rem; border-radius: 4px;">
+                                <option value="traffic">Traffic</option>
+                                <option value="flood">Flood</option>
+                                <option value="earthquake">Earthquake</option>
+                                <option value="landslide">Landslide</option>
+                                <option value="weather">Weather</option>
+                                <option value="crowd">Crowd</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label style="font-size: 0.75rem; color: var(--muted);">Severity</label>
+                            <select id="zone-severity" style="background: #151d30; border: 1px solid var(--border); color: #fff; padding: 0.4rem 0.6rem; border-radius: 4px;">
+                                <option value="HIGH">HIGH</option>
+                                <option value="CRITICAL">CRITICAL</option>
+                                <option value="MEDIUM">MEDIUM</option>
+                                <option value="LOW">LOW</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label style="font-size: 0.75rem; color: var(--muted);">Impact Radius (km)</label>
+                            <input type="number" step="0.1" min="0.1" max="50" id="zone-radius" value="2.0" style="background: #151d30; border: 1px solid var(--border); color: #fff; padding: 0.4rem 0.6rem; border-radius: 4px;" oninput="updateMapFromInputs()">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label style="font-size: 0.75rem; color: var(--muted);">Probability Score (%)</label>
+                            <input type="number" min="0" max="100" id="zone-prob" value="85" style="background: #151d30; border: 1px solid var(--border); color: #fff; padding: 0.4rem 0.6rem; border-radius: 4px;">
+                        </div>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                        <label style="font-size: 0.75rem; color: var(--muted);">Alert Message / Notes</label>
+                        <textarea id="zone-msg" placeholder="Optional customized alert message..." rows="2" style="background: #151d30; border: 1px solid var(--border); color: #fff; padding: 0.4rem 0.6rem; border-radius: 4px; font-family: inherit; font-size: 0.85rem;"></textarea>
+                    </div>
+
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                        <button type="button" class="btn" style="flex: 1; background: var(--accent); color: #000; font-weight: 700;" onclick="saveZone()">Save Zone</button>
+                        <button type="button" class="btn" style="background: #24314c;" onclick="resetZoneForm()">Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Mock Zones List -->
+            <div style="margin-top: 1.5rem;">
+                <h3 style="font-size: 1rem; margin-bottom: 0.75rem; color: var(--text);">Active Disruption Zones Fixture List</h3>
+                <div style="overflow-x: auto; background: #0d1322; border-radius: 8px; border: 1px solid var(--border);">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border); color: var(--muted);">
+                                <th style="padding: 0.6rem 0.8rem;">ID</th>
+                                <th style="padding: 0.6rem 0.8rem;">Name</th>
+                                <th style="padding: 0.6rem 0.8rem;">Type</th>
+                                <th style="padding: 0.6rem 0.8rem;">Severity</th>
+                                <th style="padding: 0.6rem 0.8rem;">Lat / Lng</th>
+                                <th style="padding: 0.6rem 0.8rem;">Radius</th>
+                                <th style="padding: 0.6rem 0.8rem;">Status</th>
+                                <th style="padding: 0.6rem 0.8rem; text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mock-zones-table-body">
+                            <tr><td colspan="8" style="padding: 1rem; text-align: center; color: var(--muted);">Loading zones...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Individual Service Toggles with Switches -->
         <div id="serviceDisruptionCard" class="card">
             <h2>Supported External APIs & Event Controls</h2>
@@ -1104,10 +1213,186 @@
             fetchStatus();
         }
 
+        // ── Disruption Zone Creator Map & Logic ──
+        let zoneMap = null;
+        let currentMarker = null;
+        let currentCircle = null;
+
+        function initZoneMap() {
+            if (zoneMap) return;
+            const defaultLat = -6.2088;
+            const defaultLng = 106.8456;
+            
+            zoneMap = L.map('zone-map').setView([defaultLat, defaultLng], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(zoneMap);
+
+            setMarkerAndCircle(defaultLat, defaultLng, 2.0);
+
+            zoneMap.on('click', function(e) {
+                const lat = parseFloat(e.latlng.lat.toFixed(6));
+                const lng = parseFloat(e.latlng.lng.toFixed(6));
+                document.getElementById('zone-lat').value = lat;
+                document.getElementById('zone-lng').value = lng;
+                const radiusKm = parseFloat(document.getElementById('zone-radius').value) || 2.0;
+                setMarkerAndCircle(lat, lng, radiusKm);
+            });
+        }
+
+        function setMarkerAndCircle(lat, lng, radiusKm) {
+            if (currentMarker) zoneMap.removeLayer(currentMarker);
+            if (currentCircle) zoneMap.removeLayer(currentCircle);
+
+            currentMarker = L.marker([lat, lng]).addTo(zoneMap);
+            currentCircle = L.circle([lat, lng], {
+                color: '#ef4444',
+                fillColor: '#ef4444',
+                fillOpacity: 0.25,
+                radius: radiusKm * 1000
+            }).addTo(zoneMap);
+        }
+
+        function updateMapFromInputs() {
+            const lat = parseFloat(document.getElementById('zone-lat').value) || -6.2088;
+            const lng = parseFloat(document.getElementById('zone-lng').value) || 106.8456;
+            const radiusKm = parseFloat(document.getElementById('zone-radius').value) || 2.0;
+            setMarkerAndCircle(lat, lng, radiusKm);
+        }
+
+        async function fetchMockZones() {
+            try {
+                const res = await fetch('/api/mock_zones');
+                if (!res.ok) return;
+                const data = await res.json();
+                renderMockZonesTable(data.zones || []);
+            } catch (e) {
+                console.error('Failed to fetch mock zones:', e);
+            }
+        }
+
+        function renderMockZonesTable(zones) {
+            const tbody = document.getElementById('mock-zones-table-body');
+            if (!zones.length) {
+                tbody.innerHTML = `<tr><td colspan="8" style="padding: 1rem; text-align: center; color: var(--muted);">No mock disruption zones created yet. Click on the map to add one.</td></tr>`;
+                return;
+            }
+            
+            tbody.innerHTML = zones.map(z => `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 0.6rem 0.8rem; font-weight: bold;">#${z.zone_id}</td>
+                    <td style="padding: 0.6rem 0.8rem;">${escapeHtml(z.name)}</td>
+                    <td style="padding: 0.6rem 0.8rem;"><span class="badge badge-mock">${escapeHtml(z.disruption_type)}</span></td>
+                    <td style="padding: 0.6rem 0.8rem;"><span class="badge ${z.severity === 'CRITICAL' || z.severity === 'HIGH' ? 'badge-critical' : 'badge-normal'}">${z.severity}</span></td>
+                    <td style="padding: 0.6rem 0.8rem; font-family: monospace; font-size: 0.8rem;">${z.latitude.toFixed(4)}, ${z.longitude.toFixed(4)}</td>
+                    <td style="padding: 0.6rem 0.8rem;">${z.radius_km} km</td>
+                    <td style="padding: 0.6rem 0.8rem;">${z.status}</td>
+                    <td style="padding: 0.6rem 0.8rem; text-align: right; white-space: nowrap;">
+                        <button class="btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="flyToZone(${z.latitude}, ${z.longitude}, ${z.radius_km})">📍 Map</button>
+                        <button class="btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: #3b82f6;" onclick="editZone(${z.zone_id}, '${escapeHtml(z.name)}', ${z.latitude}, ${z.longitude}, '${escapeHtml(z.disruption_type)}', '${escapeHtml(z.severity)}', ${z.radius_km}, ${z.probability_percentage}, '${escapeHtml(z.message || '')}')">✏️ Edit</button>
+                        <button class="btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: var(--danger);" onclick="deleteZone(${z.zone_id})">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function flyToZone(lat, lng, radiusKm) {
+            if (zoneMap) {
+                zoneMap.flyTo([lat, lng], 13);
+                setMarkerAndCircle(lat, lng, radiusKm);
+                document.getElementById('zone-lat').value = lat;
+                document.getElementById('zone-lng').value = lng;
+                document.getElementById('zone-radius').value = radiusKm;
+            }
+        }
+
+        function editZone(id, name, lat, lng, type, severity, radiusKm, prob, msg) {
+            document.getElementById('editing-zone-id').value = id;
+            document.getElementById('form-title').innerText = `Edit Zone #${id}`;
+            document.getElementById('zone-name').value = name;
+            document.getElementById('zone-lat').value = lat;
+            document.getElementById('zone-lng').value = lng;
+            document.getElementById('zone-type').value = type;
+            document.getElementById('zone-severity').value = severity;
+            document.getElementById('zone-radius').value = radiusKm;
+            document.getElementById('zone-prob').value = prob;
+            document.getElementById('zone-msg').value = msg;
+            flyToZone(lat, lng, radiusKm);
+        }
+
+        function resetZoneForm() {
+            document.getElementById('editing-zone-id').value = '';
+            document.getElementById('form-title').innerText = 'Create New Zone';
+            document.getElementById('zone-name').value = '';
+            document.getElementById('zone-lat').value = '-6.2088';
+            document.getElementById('zone-lng').value = '106.8456';
+            document.getElementById('zone-type').value = 'traffic';
+            document.getElementById('zone-severity').value = 'HIGH';
+            document.getElementById('zone-radius').value = '2.0';
+            document.getElementById('zone-prob').value = '85';
+            document.getElementById('zone-msg').value = '';
+            updateMapFromInputs();
+        }
+
+        async function saveZone() {
+            const editId = document.getElementById('editing-zone-id').value;
+            const name = document.getElementById('zone-name').value.trim() || 'Custom Disruption Zone';
+            const latitude = parseFloat(document.getElementById('zone-lat').value);
+            const longitude = parseFloat(document.getElementById('zone-lng').value);
+            const radius_km = parseFloat(document.getElementById('zone-radius').value) || 2.0;
+            const disruption_type = document.getElementById('zone-type').value;
+            const severity = document.getElementById('zone-severity').value;
+            const probability_percentage = parseFloat(document.getElementById('zone-prob').value) || 85;
+            const message = document.getElementById('zone-msg').value.trim();
+
+            const payload = {
+                name, latitude, longitude, radius_km, disruption_type, severity, probability_percentage, message, status: 'OPEN'
+            };
+
+            const url = editId ? `/api/mock_zones/${editId}` : '/api/mock_zones';
+            const method = editId ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    resetZoneForm();
+                    fetchMockZones();
+                } else {
+                    alert('Failed to save zone');
+                }
+            } catch (e) {
+                console.error('Error saving zone:', e);
+            }
+        }
+
+        async function deleteZone(zoneId) {
+            if (!confirm(`Delete mock zone #${zoneId}?`)) return;
+            try {
+                const res = await fetch(`/api/mock_zones/${zoneId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    fetchMockZones();
+                }
+            } catch (e) {
+                console.error('Error deleting zone:', e);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
         fetchStatus();
         fetchStats();
         fetchLiveLogs();
         fetchDbLogs();
+        initZoneMap();
+        fetchMockZones();
         
         setInterval(fetchStatus, 3000);
         setInterval(fetchStats, 3000);

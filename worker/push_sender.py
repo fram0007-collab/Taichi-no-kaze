@@ -49,6 +49,22 @@ def _build_payload(alert: dict) -> dict:
         "waterway": "🌊", "earthquake": "🌍",
     }.get(alert.get("disruption_type", "").lower(), "⚠️")
 
+    zone_lat = alert.get("zone_lat") or alert.get("latitude")
+    zone_lng = alert.get("zone_lng") or alert.get("longitude")
+    threshold_km = alert.get("threshold_km") or alert.get("radius_km") or 2.0
+    try:
+        zone_lat = float(zone_lat) if zone_lat is not None else None
+    except (TypeError, ValueError):
+        zone_lat = None
+    try:
+        zone_lng = float(zone_lng) if zone_lng is not None else None
+    except (TypeError, ValueError):
+        zone_lng = None
+    try:
+        threshold_km = float(threshold_km)
+    except (TypeError, ValueError):
+        threshold_km = 2.0
+
     return {
         "title": f"DIS-RUPTURE — {severity} Alert",
         "body":  f"{emoji} {disruption} disruption at {zone_name} (score {score:.0f}/100)",
@@ -56,6 +72,9 @@ def _build_payload(alert: dict) -> dict:
         "alert_id": alert.get("alert_id"),
         "zone_id": alert.get("zone_id"),
         "zone_name": zone_name,
+        "zone_lat": zone_lat,
+        "zone_lng": zone_lng,
+        "threshold_km": threshold_km,
         "severity": severity,
         "disruption_type": alert.get("disruption_type"),
         "url": "/",
