@@ -142,8 +142,8 @@ self.addEventListener('push', (event) => {
         const isStale = !cachedLocation || !cachedLocation.timestamp || (Date.now() - cachedLocation.timestamp > MAX_STALENESS_MS);
 
         if (isStale) {
-          // Fallback notice for missing or stale location
-          bodyText = 'Disruption reported in Jabodetabek — tap to open map for live proximity updates.';
+          // Missing or stale location fallback: Deliver original notification payload text containing {disruption_type} at {zone_name}
+          bodyText = payload.body || payload.message || 'A disruption alert was detected nearby.';
           shouldShow = true;
         } else {
           const userLat = Number(cachedLocation.lat);
