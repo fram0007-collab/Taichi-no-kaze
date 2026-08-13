@@ -55,6 +55,22 @@ def init_db():
         columns = [column[1] for column in cursor.fetchall()]
         if "latency_ms" not in columns:
             conn.execute("ALTER TABLE query_logs ADD COLUMN latency_ms REAL DEFAULT 0.0;")
+        # Ensure mock_zones table exists for manually created disruption zones
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS mock_zones (
+                zone_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                radius_km REAL NOT NULL DEFAULT 2.0,
+                disruption_type TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                probability_percentage REAL DEFAULT 85.0,
+                message TEXT,
+                status TEXT DEFAULT 'OPEN',
+                created_at TEXT NOT NULL
+            );
+        """)
         conn.commit()
 
 init_db()
@@ -140,7 +156,83 @@ class ToggleRequest(BaseModel):
     service: Optional[str] = "all"  # "all", "openmeteo", "bmkg", "tomtom", "google"
     critical: Optional[bool] = None
 
+class MockZoneRequest(BaseModel):
+    name: str
+    latitude: float
+    longitude: float
+    radius_km: float = 2.0
+    disruption_type: str = "traffic"
+    severity: str = "HIGH"
+    probability_percentage: float = 85.0
+    message: Optional[str] = None
+    status: str = "OPEN"
+
 # ── API Control & Debug Endpoints ───────────────────────────────────────────
+@app.get("/api/mock_zones")
+def get_mock_zones():
+    with get_db_connection() as conn:
+        rows = conn.execute("SELECT * FROM mock_zones ORDER BY zone_id DESC").fetchall()
+    zones = []
+    for r in rows:
+        zones.append({
+            "zone_id": r["zone_id"],
+            "name": r["name"],
+            "latitude": r["latitude"],
+            "longitude": r["longitude"],
+            "radius_km": r["radius_km"],
+            "disruption_type": r["disruption_type"],
+            "severity": r["severity"],
+            "probability_percentage": r["probability_percentage"],
+            "message": r["message"],
+            "status": r["status"],
+            "created_at": r["created_at"]
+        })
+    return {"total": len(zones), "zones": zones}
+
+@app.post("/api/mock_zones")
+def create_mock_zone(req: MockZoneRequest):
+    now_str = datetime.now().isoformat()
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO mock_zones (
+                name, latitude, longitude, radius_km, disruption_type,
+                severity, probability_percentage, message, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            req.name, req.latitude, req.longitude, req.radius_km, req.disruption_type.lower(),
+            req.severity.upper(), req.probability_percentage,
+            req.message or f"{req.disruption_type.capitalize()} alert near {req.name}",
+            req.status.upper(), now_str
+        ))
+        conn.commit()
+        zone_id = cur.lastrowid
+    return {"status": "success", "zone_id": zone_id, "message": "Disruption zone created successfully"}
+
+@app.put("/api/mock_zones/{zone_id}")
+def update_mock_zone(zone_id: int, req: MockZoneRequest):
+    with get_db_connection() as conn:
+        conn.execute("""
+            UPDATE mock_zones SET
+                name = ?, latitude = ?, longitude = ?, radius_km = ?,
+                disruption_type = ?, severity = ?, probability_percentage = ?,
+                message = ?, status = ?
+            WHERE zone_id = ?
+        """, (
+            req.name, req.latitude, req.longitude, req.radius_km,
+            req.disruption_type.lower(), req.severity.upper(), req.probability_percentage,
+            req.message, req.status.upper(), zone_id
+        ))
+        conn.commit()
+    return {"status": "success", "zone_id": zone_id, "message": "Disruption zone updated successfully"}
+
+@app.delete("/api/mock_zones/{zone_id}")
+def delete_mock_zone(zone_id: int):
+    with get_db_connection() as conn:
+        conn.execute("DELETE FROM mock_zones WHERE zone_id = ?", (zone_id,))
+        conn.commit()
+    return {"status": "success", "zone_id": zone_id, "message": "Disruption zone deleted successfully"}
+
 @app.get("/api/status")
 def get_status():
     return state

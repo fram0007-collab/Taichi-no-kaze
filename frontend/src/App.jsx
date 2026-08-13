@@ -21,6 +21,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from './utils/pushNotifications';
+import { saveUserLocation } from './utils/idbLocation';
 
 const API_URL = getApiUrl();
 const NOTIFICATION_PREFERENCES_KEY = 'notificationPreferences';
@@ -201,6 +202,7 @@ export default function App() {
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         setUserLocation({ lat: latitude, lon: longitude, accuracy });
+        saveUserLocation({ lat: latitude, lng: longitude, timestamp: Date.now() });
         setLocating(false);
       },
       (err) => {

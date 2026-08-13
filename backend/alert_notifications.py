@@ -213,11 +213,18 @@ def build_alert_notification_payload(
     alert_id = alert.get("alert_id") or alert.get("id")
     zone_name = alert.get("zone_name") or (alert.get("zone") or {}).get("name") if isinstance(alert.get("zone"), dict) else None
 
+    zone_lat = _coerce_number(alert.get("zone_lat") or alert.get("latitude") or ((alert.get("zone") or {}).get("latitude") if isinstance(alert.get("zone"), dict) else None))
+    zone_lng = _coerce_number(alert.get("zone_lng") or alert.get("longitude") or ((alert.get("zone") or {}).get("longitude") if isinstance(alert.get("zone"), dict) else None))
+    threshold_km = _coerce_number(alert.get("threshold_km") or alert.get("radius_km") or ((alert.get("zone") or {}).get("radius_km") if isinstance(alert.get("zone"), dict) else None)) or 2.0
+
     return {
         "alert_id": alert_id,
         "disruption_type": _normalize_disruption_type(alert.get("disruption_type")),
         "severity": severity,
         "zone_name": zone_name or "the affected area",
+        "zone_lat": zone_lat,
+        "zone_lng": zone_lng,
+        "threshold_km": threshold_km,
         "distance_km": _coerce_number(alert.get("distance_km")),
         "message": message,
         "safe_area": safe_area,

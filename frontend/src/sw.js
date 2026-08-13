@@ -80,34 +80,103 @@ registerRoute(
   })
 );
 
-// ── 3. Push Notification Handlers ────────────────────────────────
-// Receives push events from backend alert_notifications.py
-// Payload shape: { title, body/message, url/map_link, icon?, badge? }
+// ── 3. Push Notification Handlers & On-Device Geofence ────────────
+const DB_NAME = 'disrupture_location_db';
+const STORE_NAME = 'user_location';
+const LOCATION_KEY = 'latest';
+const MAX_STALENESS_MS = 30 * 60 * 1000; // 30 minutes
+
+function readLocationFromIDB() {
+  return new Promise((resolve) => {
+    if (typeof indexedDB === 'undefined') {
+      resolve(null);
+      return;
+    }
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onerror = () => resolve(null);
+    request.onsuccess = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        resolve(null);
+        return;
+      }
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const getReq = store.get(LOCATION_KEY);
+      getReq.onsuccess = () => resolve(getReq.result || null);
+      getReq.onerror = () => resolve(null);
+    };
+  });
+}
+
+function calculateHaversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's mean radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 self.addEventListener('push', (event) => {
-  let payload = {};
+  event.waitUntil(
+    (async () => {
+      let payload = {};
+      try {
+        payload = event.data?.json?.() || {};
+      } catch (error) {
+        payload = {};
+      }
 
-  try {
-    payload = event.data?.json?.() || {};
-  } catch (error) {
-    payload = {};
-  }
+      const zoneLat = Number(payload.zone_lat);
+      const zoneLng = Number(payload.zone_lng);
+      const thresholdKm = Number(payload.threshold_km) || 2.0;
 
-  const title = payload.title || 'DIS-RUPTURE Alert';
-  const body  = payload.body || payload.message || 'A disruption alert was detected nearby.';
+      const cachedLocation = await readLocationFromIDB();
+      let shouldShow = true;
+      let bodyText = payload.body || payload.message || 'A disruption alert was detected nearby.';
 
-  const options = {
-    body,
-    icon:  payload.icon  || '/icons/icon-192.png',
-    badge: payload.badge || '/icons/icon-192.png',
-    tag:   payload.tag   || 'dis-rupture-alert',
-    renotify: true,
-    data: {
-      url: payload.url || payload.map_link || '/',
-    },
-  };
+      if (Number.isFinite(zoneLat) && Number.isFinite(zoneLng)) {
+        const isStale = !cachedLocation || !cachedLocation.timestamp || (Date.now() - cachedLocation.timestamp > MAX_STALENESS_MS);
 
-  event.waitUntil(self.registration.showNotification(title, options));
+        if (isStale) {
+          // Fallback notice for missing or stale location
+          bodyText = 'Disruption reported in Jabodetabek — tap to open map for live proximity updates.';
+          shouldShow = true;
+        } else {
+          const userLat = Number(cachedLocation.lat);
+          const userLng = Number(cachedLocation.lng);
+          if (Number.isFinite(userLat) && Number.isFinite(userLng)) {
+            const distance = calculateHaversineKm(userLat, userLng, zoneLat, zoneLng);
+            if (distance > thresholdKm) {
+              shouldShow = false;
+              console.log(`[SW Geofence] Suppressing notification: user is ${distance.toFixed(1)}km away (threshold: ${thresholdKm}km)`);
+            }
+          }
+        }
+      }
+
+      if (!shouldShow) {
+        return;
+      }
+
+      const title = payload.title || 'DIS-RUPTURE Alert';
+      const options = {
+        body: bodyText,
+        icon:  payload.icon  || '/icons/icon-192.png',
+        badge: payload.badge || '/icons/icon-192.png',
+        tag:   payload.tag   || 'dis-rupture-alert',
+        renotify: true,
+        data: {
+          url: payload.url || payload.map_link || '/',
+        },
+      };
+
+      await self.registration.showNotification(title, options);
+    })()
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {
