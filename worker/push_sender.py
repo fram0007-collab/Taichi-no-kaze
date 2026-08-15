@@ -65,20 +65,42 @@ def _build_payload(alert: dict) -> dict:
     except (TypeError, ValueError):
         threshold_km = 2.0
 
+    zone_radius_km = alert.get("zone_radius_km") or threshold_km
+    try:
+        zone_radius_km = float(zone_radius_km)
+    except (TypeError, ValueError):
+        zone_radius_km = threshold_km
+
+    probability_percentage = alert.get("probability_percentage")
+    if probability_percentage is None:
+        probability_percentage = score
+    else:
+        try:
+            probability_percentage = float(probability_percentage)
+        except (TypeError, ValueError):
+            probability_percentage = score
+
+    alert_id = alert.get("alert_id")
+    zone_id = alert.get("zone_id")
+    url = f"/?alert_id={alert_id}&zone_id={zone_id}" if alert_id and zone_id else "/"
+
     return {
         "title": f"DIS-RUPTURE — {severity} Alert",
         "body":  f"{emoji} {disruption} disruption at {zone_name} (score {score:.0f}/100)",
         "message": alert.get("message", ""),
-        "alert_id": alert.get("alert_id"),
-        "zone_id": alert.get("zone_id"),
+        "alert_id": alert_id,
+        "zone_id": zone_id,
         "zone_name": zone_name,
         "zone_lat": zone_lat,
         "zone_lng": zone_lng,
         "threshold_km": threshold_km,
+        "zone_radius_km": zone_radius_km,
+        "probability_percentage": probability_percentage,
+        "score": probability_percentage,
         "severity": severity,
         "disruption_type": alert.get("disruption_type"),
-        "url": "/",
-        "map_link": "/",
+        "url": url,
+        "map_link": url,
         "icon": "/icons/icon-192.png",
         "badge": "/icons/icon-192.png",
         "tag": f"alert-{alert.get('zone_id')}-{alert.get('disruption_type')}",

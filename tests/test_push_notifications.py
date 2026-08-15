@@ -55,6 +55,7 @@ def test_send_alert_to_matching_subscriptions_respects_preferences(monkeypatch):
     assert calls[0][1]["zone_lat"] == -6.27
     assert calls[0][1]["zone_lng"] == 106.72
     assert calls[0][1]["threshold_km"] == 2.5
+    assert calls[0][1]["zone_radius_km"] == 2.5
 
 
 def test_build_push_payload_includes_spatial_metadata():
@@ -74,4 +75,27 @@ def test_build_push_payload_includes_spatial_metadata():
     assert payload["zone_lat"] == -6.21
     assert payload["zone_lng"] == 106.82
     assert payload["threshold_km"] == 2.0
+    assert payload["zone_radius_km"] == 2.0
+
+
+def test_build_push_payload_includes_probability_percentage():
+    alert = {
+        "alert_id": 99,
+        "disruption_type": "flood",
+        "severity": "HIGH",
+        "zone_name": "Pondok Aren",
+        "latitude": -6.27,
+        "longitude": 106.72,
+        "radius_km": 2.0,
+        "probability_percentage": 75.0,
+        "distance_km": 3.2,
+    }
+    preferences = {"enabled": True, "types": {"flood": True}}
+
+    payload = push_notifications.build_push_payload(alert, preferences)
+
+    assert payload is not None
+    assert payload["zone_radius_km"] == 2.0
+    assert payload["probability_percentage"] == 75.0
+    assert payload["score"] == 75.0
 

@@ -1031,7 +1031,7 @@ class PredictiveDisruptionEngine:
                     )
                     logger.debug(f"[Alert] Updated {dim_name} alert for {zone.name} (score={dim_score:.1f})")
                 else:
-                    db.add(RiskAlert(
+                    new_alert = RiskAlert(
                         zone_id=zone.zone_id,
                         disruption_type=dim_name,
                         severity=dim_severity,
@@ -1045,15 +1045,22 @@ class PredictiveDisruptionEngine:
                         estimated_time_to_peak=now + peak_offsets.get(dim_name, timedelta(hours=1)),
                         estimated_resolution_at=res_at,
                         resolution_confidence=round(res_conf, 2),
-                    ))
+                    )
+                    db.add(new_alert)
+                    db.flush()
+                    zone_radius_km = float(zone.radius_m or 2000) / 1000.0
                     logger.info(f"[Alert] {dim_severity} {dim_name} alert fired for {zone.name} (score={dim_score:.1f})")
                     new_alerts_to_push.append({
-                        "alert_id": None,  # filled after commit
+                        "alert_id": new_alert.alert_id,
                         "zone_id": zone.zone_id,
                         "zone_name": zone.name,
                         "disruption_type": dim_name,
                         "severity": dim_severity,
                         "probability_percentage": round(dim_score, 2),
+                        "zone_lat": zone_lat,
+                        "zone_lng": zone_lon,
+                        "zone_radius_km": zone_radius_km,
+                        "threshold_km": zone_radius_km,
                         "message": (
                             f"{zone.name}: {dim_severity} {dim_name} risk - "
                             f"score {dim_score:.1f}/100."

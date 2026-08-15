@@ -3,12 +3,13 @@
  * Accessible from both Window context (App.jsx) and Service Worker context (sw.js).
  */
 
-const DB_NAME = 'disrupture_location_db';
-const DB_VERSION = 1;
-const STORE_NAME = 'user_location';
+export const DB_NAME = 'disrupture_location_db';
+export const DB_VERSION = 2;
+const LOCATION_STORE = 'user_location';
+const PREFERENCES_STORE = 'user_preferences';
 const LOCATION_KEY = 'latest';
 
-function openLocationDB() {
+export function openDisruptureDB() {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       reject(new Error('IndexedDB is not supported in this environment.'));
@@ -18,8 +19,11 @@ function openLocationDB() {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(LOCATION_STORE)) {
+        db.createObjectStore(LOCATION_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(PREFERENCES_STORE)) {
+        db.createObjectStore(PREFERENCES_STORE, { keyPath: 'id' });
       }
     };
 
@@ -38,10 +42,10 @@ function openLocationDB() {
  */
 export async function saveUserLocation({ lat, lng, timestamp = Date.now() }) {
   try {
-    const db = await openLocationDB();
+    const db = await openDisruptureDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
+      const tx = db.transaction(LOCATION_STORE, 'readwrite');
+      const store = tx.objectStore(LOCATION_STORE);
       const record = {
         id: LOCATION_KEY,
         lat: Number(lat),
@@ -63,10 +67,10 @@ export async function saveUserLocation({ lat, lng, timestamp = Date.now() }) {
  */
 export async function getUserLocation() {
   try {
-    const db = await openLocationDB();
+    const db = await openDisruptureDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
+      const tx = db.transaction(LOCATION_STORE, 'readonly');
+      const store = tx.objectStore(LOCATION_STORE);
       const req = store.get(LOCATION_KEY);
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = (e) => reject(e.target.error);

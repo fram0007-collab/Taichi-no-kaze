@@ -88,6 +88,8 @@ def build_push_payload(
         zone_id = alert.get("zone_id") or ((alert.get("zone") or {}).get("zone_id") if isinstance(alert.get("zone"), dict) else None)
     url = payload.get("map_link") or f"/?alert_id={alert_id}&zone_id={zone_id}" if alert_id is not None and zone_id is not None else "/"
 
+    probability_percentage = payload.get("probability_percentage")
+
     return {
         "title": "DIS-RUPTURE Alert",
         "body": payload.get("message"),
@@ -99,7 +101,10 @@ def build_push_payload(
         "zone_name": payload.get("zone_name"),
         "zone_lat": payload.get("zone_lat"),
         "zone_lng": payload.get("zone_lng"),
+        "zone_radius_km": payload.get("zone_radius_km"),
         "threshold_km": payload.get("threshold_km", 2.0),
+        "probability_percentage": probability_percentage,
+        "score": probability_percentage,
         "safe_area": payload.get("safe_area"),
         "url": url,
         "map_link": url,

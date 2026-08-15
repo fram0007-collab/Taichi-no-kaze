@@ -33,6 +33,70 @@ def _coerce_number(value: Any) -> Optional[float]:
         return None
 
 
+def _extract_zone_coordinates(alert: Dict[str, Any]) -> tuple[Optional[float], Optional[float]]:
+    zone = alert.get("zone") if isinstance(alert.get("zone"), dict) else {}
+    zone_lat = _coerce_number(
+        alert.get("zone_lat")
+        or alert.get("latitude")
+        or zone.get("latitude")
+        or zone.get("lat")
+    )
+    zone_lng = _coerce_number(
+        alert.get("zone_lng")
+        or alert.get("longitude")
+        or zone.get("longitude")
+        or zone.get("lng")
+        or zone.get("lon")
+    )
+    return zone_lat, zone_lng
+
+
+def _resolve_zone_radius_km(alert: Dict[str, Any]) -> float:
+    zone = alert.get("zone") if isinstance(alert.get("zone"), dict) else {}
+    candidates = [
+        alert.get("zone_radius_km"),
+        alert.get("threshold_km"),
+        alert.get("radius_km"),
+        alert.get("impact_radius_km"),
+        (_coerce_number(alert.get("radius_m")) / 1000.0) if alert.get("radius_m") is not None else None,
+        zone.get("radius_km"),
+        (_coerce_number(zone.get("radius_m")) / 1000.0) if zone.get("radius_m") is not None else None,
+    ]
+    values = [v for v in (_coerce_number(item) for item in candidates) if v is not None]
+    if values:
+        return max(values)
+    return 2.0
+
+
+def _resolve_threshold_km(alert: Dict[str, Any]) -> float:
+    """Backward-compatible threshold: first available source, default 2.0 km."""
+    zone = alert.get("zone") if isinstance(alert.get("zone"), dict) else {}
+    return (
+        _coerce_number(
+            alert.get("threshold_km")
+            or alert.get("radius_km")
+            or zone.get("radius_km")
+        )
+        or 2.0
+    )
+
+
+def _extract_zone_name(alert: Dict[str, Any]) -> Optional[str]:
+    zone_name = alert.get("zone_name")
+    if zone_name:
+        return str(zone_name).strip() or None
+    zone = alert.get("zone")
+    if isinstance(zone, dict):
+        name = zone.get("name")
+        if name:
+            return str(name).strip() or None
+    return None
+
+
+def _resolve_probability_percentage(alert: Dict[str, Any]) -> Optional[float]:
+    return _coerce_number(alert.get("probability_percentage") or alert.get("score"))
+
+
 def _format_distance(distance_km: Optional[float]) -> str:
     distance = _coerce_number(distance_km)
     if distance is None:
@@ -211,11 +275,11 @@ def build_alert_notification_payload(
     severity = str(alert.get("severity") or "MEDIUM").strip().upper()
     zone_id = alert.get("zone_id")
     alert_id = alert.get("alert_id") or alert.get("id")
-    zone_name = alert.get("zone_name") or (alert.get("zone") or {}).get("name") if isinstance(alert.get("zone"), dict) else None
-
-    zone_lat = _coerce_number(alert.get("zone_lat") or alert.get("latitude") or ((alert.get("zone") or {}).get("latitude") if isinstance(alert.get("zone"), dict) else None))
-    zone_lng = _coerce_number(alert.get("zone_lng") or alert.get("longitude") or ((alert.get("zone") or {}).get("longitude") if isinstance(alert.get("zone"), dict) else None))
-    threshold_km = _coerce_number(alert.get("threshold_km") or alert.get("radius_km") or ((alert.get("zone") or {}).get("radius_km") if isinstance(alert.get("zone"), dict) else None)) or 2.0
+    zone_name = _extract_zone_name(alert)
+    zone_lat, zone_lng = _extract_zone_coordinates(alert)
+    zone_radius_km = _resolve_zone_radius_km(alert)
+    threshold_km = _resolve_threshold_km(alert)
+    probability_percentage = _resolve_probability_percentage(alert)
 
     return {
         "alert_id": alert_id,
@@ -224,7 +288,9 @@ def build_alert_notification_payload(
         "zone_name": zone_name or "the affected area",
         "zone_lat": zone_lat,
         "zone_lng": zone_lng,
+        "zone_radius_km": zone_radius_km,
         "threshold_km": threshold_km,
+        "probability_percentage": probability_percentage,
         "distance_km": _coerce_number(alert.get("distance_km")),
         "message": message,
         "safe_area": safe_area,
