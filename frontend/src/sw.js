@@ -137,25 +137,36 @@ self.addEventListener('push', (event) => {
       const cachedLocation = await readLocationFromIDB();
       let shouldShow = true;
       let bodyText = payload.body || payload.message || 'A disruption alert was detected nearby.';
+      let locationSource = 'unavailable'; // 'last_known' | 'fallback' | 'unavailable'
 
       if (Number.isFinite(zoneLat) && Number.isFinite(zoneLng)) {
         const isStale = !cachedLocation || !cachedLocation.timestamp || (Date.now() - cachedLocation.timestamp > MAX_STALENESS_MS);
 
         if (isStale) {
           // Fallback notice for missing or stale location
+          locationSource = 'fallback';
           bodyText = 'Disruption reported in Jabodetabek — tap to open map for live proximity updates.';
           shouldShow = true;
+          console.log(`[SW Geofence] Using fallback (location ${cachedLocation ? 'stale' : 'missing'}) — showing generic alert, no proximity filtering applied.`);
         } else {
           const userLat = Number(cachedLocation.lat);
           const userLng = Number(cachedLocation.lng);
           if (Number.isFinite(userLat) && Number.isFinite(userLng)) {
+            locationSource = 'last_known';
             const distance = calculateHaversineKm(userLat, userLng, zoneLat, zoneLng);
             if (distance > thresholdKm) {
               shouldShow = false;
-              console.log(`[SW Geofence] Suppressing notification: user is ${distance.toFixed(1)}km away (threshold: ${thresholdKm}km)`);
+              console.log(`[SW Geofence] Used last-known location — suppressing notification (${distance.toFixed(1)}km away, threshold ${thresholdKm}km).`);
+            } else {
+              console.log(`[SW Geofence] Used last-known location — showing notification (${distance.toFixed(1)}km away, within ${thresholdKm}km threshold).`);
             }
+          } else {
+            locationSource = 'fallback';
+            console.log('[SW Geofence] Cached location malformed — using fallback, no proximity filtering applied.');
           }
         }
+      } else {
+        console.log('[SW Geofence] Alert payload has no zone coordinates — showing without proximity filtering.');
       }
 
       if (!shouldShow) {
