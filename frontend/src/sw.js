@@ -275,12 +275,31 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     clients
       .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        for (const client of clientList) {
-          if (client.url === url && 'focus' in client) {
-            return client.focus();
+      .then(async (clientList) => {
+        // Prefer an already-open window over opening a new one, but
+        // ALWAYS navigate it to the deep-link URL first — matching only
+        // on exact URL string (old behavior) meant an app already open
+        // at "/" would never match "/?alert_id=123&zone_id=45", silently
+        // falling through to openWindow(), which on an already-running
+        // PWA often just refocuses the existing window WITHOUT applying
+        // the new URL — the tap would appear to "do nothing" beyond
+        // bringing the app to the front at whatever page it was already on.
+        const existingClient = clientList.find((c) => 'focus' in c);
+
+        if (existingClient) {
+          try {
+            if ('navigate' in existingClient) {
+              await existingClient.navigate(url);
+            }
+          } catch (navError) {
+            // navigate() can be blocked/unsupported in some browsers —
+            // fall through to focus() below regardless so the tap still
+            // does SOMETHING visible even if the deep link didn't apply.
+            console.log('[SW] client.navigate failed:', navError);
           }
+          return existingClient.focus();
         }
+
         if (clients.openWindow) {
           return clients.openWindow(url);
         }
