@@ -265,6 +265,7 @@ async def push_test(payload: dict[str, Any]):
         "latitude": -6.27,
         "longitude": 106.72,
         "radius_km": 2.0,
+        "probability_percentage": 75.0,
         "distance_km": 3.2,
         "water_level_cm": 180,
         "alert_level": "Siaga 3",

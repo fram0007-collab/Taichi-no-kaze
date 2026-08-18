@@ -22,6 +22,7 @@ import {
   unsubscribeFromPush,
 } from './utils/pushNotifications';
 import { saveUserLocation } from './utils/idbLocation';
+import { saveNotificationPreferences } from './utils/idbPreferences';
 
 const API_URL = getApiUrl();
 const NOTIFICATION_PREFERENCES_KEY = 'notificationPreferences';
@@ -492,6 +493,7 @@ export default function App() {
     } catch {
       // ignore storage failures
     }
+    saveNotificationPreferences(notificationPreferences);
   }, [notificationPreferences]);
 
   useEffect(() => {
@@ -576,6 +578,7 @@ export default function App() {
 
     if (notificationPreferences.enabled) {
       try {
+        await saveNotificationPreferences({ ...notificationPreferences, enabled: false });
         const unsubscribed = await unsubscribeFromPush(API_URL);
         setPushSubscriptionActive(false);
         setPushStatus(unsubscribed ? 'inactive' : 'failed');
@@ -604,6 +607,7 @@ export default function App() {
       setNotificationPermission(permission);
       if (permission === 'granted') {
         try {
+          await saveNotificationPreferences({ ...notificationPreferences, enabled: true });
           const subscription = await subscribeToPush(
             import.meta.env.VITE_VAPID_PUBLIC_KEY || '',
             API_URL,
