@@ -10,8 +10,6 @@ import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
-import { resolveNotificationBody } from './utils/geofenceNotification';
-import { calculateDistanceKm } from './utils/haversine';
 
 // ── 1. Precaching ─────────────────────────────────────────────────
 // vite-plugin-pwa injects the manifest here at build time
@@ -83,6 +81,8 @@ registerRoute(
 );
 
 // ── 3. Push Notification Handlers & On-Device Geofence ────────────
+import { resolveNotificationBody } from './utils/geofenceNotification';
+
 const DB_NAME = 'disrupture_location_db';
 const DB_VERSION = 2;
 const LOCATION_STORE = 'user_location';
@@ -106,48 +106,44 @@ function openDisruptureDB() {
       if (!db.objectStoreNames.contains(PREFERENCES_STORE)) {
         db.createObjectStore(PREFERENCES_STORE, { keyPath: 'id' });
       }
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.close();
-        resolve(null);
-        return;
-      }
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const getReq = store.get(LOCATION_KEY);
-      getReq.onsuccess = () => {
-        // Close the connection once the read completes — leaving IDB
-        // connections open across push events is the likely cause of
-        // "works once, then silently nothing" on Android: an unclosed
-        // handle from a previous push can block or stall a later
-        // indexedDB.open() call, which prevents this async function
-        // from ever resolving, which prevents showNotification() from
-        // ever being called — and Chrome on Android silently penalizes
-        // origins that repeatedly fail to show a notification for a
-        // push event, with no error surfaced back to the server.
-        db.close();
-        resolve(getReq.result || null);
-      };
-      getReq.onerror = () => {
-        db.close();
-        resolve(null);
-      };
     };
     request.onsuccess = (event) => resolve(event.target.result);
   });
 }
 
+// Reads a single key from a named store and ALWAYS closes the DB connection
+// afterward. Leaving IndexedDB connections open across push events was the
+// root cause of "push works once, then silently nothing forever" on
+// Android: an unclosed handle from a previous push can block or stall the
+// next indexedDB.open() call, which prevents this function from ever
+// resolving, which prevents showNotification() from ever being called.
+// Chrome on Android silently penalizes origins that repeatedly fail to
+// show a notification for a push event, with no error surfaced back to
+// the server — so a leaked connection here is invisible everywhere except
+// as "notifications just stopped."
 function readFromStore(storeName, key) {
   return new Promise(async (resolve) => {
     const db = await openDisruptureDB();
-    if (!db || !db.objectStoreNames.contains(storeName)) {
+    if (!db) {
+      resolve(null);
+      return;
+    }
+    if (!db.objectStoreNames.contains(storeName)) {
+      db.close();
       resolve(null);
       return;
     }
     const tx = db.transaction(storeName, 'readonly');
     const store = tx.objectStore(storeName);
     const getReq = store.get(key);
-    getReq.onsuccess = () => resolve(getReq.result || null);
-    getReq.onerror = () => resolve(null);
+    getReq.onsuccess = () => {
+      db.close();
+      resolve(getReq.result || null);
+    };
+    getReq.onerror = () => {
+      db.close();
+      resolve(null);
+    };
   });
 }
 
@@ -172,11 +168,8 @@ function debugSwGeofence(event, { cachedLocation, prefs, payload, body, reason }
   console.log('[DEBUG-SW-IDB-LOC-001] IDB location read', {
     event,
     found: Boolean(cachedLocation),
-    lat: cachedLocation?.lat ?? null,
-    lng: cachedLocation?.lng ?? null,
-    timestamp: ts ?? null,
+    hasCoords: cachedLocation ? Number.isFinite(Number(cachedLocation.lat)) && Number.isFinite(Number(cachedLocation.lng)) : false,
     ageMinutes: ageMin,
-    isStale: ageMin === null || ageMin > 30,
   });
 
   console.log('[DEBUG-SW-IDB-LOC-001] IDB prefs read', {
@@ -186,41 +179,7 @@ function debugSwGeofence(event, { cachedLocation, prefs, payload, body, reason }
     enabled: prefs?.enabled ?? null,
   });
 
-  const zoneLat = Number(payload.zone_lat);
-  const zoneLng = Number(payload.zone_lng);
-  const zoneRadiusKm = Number(payload.zone_radius_km ?? payload.threshold_km) || 2.0;
-  const userRadiusKm = prefs?.radiusKm ?? 5;
-  const userLat = Number(cachedLocation?.lat);
-  const userLng = Number(cachedLocation?.lng);
-
-  const decision = {
-    event,
-    reason,
-    bodyPreview: body?.slice(0, 80) ?? null,
-    zone_lat: payload.zone_lat ?? null,
-    zone_lng: payload.zone_lng ?? null,
-    zone_radius_km: payload.zone_radius_km ?? payload.threshold_km ?? null,
-    centerDistKm: null,
-    distanceToEdgeKm: null,
-    isInsideZone: null,
-    isNearZone: null,
-  };
-
-  if (
-    Number.isFinite(zoneLat) &&
-    Number.isFinite(zoneLng) &&
-    Number.isFinite(userLat) &&
-    Number.isFinite(userLng)
-  ) {
-    const centerDistKm = calculateDistanceKm(userLat, userLng, zoneLat, zoneLng);
-    const distanceToEdgeKm = Math.max(0, centerDistKm - zoneRadiusKm);
-    decision.centerDistKm = centerDistKm;
-    decision.distanceToEdgeKm = distanceToEdgeKm;
-    decision.isInsideZone = centerDistKm <= zoneRadiusKm;
-    decision.isNearZone = distanceToEdgeKm <= userRadiusKm;
-  }
-
-  console.log('[DEBUG-SW-IDB-LOC-001] geofence decision', decision);
+  console.log('[DEBUG-SW-IDB-LOC-001] geofence decision', { event, reason, bodyPreview: body?.slice(0, 80) ?? null });
 }
 // DEBUG-SW-IDB-LOC-001 — end
 
@@ -234,14 +193,8 @@ self.addEventListener('push', (event) => {
       // violation. On Android this is enforced strictly — repeated
       // violations cause Chrome to silently degrade or suppress future
       // push delivery for this origin, with NO error ever surfaced back
-      // to the server (the server only sees "message accepted for
-      // delivery", never "was it actually displayed"). This exactly
-      // matches "worked once, then silently nothing forever."
-      //
-      // Fix: wrap everything in try/catch. If ANYTHING fails, still
-      // show a generic fallback notification rather than showing
-      // nothing — satisfying the contract and giving the user a real
-      // alert even if the geofence logic itself broke.
+      // to the server. Fix: wrap everything in try/catch and fail OPEN
+      // (show a generic notification) rather than fail silently.
       let payload = {};
       try {
         payload = event.data?.json?.() || {};
@@ -249,46 +202,28 @@ self.addEventListener('push', (event) => {
         payload = {};
       }
 
-      const [cachedLocation, prefs] = await Promise.all([
-        readLocationFromIDB(),
-        readPreferencesFromIDB(),
-      ]);
       const title = payload.title || 'DIS-RUPTURE Alert';
-      let bodyText = payload.body || payload.message || 'A disruption alert was detected nearby.';
+      let body = payload.body || payload.message || 'A disruption alert was detected nearby.';
       let shouldShow = true;
+      let useFallbackTag = false;
 
       try {
-        const zoneLat = Number(payload.zone_lat);
-        const zoneLng = Number(payload.zone_lng);
-        const thresholdKm = Number(payload.threshold_km) || 2.0;
+        const [cachedLocation, prefs] = await Promise.all([
+          readLocationFromIDB(),
+          readPreferencesFromIDB(),
+        ]);
 
-        const cachedLocation = await readLocationFromIDB();
+        // resolveNotificationBody() now genuinely suppresses (shouldShow:
+        // false) when the user is outside their configured radius from
+        // the alert zone. Any unexpected error below still fails OPEN
+        // (shows unfiltered) — better to over-notify on a bug than to
+        // silently drop a real alert.
+        const resolved = resolveNotificationBody({ payload, cachedLocation, prefs });
+        body = resolved.body;
+        shouldShow = resolved.shouldShow;
+        useFallbackTag = Boolean(resolved.useFallbackTag);
 
-        if (Number.isFinite(zoneLat) && Number.isFinite(zoneLng)) {
-          const isStale = !cachedLocation || !cachedLocation.timestamp || (Date.now() - cachedLocation.timestamp > MAX_STALENESS_MS);
-
-          if (isStale) {
-            bodyText = 'Disruption reported in Jabodetabek — tap to open map for live proximity updates.';
-            shouldShow = true;
-            console.log(`[SW Geofence] Using fallback (location ${cachedLocation ? 'stale' : 'missing'}) — showing generic alert, no proximity filtering applied.`);
-          } else {
-            const userLat = Number(cachedLocation.lat);
-            const userLng = Number(cachedLocation.lng);
-            if (Number.isFinite(userLat) && Number.isFinite(userLng)) {
-              const distance = calculateHaversineKm(userLat, userLng, zoneLat, zoneLng);
-              if (distance > thresholdKm) {
-                shouldShow = false;
-                console.log(`[SW Geofence] Used last-known location — suppressing notification (${distance.toFixed(1)}km away, threshold ${thresholdKm}km).`);
-              } else {
-                console.log(`[SW Geofence] Used last-known location — showing notification (${distance.toFixed(1)}km away, within ${thresholdKm}km threshold).`);
-              }
-            } else {
-              console.log('[SW Geofence] Cached location malformed — using fallback, no proximity filtering applied.');
-            }
-          }
-        } else {
-          console.log('[SW Geofence] Alert payload has no zone coordinates — showing without proximity filtering.');
-        }
+        debugSwGeofence('push', { cachedLocation, prefs, payload, body, reason: resolved.reason });
       } catch (geofenceError) {
         // Geofence logic broke for any reason — fail OPEN (show the
         // notification anyway) rather than fail silently. A shown
@@ -298,19 +233,21 @@ self.addEventListener('push', (event) => {
         shouldShow = true;
       }
 
-      const { body, reason } = resolveNotificationBody({
-        payload,
-        cachedLocation,
-        prefs,
-      });
-
-      debugSwGeofence('push', { cachedLocation, prefs, payload, body, reason });
+      if (!shouldShow) {
+        return;
+      }
 
       const options = {
         body,
         icon:  payload.icon  || '/icons/icon-192.png',
         badge: payload.badge || '/icons/icon-192.png',
-        tag:   payload.tag   || 'dis-rupture-alert',
+        // When we have no location to filter by, every fallback
+        // notification carries the same generic message — give them a
+        // SHARED, fixed tag so Android/Chrome replaces the existing
+        // notification instead of stacking a new card each time. Real,
+        // location-filtered alerts keep their per-zone/per-type tag so
+        // genuinely different alerts still show as separate cards.
+        tag: useFallbackTag ? 'dis-rupture-fallback' : (payload.tag || 'dis-rupture-alert'),
         renotify: true,
         data: {
           url: payload.url || payload.map_link || '/',
@@ -323,7 +260,7 @@ self.addEventListener('push', (event) => {
         // Last-resort fallback — even a bare-minimum notification
         // satisfies Chrome's per-push contract.
         console.log('[SW Push] showNotification failed, retrying minimal:', showError);
-        await self.registration.showNotification(title, { body: bodyText });
+        await self.registration.showNotification(title, { body });
       }
     })()
   );

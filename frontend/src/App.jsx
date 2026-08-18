@@ -1400,43 +1400,6 @@ export default function App() {
                 theme={theme}
               />
 
-              {/* Waterway Buffer Configuration (Mobile settings block) */}
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-4">
-                <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400">Waterway Buffer Overlay</h3>
-                
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400 font-semibold">Flood Trigger Threshold</span>
-                    <span className="text-indigo-400 font-bold font-mono">{waterwayThreshold}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="95"
-                    value={waterwayThreshold}
-                    onChange={(e) => setWaterwayThreshold(Number(e.target.value))}
-                    className="w-full h-1.5 rounded-lg bg-slate-950 accent-indigo-500 cursor-pointer"
-                  />
-                  <p className="text-[10px] text-slate-500">Show danger buffers for waterways at or above this volume capacity.</p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400 font-semibold">Danger Buffer Range</span>
-                    <span className="text-indigo-400 font-bold font-mono">{waterwayBuffer}m</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="300"
-                    value={waterwayBuffer}
-                    onChange={(e) => setWaterwayBuffer(Number(e.target.value))}
-                    className="w-full h-1.5 rounded-lg bg-slate-950 accent-indigo-500 cursor-pointer"
-                  />
-                  <p className="text-[10px] text-slate-500">The surrounding physical distance at threat when the river overflows.</p>
-                </div>
-              </div>
-
               {/* Telemetry Operations Block */}
               <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
                 <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400">Telemetry Data Operations</h3>

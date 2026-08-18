@@ -816,41 +816,6 @@ export default function MapView({
           ))}
         </div>
       
-        {/* Sliders for Waterway Buffers (Desktop view controls) */}
-        {activeLayers.waterways && (
-          <div className="border-t border-slate-800/80 pt-2.5 mt-1.5 space-y-2.5">
-            <div className="space-y-1">
-              <div className="flex justify-between text-[9px] font-semibold">
-                <span className="text-slate-400">Flood Trigger:</span>
-                <span className="text-indigo-400 font-bold">{waterwayThreshold}%</span>
-              </div>
-              <input
-                type="range"
-                min="50"
-                max="95"
-                value={waterwayThreshold}
-                onChange={(e) => setWaterwayThreshold(Number(e.target.value))}
-                className="w-full h-1 rounded bg-slate-950 accent-indigo-500 cursor-pointer"
-              />
-            </div>
-            
-            <div className="space-y-1">
-              <div className="flex justify-between text-[9px] font-semibold">
-                <span className="text-slate-400">Max Buffer Scale:</span>
-                <span className="text-indigo-400 font-bold">{waterwayBuffer}m</span>
-              </div>
-              <input
-                type="range"
-                min="50"
-                max="300"
-                value={waterwayBuffer}
-                onChange={(e) => setWaterwayBuffer(Number(e.target.value))}
-                className="w-full h-1 rounded bg-slate-950 accent-indigo-500 cursor-pointer"
-              />
-            </div>
-          </div>
-        )}
- 
         {/* Radius query control integrated in layer filters panel */}
         {userLocation && (
           <div className="border-t border-slate-800/80 pt-2.5 mt-1.5 space-y-2.5">
