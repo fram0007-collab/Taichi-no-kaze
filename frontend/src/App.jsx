@@ -1724,6 +1724,7 @@ export default function App() {
         isOpen={showDashboard}
         onClose={() => setShowDashboard(false)}
         allZones={allZones}
+        predictions={predictions}
       />
 
       {/* Manual Tour Replay Modal — triggered by the "Guide" button */}

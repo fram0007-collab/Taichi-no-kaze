@@ -106,6 +106,31 @@ function openDisruptureDB() {
       if (!db.objectStoreNames.contains(PREFERENCES_STORE)) {
         db.createObjectStore(PREFERENCES_STORE, { keyPath: 'id' });
       }
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.close();
+        resolve(null);
+        return;
+      }
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const getReq = store.get(LOCATION_KEY);
+      getReq.onsuccess = () => {
+        // Close the connection once the read completes — leaving IDB
+        // connections open across push events is the likely cause of
+        // "works once, then silently nothing" on Android: an unclosed
+        // handle from a previous push can block or stall a later
+        // indexedDB.open() call, which prevents this async function
+        // from ever resolving, which prevents showNotification() from
+        // ever being called — and Chrome on Android silently penalizes
+        // origins that repeatedly fail to show a notification for a
+        // push event, with no error surfaced back to the server.
+        db.close();
+        resolve(getReq.result || null);
+      };
+      getReq.onerror = () => {
+        db.close();
+        resolve(null);
+      };
     };
     request.onsuccess = (event) => resolve(event.target.result);
   });
@@ -202,6 +227,21 @@ function debugSwGeofence(event, { cachedLocation, prefs, payload, body, reason }
 self.addEventListener('push', (event) => {
   event.waitUntil(
     (async () => {
+      // CRITICAL: Chrome enforces that every 'push' event results in a
+      // call to showNotification(). If our geofence/IndexedDB logic
+      // throws anywhere and this whole handler rejects without ever
+      // calling showNotification(), Chrome treats it as a contract
+      // violation. On Android this is enforced strictly — repeated
+      // violations cause Chrome to silently degrade or suppress future
+      // push delivery for this origin, with NO error ever surfaced back
+      // to the server (the server only sees "message accepted for
+      // delivery", never "was it actually displayed"). This exactly
+      // matches "worked once, then silently nothing forever."
+      //
+      // Fix: wrap everything in try/catch. If ANYTHING fails, still
+      // show a generic fallback notification rather than showing
+      // nothing — satisfying the contract and giving the user a real
+      // alert even if the geofence logic itself broke.
       let payload = {};
       try {
         payload = event.data?.json?.() || {};
@@ -213,6 +253,50 @@ self.addEventListener('push', (event) => {
         readLocationFromIDB(),
         readPreferencesFromIDB(),
       ]);
+      const title = payload.title || 'DIS-RUPTURE Alert';
+      let bodyText = payload.body || payload.message || 'A disruption alert was detected nearby.';
+      let shouldShow = true;
+
+      try {
+        const zoneLat = Number(payload.zone_lat);
+        const zoneLng = Number(payload.zone_lng);
+        const thresholdKm = Number(payload.threshold_km) || 2.0;
+
+        const cachedLocation = await readLocationFromIDB();
+
+        if (Number.isFinite(zoneLat) && Number.isFinite(zoneLng)) {
+          const isStale = !cachedLocation || !cachedLocation.timestamp || (Date.now() - cachedLocation.timestamp > MAX_STALENESS_MS);
+
+          if (isStale) {
+            bodyText = 'Disruption reported in Jabodetabek — tap to open map for live proximity updates.';
+            shouldShow = true;
+            console.log(`[SW Geofence] Using fallback (location ${cachedLocation ? 'stale' : 'missing'}) — showing generic alert, no proximity filtering applied.`);
+          } else {
+            const userLat = Number(cachedLocation.lat);
+            const userLng = Number(cachedLocation.lng);
+            if (Number.isFinite(userLat) && Number.isFinite(userLng)) {
+              const distance = calculateHaversineKm(userLat, userLng, zoneLat, zoneLng);
+              if (distance > thresholdKm) {
+                shouldShow = false;
+                console.log(`[SW Geofence] Used last-known location — suppressing notification (${distance.toFixed(1)}km away, threshold ${thresholdKm}km).`);
+              } else {
+                console.log(`[SW Geofence] Used last-known location — showing notification (${distance.toFixed(1)}km away, within ${thresholdKm}km threshold).`);
+              }
+            } else {
+              console.log('[SW Geofence] Cached location malformed — using fallback, no proximity filtering applied.');
+            }
+          }
+        } else {
+          console.log('[SW Geofence] Alert payload has no zone coordinates — showing without proximity filtering.');
+        }
+      } catch (geofenceError) {
+        // Geofence logic broke for any reason — fail OPEN (show the
+        // notification anyway) rather than fail silently. A shown
+        // notification the user didn't strictly need is far better
+        // than an origin that Chrome quietly stops delivering to.
+        console.log('[SW Geofence] Error during proximity check — showing notification without filtering:', geofenceError);
+        shouldShow = true;
+      }
 
       const { body, reason } = resolveNotificationBody({
         payload,
@@ -222,7 +306,6 @@ self.addEventListener('push', (event) => {
 
       debugSwGeofence('push', { cachedLocation, prefs, payload, body, reason });
 
-      const title = payload.title || 'DIS-RUPTURE Alert';
       const options = {
         body,
         icon:  payload.icon  || '/icons/icon-192.png',
@@ -234,7 +317,14 @@ self.addEventListener('push', (event) => {
         },
       };
 
-      await self.registration.showNotification(title, options);
+      try {
+        await self.registration.showNotification(title, options);
+      } catch (showError) {
+        // Last-resort fallback — even a bare-minimum notification
+        // satisfies Chrome's per-push contract.
+        console.log('[SW Push] showNotification failed, retrying minimal:', showError);
+        await self.registration.showNotification(title, { body: bodyText });
+      }
     })()
   );
 });

@@ -192,9 +192,24 @@ def send_push_for_alert(alert: dict, db_conn) -> int:
             logger.info(f"[Push] Sent to {sub['endpoint'][:40]}...")
         except WebPushException as e:
             status = getattr(e.response, "status_code", None) if hasattr(e, "response") else None
+            body = getattr(e.response, "text", "") if hasattr(e, "response") else ""
+
             if status in (404, 410):
-                # Subscription expired — clean up
+                # Subscription expired/gone — clean up
                 stale.append(sub["endpoint"])
+                logger.info(f"[Push] Stale (endpoint gone, {status}) — will remove: {sub['endpoint'][:40]}...")
+            elif status in (400, 401, 403) and "vapid" in body.lower():
+                # Subscription was created under a DIFFERENT VAPID key than the
+                # one currently configured (e.g. VAPID_PRIVATE_KEY was rotated).
+                # This is permanent and unrecoverable — the browser's
+                # PushSubscription object is cryptographically bound to the
+                # public key active at creation time, and can never be
+                # revalidated against a different key pair. The only fix is
+                # for the user to unsubscribe/resubscribe, creating a fresh
+                # subscription under the current key. Clean up now instead of
+                # logging the same permanent failure every cycle forever.
+                stale.append(sub["endpoint"])
+                logger.info(f"[Push] Stale (VAPID key mismatch, {status}) — will remove: {sub['endpoint'][:40]}...")
             else:
                 logger.warning(f"[Push] Failed for {sub['endpoint'][:40]}: {e}")
         except Exception as e:

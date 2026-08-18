@@ -44,6 +44,7 @@ export default function Sidebar({
   const [showAllWarnings, setShowAllWarnings] = useState(false);
   const [severityFilter, setSeverityFilter] = useState('all');
   const [showPredictionHelp, setShowPredictionHelp] = useState(false);
+  const [showForecastHelp, setShowForecastHelp] = useState(false);
   const [helpTab, setHelpTab] = useState('read');
   const { prediction: mlPrediction } = useMlResolution(selectedPrediction?.id);
 
@@ -458,7 +459,7 @@ export default function Sidebar({
           >
             <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 py-4 dark:border-slate-700/70">
               <div>
-                <h3 className="text-lg font-bold text-white">Prediction & ML Transparency</h3>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Prediction & AI Transparency</h3>
                 <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">Understand warning cards, clear-time estimates, and prediction confidence.</p>
               </div>
               <button
@@ -661,6 +662,57 @@ export default function Sidebar({
         </div>
       )}
 
+      {showForecastHelp && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-3 sm:p-4"
+          onClick={() => setShowForecastHelp(false)}
+        >
+          <div
+            className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-2xl dark:border-slate-700 dark:bg-slate-900/95"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 py-4 dark:border-slate-700/70">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">What Do These Graphs Mean?</h3>
+                <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">These graphs help explain what may happen in this area during the next few hours.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowForecastHelp(false)}
+                className="rounded-full border border-slate-300/80 p-2 text-slate-600 transition hover:border-indigo-500/60 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-300"
+                aria-label="Close forecast help"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(90vh-170px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 space-y-5 text-sm leading-6 text-slate-700 dark:text-slate-300">
+              <p>These graphs help explain what may happen in this area during the next few hours. They support the warning card, but they are predictions, not guarantees.</p>
+
+              <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Time Buttons: 3h, 6h, 12h, 24h</p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">These buttons choose how far ahead the graph looks. For example, 12h means the graph shows the next 12 hours.</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Rainfall & Humidity Forecast</p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">The x-axis shows time. The left y-axis shows humidity from 0% to 100%. The right y-axis shows rainfall amount in millimeters. If the line goes up, weather risk may be increasing. More rain and humidity can slow traffic, increase flood risk, and make outdoor movement harder.</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Speed Degradation Curve</p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">The x-axis shows time. The y-axis shows speed in km/h. The dashed line is the normal speed, and the red line is the current or predicted speed. If the red line is below the dashed line, traffic is slower than normal. If it moves closer to the dashed line, traffic may be recovering.</p>
+              </div>
+
+              <div className="rounded-xl border border-indigo-200/80 bg-indigo-50/80 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Note</p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">These graphs are predictions, not guarantees. During emergencies, follow official instructions from local authorities.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* BMKG Earthquake Live Telemetry Section */}
       <div className="pt-4 border-t border-slate-800/80">
         <div className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-bold text-lg mb-3">
@@ -822,13 +874,24 @@ export default function Sidebar({
 
           {/* Dynamic Weather & Speed Projections */}
           <div className="flex-1 flex flex-col space-y-4 pt-2 border-t border-slate-800/50">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-semibold text-slate-300 flex items-center space-x-2">
-                <CloudRain className="w-4 h-4 text-sky-400" />
-                <span>{selectedHours}-Hour Forecast Projections</span>
-              </h3>
-              
-              <div className="flex bg-slate-900 border border-slate-800/60 rounded-lg p-0.5 space-x-0.5">
+            <div className="flex justify-between items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-300 flex items-center space-x-2">
+                  <CloudRain className="w-4 h-4 text-sky-400" />
+                  <span>{selectedHours}-Hour Forecast Projections</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowForecastHelp(true)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-slate-600 transition hover:border-indigo-500/60 hover:text-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-indigo-400"
+                  aria-label="Forecast graph help"
+                  title="Forecast graph help"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800/60 rounded-lg p-0.5 space-x-0.5">
                 {[3, 6, 12, 24].map(h => {
                   const isActive = selectedHours === h;
                   return (
@@ -837,8 +900,8 @@ export default function Sidebar({
                       onClick={() => setSelectedHours(h)}
                       className={`text-[9px] px-2 py-0.5 rounded font-semibold transition-all duration-200 ${
                         isActive
-                          ? 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-bold'
-                          : 'border border-transparent text-slate-400 hover:text-slate-200'
+                          ? 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 dark:text-indigo-400 font-bold'
+                          : 'border border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
                     >
                       {h}h
