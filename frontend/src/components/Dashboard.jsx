@@ -386,72 +386,45 @@ function generateReportHTML(summary, days, allZones = [], predictions = [], sele
   }
 
   // 7. Coverage Impact Content
-  const zoneCoordsAvailable = Array.isArray(allZones) && allZones.some(z => z.latitude || z.zone?.latitude || z.geometry);
-  let coverageMapOrTable = '';
+  const affectedZonesVal = coverage.affectedZones || 0;
+  const highSevVal = coverage.highSeverityZones || 0;
+  const medSevVal = coverage.mediumSeverityZones || 0;
+  const hotspotCountVal = hotspotAlertCount || 0;
 
-  if (zoneCoordsAvailable) {
-    const mappedZones = allZones.filter(z => (z.latitude || z.zone?.latitude) && (z.longitude || z.zone?.longitude));
-    const mapSVG = `
-      <div style="background: #0f172a; border-radius: 8px; padding: 15px; margin: 15px 0; border: 1px solid #1e293b;">
-        <div style="font-size: 11px; font-weight: bold; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase;">Monitored Jabodetabek Zone Coverage Map</div>
-        <svg width="100%" height="220" viewBox="0 0 600 220">
-          <rect width="600" height="220" fill="#0f172a" rx="6" />
-          <line x1="0" y1="50" x2="600" y2="50" stroke="#1e293b" stroke-dasharray="4,4" />
-          <line x1="0" y1="110" x2="600" y2="110" stroke="#1e293b" stroke-dasharray="4,4" />
-          <line x1="0" y1="170" x2="600" y2="170" stroke="#1e293b" stroke-dasharray="4,4" />
-          <line x1="150" y1="0" x2="150" y2="220" stroke="#1e293b" stroke-dasharray="4,4" />
-          <line x1="300" y1="0" x2="300" y2="220" stroke="#1e293b" stroke-dasharray="4,4" />
-          <line x1="450" y1="0" x2="450" y2="220" stroke="#1e293b" stroke-dasharray="4,4" />
-          
-          ${mappedZones.map(z => {
-            const lat = z.latitude || z.zone?.latitude;
-            const lon = z.longitude || z.zone?.longitude;
-            const name = z.name || z.zone?.name || 'Zone';
-            const x = Math.min(570, Math.max(30, ((lon - 106.6) / 0.4) * 540 + 30));
-            const y = Math.min(200, Math.max(20, ((-6.1 - lat) / 0.3) * 180 + 20));
-            const isHotspot = name === coverage.hotspotZone;
-            const isHigh = z.overall_risk_score >= 50 || z.high_alerts > 0;
-            const isMed = z.overall_risk_score >= 25 || z.medium_alerts > 0;
-            const fillColor = isHigh ? '#ef4444' : isMed ? '#eab308' : '#3b82f6';
-            const strokeColor = isHotspot ? '#a855f7' : 'none';
-            const strokeWidth = isHotspot ? '3' : '0';
-            const r = isHotspot ? 14 : isHigh ? 10 : 7;
-            return `
-              <circle cx="${x}" cy="${y}" r="${r}" fill="${fillColor}" opacity="0.85" stroke="${strokeColor}" stroke-width="${strokeWidth}" />
-              <text x="${x}" y="${y + r + 11}" font-size="9" font-weight="bold" fill="#cbd5e1" text-anchor="middle">${name}</text>
-            `;
-          }).join('')}
-        </svg>
-        <div style="display: flex; gap: 15px; font-size: 11px; color: #94a3b8; margin-top: 8px; justify-content: center; flex-wrap: wrap;">
-          <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; background: #ef4444; border-radius: 50%; display: inline-block;"></span> Red = High severity area</span>
-          <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; background: #eab308; border-radius: 50%; display: inline-block;"></span> Yellow = Medium severity area</span>
-          <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; border: 2px solid #a855f7; border-radius: 50%; display: inline-block;"></span> Purple outline/star = Hotspot zone</span>
-          <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; background: #3b82f6; border-radius: 50%; display: inline-block;"></span> Grey/Blue = Affected zone</span>
-        </div>
+  const chartItems = [
+    { label: 'Affected zones', value: affectedZonesVal, color: '#4f46e5', sub: '' },
+    { label: 'High severity areas', value: highSevVal, color: '#ef4444', sub: '' },
+    { label: 'Medium severity areas', value: medSevVal, color: '#d97706', sub: '' },
+    { label: 'Hotspot zone alerts', value: hotspotCountVal, color: '#8b5cf6', sub: coverage.hotspotZone && coverage.hotspotZone !== 'N/A' ? ` (${coverage.hotspotZone})` : '' }
+  ];
+
+  const maxChartVal = Math.max(affectedZonesVal, highSevVal, medSevVal, hotspotCountVal, 1);
+
+  const coverageChartHTML = `
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 15px 0;">
+      <div style="font-size: 11px; font-weight: bold; color: #475569; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Coverage Impact Bar Chart</div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        ${chartItems.map(item => {
+          let widthPct = 0;
+          if (item.value > 0) {
+            const rawPct = (item.value / maxChartVal) * 100;
+            widthPct = Math.min(100, Math.max(6, Math.round(rawPct)));
+          }
+          return `
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
+                <span>${item.label}${item.sub ? `<span style="font-weight: normal; color: #64748b;">${item.sub}</span>` : ''}</span>
+                <span style="font-size: 13px; font-weight: bold; color: #0f172a; margin-left: 8px;">${item.value}</span>
+              </div>
+              <div style="background: #e2e8f0; border-radius: 4px; height: 18px; width: 100%; overflow: hidden;">
+                <div style="background: ${item.color}; height: 100%; width: ${widthPct}%; border-radius: 4px;"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
-    `;
-    coverageMapOrTable = mapSVG;
-  } else {
-    const rankRows = zone_rankings.map(z => `
-      <tr>
-        <td><strong>${z.name}</strong></td>
-        <td>${z.total_alerts}</td>
-        <td><span class="badge ${z.high_alerts > 0 ? 'badge-high' : 'badge-medium'}">${z.high_alerts > 0 ? 'High' : 'Medium'}</span></td>
-        <td>${z.open_alerts > 0 ? 'Active' : 'Resolved'}</td>
-      </tr>
-    `).join('');
-    coverageMapOrTable = `
-      <table>
-        <tr>
-          <th>Zone Name</th>
-          <th>Recorded Alerts</th>
-          <th>Severity Level</th>
-          <th>Status</th>
-        </tr>
-        ${rankRows}
-      </table>
-    `;
-  }
+    </div>
+  `;
 
   // 8. Selected Zone Detail Content
   let selectedZoneSectionContent = '';
@@ -675,8 +648,8 @@ function generateReportHTML(summary, days, allZones = [], predictions = [], sele
         <div class="summary-value">${coverage.mediumSeverityZones}</div>
       </div>
     </div>
-    ${coverageMapOrTable}
-    <p style="font-size: 13px; color: #475569; margin-top: 10px;">The coverage impact section shows how disruption alerts are distributed across monitored zones. Affected zones indicate areas with recorded alerts during the reporting period. High severity areas require closer monitoring because they represent stronger disruption impact. The hotspot zone highlights the area with the highest number of recorded alerts.</p>
+    ${coverageChartHTML}
+    <p style="font-size: 13px; color: #475569; margin-top: 10px;">The coverage chart summarizes how widely disruption alerts were distributed during the selected reporting period. Affected zones show how many monitored areas recorded alerts. High and medium severity areas show where stronger disruption impact was detected. The hotspot zone identifies the area with the highest alert count, so it may need closer monitoring.</p>
   </div>
 
   <!-- 8. Selected Zone Detail -->
