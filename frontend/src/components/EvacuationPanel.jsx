@@ -21,14 +21,9 @@ import {
 import { getApiUrl } from '../utils/getApiUrl';
 import { ResolutionBadgeExpanded } from './ResolutionBadge';
 import { MlResolutionBadgeExpanded } from './MlResolutionBadge';
+import { COMMON_EMERGENCY_HOTLINES } from '../constants/emergencyHotlines';
 
 // ── i18n-ready content block ────────────────────────────────────────────────
-const COMMON_EMERGENCY_HOTLINES = [
-  { name: 'BPBD Jakarta', number: '021-1123', role: 'City disaster management' },
-  { name: 'Basarnas (SAR)', number: '115', role: 'Search & rescue operations' },
-  { name: 'PMI', number: '021-7992325', role: 'Emergency support & relief' },
-  { name: 'Ambulance', number: '119', role: 'Medical emergency' },
-];
 
 const CONTENT = {
   // Step-by-step guides per disruption type
