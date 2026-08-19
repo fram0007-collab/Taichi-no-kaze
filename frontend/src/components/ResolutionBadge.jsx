@@ -58,10 +58,10 @@ function formatRelativeWIB(isoString) {
 /**
  * Confidence colour — green >75, amber 50-75, red <50.
  */
-function confColor(pct) {
-  if (pct >= 75) return { text: 'text-emerald-600 dark:text-emerald-400', bar: 'bg-emerald-400' };
-  if (pct >= 50) return { text: 'text-amber-600 dark:text-amber-400',   bar: 'bg-amber-400'   };
-  return            { text: 'text-red-600 dark:text-red-400',    bar: 'bg-red-400'    };
+function confColor(pct, isLight = true) {
+  if (pct >= 75) return { text: isLight ? 'text-emerald-600' : 'text-emerald-400', bar: 'bg-emerald-400' };
+  if (pct >= 50) return { text: isLight ? 'text-amber-600' : 'text-amber-400', bar: 'bg-amber-400' };
+  return            { text: isLight ? 'text-red-600' : 'text-red-400', bar: 'bg-red-400' };
 }
 
 /**
@@ -72,10 +72,10 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
   const conf = Math.round(resolution_confidence || 0);
   if (!time || conf === 0) return null;
 
-  const { text } = confColor(conf);
+  const isLight = theme === 'light';
+  const { text } = confColor(conf, isLight);
   const uncertain = conf < 60;
   const remainingLabel = formatRemainingTimeLabel(estimated_resolution_at);
-  const isLight = theme === 'light';
   const mutedText = isLight ? 'text-slate-700' : 'text-slate-300';
 
   return (
@@ -100,13 +100,15 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
 /**
  * Expanded variant — used in evacuation panel, shows confidence bar.
  */
-export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_confidence, disruption_type }) {
+export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_confidence, disruption_type, theme = 'light' }) {
   const time = formatRelativeWIB(estimated_resolution_at);
   const conf = Math.round(resolution_confidence || 0);
   if (!time || conf === 0) return null;
 
-  const { text, bar } = confColor(conf);
+  const isLight = theme === 'light';
+  const { text, bar } = confColor(conf, isLight);
   const remainingLabel = formatRemainingTimeLabel(estimated_resolution_at);
+  const muted = isLight ? 'text-slate-700' : 'text-slate-300';
 
   const disclaimer = {
     traffic:    'Based on historical rush hour patterns for this zone.',
@@ -118,44 +120,43 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
   }[disruption_type?.toLowerCase()] ?? 'Based on current data and historical patterns.';
 
   return (
-    <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3 space-y-2">
+    <div className={`rounded-lg border p-3 space-y-2 ${isLight ? 'border-slate-300 bg-white' : 'border-slate-700 bg-slate-800/60'}`}>
       <div className="flex items-center gap-2">
         <span className="text-base">🕐</span>
         <div>
-          <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold uppercase tracking-wide">
+          <p className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>
             Estimated Resolution
           </p>
           <p className={`font-bold text-sm ${text}`}>
             {conf < 60 ? 'Estimate uncertain' : time}
           </p>
           {remainingLabel && (
-            <p className="mt-1 text-[11px] font-medium text-slate-700 dark:text-slate-200">
+            <p className={`mt-1 text-[11px] font-medium ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
               {remainingLabel}
             </p>
           )}
         </div>
       </div>
 
-      {/* Confidence bar */}
       <div>
         <div className="flex items-center justify-between text-[10px] mb-1">
-          <span className="text-slate-700 dark:text-slate-300">Prediction reliability</span>
+          <span className={muted}>Prediction reliability</span>
           <span className={`font-bold ${text}`}>{conf}%</span>
         </div>
-        <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+        <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-700'}`}>
           <div
             className={`h-full rounded-full ${bar} transition-all duration-700`}
             style={{ width: `${conf}%` }}
           />
         </div>
         {conf < 60 && (
-          <p className="text-[9px] text-slate-700 dark:text-slate-300 mt-1 italic">
+          <p className={`text-[9px] mt-1 italic ${muted}`}>
             Prediction reliability is low — we have hidden the specific time to avoid giving a misleading estimate.
           </p>
         )}
       </div>
 
-      <p className="text-[10px] text-slate-700 dark:text-slate-300 leading-relaxed">{disclaimer}</p>
+      <p className={`text-[10px] leading-relaxed ${muted}`}>{disclaimer}</p>
     </div>
   );
 }
