@@ -208,7 +208,7 @@ function formatReportTime(isoString) {
 }
 
 // ── Report Generation Helper ───────────────────────────────────────
-function generateReportHTML(summary, days, allZones = [], predictions = [], selectedZone = null) {
+function generateReportHTML(summary, days, allZones = [], predictions = [], selectedZone = null, zoneAlerts = []) {
   const timestamp = new Date();
   const formattedDate = timestamp.toLocaleString('id-ID', {
     timeZone: 'Asia/Jakarta',
@@ -443,7 +443,7 @@ function generateReportHTML(summary, days, allZones = [], predictions = [], sele
     selectedZoneSectionContent = `
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
         <h3 style="margin: 0 0 5px 0; color: #1e293b; font-size: 16px;">${szName}</h3>
-        <p style="font-size: 12px; color: #64748b; margin: 0 0 12px 0;">Total alerts (last 7 days): <strong>${szTotal}</strong> | Currently open alerts: <strong>${szOpen}</strong></p>
+        <p style="font-size: 12px; color: #64748b; margin: 0 0 12px 0;">Total alerts (last ${days} day${days === 1 ? '' : 's'}): <strong>${szTotal}</strong> | Currently open alerts: <strong>${szOpen}</strong></p>
         
         <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: center; margin-bottom: 15px;">
           <div style="background: #fff; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
@@ -483,6 +483,34 @@ function generateReportHTML(summary, days, allZones = [], predictions = [], sele
         </svg>
       </div>
       <p style="font-size: 12px; color: #64748b;">The selected zone 24h trend chart shows how risk changed in the selected zone across the last 24 hours. The x-axis shows time, while the y-axis shows risk score. The dominant risk line shows the main disruption signal for the zone. A rising line means the risk increased, while a falling line means the risk reduced. This chart helps explain whether the selected zone is stable, improving, or experiencing repeated risk movement.</p>
+
+      <div style="font-size: 11px; font-weight: bold; color: #475569; margin: 15px 0 6px 0; text-transform: uppercase;">Alert History (last ${days} day${days === 1 ? '' : 's'})</div>
+      ${
+        Array.isArray(zoneAlerts) && zoneAlerts.length > 0
+          ? `<table style="width:100%; border-collapse: collapse; font-size: 11px;">
+              <thead>
+                <tr style="background:#f1f5f9; text-align:left;">
+                  <th style="padding:6px 8px; border:1px solid #e2e8f0;">Severity</th>
+                  <th style="padding:6px 8px; border:1px solid #e2e8f0;">Type</th>
+                  <th style="padding:6px 8px; border:1px solid #e2e8f0;">Status</th>
+                  <th style="padding:6px 8px; border:1px solid #e2e8f0;">Time</th>
+                  <th style="padding:6px 8px; border:1px solid #e2e8f0;">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${zoneAlerts.map(a => `
+                  <tr>
+                    <td style="padding:6px 8px; border:1px solid #e2e8f0; font-weight:bold; color:${a.severity === 'HIGH' || a.severity === 'CRITICAL' ? '#dc2626' : '#d97706'};">${a.severity || ''}</td>
+                    <td style="padding:6px 8px; border:1px solid #e2e8f0; text-transform:capitalize;">${a.disruption_type || ''}</td>
+                    <td style="padding:6px 8px; border:1px solid #e2e8f0;">${a.status || ''}</td>
+                    <td style="padding:6px 8px; border:1px solid #e2e8f0;">${a.alert_timestamp ? new Date(a.alert_timestamp).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</td>
+                    <td style="padding:6px 8px; border:1px solid #e2e8f0;">${a.probability_percentage != null ? Number(a.probability_percentage).toFixed(1) + '%' : ''}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>`
+          : `<p style="font-size: 12px; color: #94a3b8; font-style: italic;">No alerts recorded for this zone in the selected time range.</p>`
+      }
     `;
   } else {
     selectedZoneSectionContent = `<p style="font-style: italic; color: #64748b;">No selected zone detail was available for this report.</p>`;
@@ -731,8 +759,8 @@ function generateReportHTML(summary, days, allZones = [], predictions = [], sele
 }
 
 // ── Export Report Handler ──────────────────────────────────────────
-function exportReport(summary, days, allZones = [], predictions = [], selectedZone = null) {
-  const html = generateReportHTML(summary, days, allZones, predictions, selectedZone);
+function exportReport(summary, days, allZones = [], predictions = [], selectedZone = null, zoneAlerts = []) {
+  const html = generateReportHTML(summary, days, allZones, predictions, selectedZone, zoneAlerts);
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -745,18 +773,11 @@ function exportReport(summary, days, allZones = [], predictions = [], selectedZo
 }
 
 // ── Overall View ───────────────────────────────────────────────────
-function OverallView({ onSelectZone, allZones = [], onExport, days, setDays }) {
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
-  
-
-  useEffect(() => {
-    setLoading(true);
-    fetch(`${getApiUrl()}/dashboard/summary?days=${days}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { setSummary(data); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [days]);
+function OverallView({ onSelectZone, allZones = [], summary, loading, days, setDays }) {
+  // summary/loading are now owned by the parent Dashboard component (single
+  // source of truth, with request cancellation) — this component previously
+  // duplicated the exact same fetch independently, which could desync from
+  // what the export function saw if requests resolved out of order.
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -935,25 +956,15 @@ function OverallView({ onSelectZone, allZones = [], onExport, days, setDays }) {
 }
 
 // ── Zone Detail View ───────────────────────────────────────────────
-function ZoneDetailView({ zone, allZones, onBack }) {
-  const [alerts, setAlerts] = useState([]);
-  const [timeline, setTimeline] = useState(null);
-  const [loading, setLoading] = useState(true);
+function ZoneDetailView({ zone, allZones, onBack, alerts = [], timeline, loading, days = 7 }) {
+  // alerts/timeline are now fetched by the parent Dashboard component and
+  // passed down as props — previously fetched locally here, hardcoded to
+  // days=7 regardless of the dashboard's selected time range, and never
+  // shared with the export function (which only ever saw thin summary
+  // totals, never the actual alert list shown on screen).
   const [alertFilter, setAlertFilter] = useState('all');
 
   const zoneStatus = allZones?.find(z => z.zone_id === zone.zone_id);
-
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      fetch(`${getApiUrl()}/alerts/history?days=7&zone_id=${zone.zone_id}`).then(r => r.ok ? r.json() : []),
-      fetch(`${getApiUrl()}/predictions/zone/${zone.zone_id}?hours=24`).then(r => r.ok ? r.json() : null),
-    ]).then(([alertData, timelineData]) => {
-      setAlerts(alertData);
-      setTimeline(timelineData);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [zone.zone_id]);
 
   const filteredAlerts = alertFilter === 'all' ? alerts
     : alerts.filter(a => a.status === alertFilter);
@@ -977,7 +988,7 @@ function ZoneDetailView({ zone, allZones, onBack }) {
         <div className="h-4 w-px bg-slate-700" />
         <div>
           <h3 className="text-base font-bold text-slate-100">{zone.name}</h3>
-          <p className="text-[10px] text-slate-500">{zone.total_alerts} alerts in last 7 days · {zone.open_alerts} currently open</p>
+          <p className="text-[10px] text-slate-500">{zone.total_alerts} alerts in last {days} day{days === 1 ? '' : 's'} · {zone.open_alerts} currently open</p>
         </div>
       </div>
 
@@ -1117,25 +1128,66 @@ function ZoneDetailView({ zone, allZones, onBack }) {
 export default function Dashboard({ isOpen, onClose, allZones = [], predictions = [] }) {
   const [selectedZone, setSelectedZone] = useState(null);
   const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [days, setDays] = useState(7);
+
+  // Zone-detail data lifted up from ZoneDetailView so the export function
+  // (which lives here, not in the child) actually has access to the real
+  // alert list and timeline the user sees on screen — previously the
+  // export only had thin summary numbers (total_alerts/open_alerts),
+  // never the fetched detail.
+  const [zoneAlerts, setZoneAlerts] = useState([]);
+  const [zoneTimeline, setZoneTimeline] = useState(null);
+  const [zoneLoading, setZoneLoading] = useState(false);
 
   // Reset to overall view when dashboard closes
   useEffect(() => {
     if (!isOpen) setSelectedZone(null);
   }, [isOpen]);
 
-  // Fetch summary for export button
+  // SINGLE source of truth for the overall summary — previously this was
+  // duplicated (once here for export, once again inside OverallView for
+  // display), with no request cancellation. If the initial 7-day fetch on
+  // mount resolved AFTER the user had already switched to 1-day, it would
+  // silently overwrite the correct data — export could end up using stale
+  // 7-day data even though the screen correctly showed 1-day. AbortController
+  // below ensures only the latest request for the current `days` ever applies.
   useEffect(() => {
     if (!isOpen) return;
-    fetch(`${getApiUrl()}/dashboard/summary?days=${days}`)
+    const controller = new AbortController();
+    setSummaryLoading(true);
+    fetch(`${getApiUrl()}/dashboard/summary?days=${days}`, { signal: controller.signal })
       .then(r => r.ok ? r.json() : null)
-      .then(data => setSummary(data))
-      .catch(() => {});
+      .then(data => { setSummary(data); setSummaryLoading(false); })
+      .catch(err => { if (err.name !== 'AbortError') setSummaryLoading(false); });
+    return () => controller.abort();
   }, [isOpen, days]);
+
+  // Zone-detail data — also respects the shared `days` filter (previously
+  // hardcoded to days=7 inside ZoneDetailView regardless of the dashboard's
+  // selected time range) and is cancellable for the same race-condition reason.
+  useEffect(() => {
+    if (!selectedZone) {
+      setZoneAlerts([]);
+      setZoneTimeline(null);
+      return;
+    }
+    const controller = new AbortController();
+    setZoneLoading(true);
+    Promise.all([
+      fetch(`${getApiUrl()}/alerts/history?days=${days}&zone_id=${selectedZone.zone_id}`, { signal: controller.signal }).then(r => r.ok ? r.json() : []),
+      fetch(`${getApiUrl()}/predictions/zone/${selectedZone.zone_id}?hours=24`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
+    ]).then(([alertData, timelineData]) => {
+      setZoneAlerts(alertData);
+      setZoneTimeline(timelineData);
+      setZoneLoading(false);
+    }).catch(err => { if (err.name !== 'AbortError') setZoneLoading(false); });
+    return () => controller.abort();
+  }, [selectedZone, days]);
 
   const handleExport = () => {
     if (summary) {
-      exportReport(summary, days, allZones, predictions, selectedZone);
+      exportReport(summary, days, allZones, predictions, selectedZone, zoneAlerts);
     }
   };
 
@@ -1181,9 +1233,20 @@ export default function Dashboard({ isOpen, onClose, allZones = [], predictions 
               zone={selectedZone}
               allZones={allZones}
               onBack={() => setSelectedZone(null)}
+              alerts={zoneAlerts}
+              timeline={zoneTimeline}
+              loading={zoneLoading}
+              days={days}
             />
           ) : (
-            <OverallView onSelectZone={setSelectedZone} allZones={allZones} onExport={handleExport} days={days} setDays={setDays} />
+            <OverallView
+              onSelectZone={setSelectedZone}
+              allZones={allZones}
+              summary={summary}
+              loading={summaryLoading}
+              days={days}
+              setDays={setDays}
+            />
           )}
         </div>
 
