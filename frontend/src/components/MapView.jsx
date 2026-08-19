@@ -1215,7 +1215,7 @@ export default function MapView({
               }}
             >
               <Popup>
-                <div className="font-sans p-2.5 text-slate-900 dark:text-slate-100 min-w-[200px]">
+                <div className="font-sans p-2.5 !text-slate-900 dark:!text-slate-100 min-w-[200px]">
                   <div className="flex items-center justify-between mb-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
                     <span className="font-bold text-sm text-slate-900 dark:text-slate-100">🚨 Earthquake Warning</span>
                     <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
@@ -1269,7 +1269,7 @@ export default function MapView({
             pathOptions={getWaterwayStyle(waterway.category, waterway.alert_level)}
           >
             <Popup>
-              <div className="font-sans p-2.5 text-slate-900 dark:text-slate-100 min-w-[200px]">
+              <div className="font-sans p-2.5 !text-slate-900 dark:!text-slate-100 min-w-[200px]">
                 <div className="flex items-center justify-between mb-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
                   <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{waterway.name}</span>
                   <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
@@ -1376,7 +1376,7 @@ export default function MapView({
             >
               <Popup>
                 <div className="font-sans min-w-[220px] p-2.5 text-slate-900 dark:text-slate-100">
-                  <div className="font-bold text-sm !text-slate-950 dark:!text-slate-100 mb-0.5">{zone.name}</div>
+                  <div className="font-bold text-sm !text-black dark:!text-slate-100 mb-0.5">{zone.name}</div>
                   <div className="text-emerald-600 dark:text-emerald-400 text-xs font-semibold mb-2">
                     {POI_DISRUPTION_SUITABILITY[zone.category]?.emoji || '🛡️'} {type}
                   </div>
@@ -1502,7 +1502,7 @@ export default function MapView({
         {/* Focus Popup for inspected earthquake */}
         {selectedEarthquake && (
           <Popup position={[selectedEarthquake.latitude, selectedEarthquake.longitude]} autoClose={false} closeOnClick={false}>
-            <div className="font-sans p-2.5 text-slate-900 dark:text-slate-100 min-w-[200px]">
+            <div className="font-sans p-2.5 !text-slate-900 dark:!text-slate-100 min-w-[200px]">
               <div className="flex items-center justify-between mb-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
                 <span className="font-bold text-sm text-slate-900 dark:text-slate-100">🚨 Earthquake Focus</span>
                 <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">

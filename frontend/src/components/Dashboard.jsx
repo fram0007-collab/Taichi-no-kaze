@@ -182,6 +182,31 @@ function calculateEmergencyServices(summary) {
   return services.length > 0 ? services : [];
 }
 
+// ── Report Time Formatter Helper ────────────────────────────────────
+function formatReportTime(isoString) {
+  if (!isoString) return 'Not available';
+  try {
+    let str = String(isoString).trim();
+    if (!str || str === 'N/A' || str === 'undefined' || str === 'null') return 'Not available';
+    if (str.includes(' ') && !str.includes('T')) {
+      str = str.replace(' ', 'T');
+    }
+    if (!str.endsWith('Z') && !str.includes('+') && !str.match(/-\d{2}:?\d{2}$/)) {
+      str += 'Z';
+    }
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return 'Not available';
+    return d.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Jakarta'
+    });
+  } catch {
+    return 'Not available';
+  }
+}
+
 // ── Report Generation Helper ───────────────────────────────────────
 function generateReportHTML(summary, days, allZones = [], predictions = [], selectedZone = null) {
   const timestamp = new Date();
@@ -306,9 +331,10 @@ function generateReportHTML(summary, days, allZones = [], predictions = [], sele
     const predRows = predictions.map(p => {
       const zName = p.zone?.name || p.zone_name || 'Monitored Zone';
       const threat = p.disruption_type ? p.disruption_type.charAt(0).toUpperCase() + p.disruption_type.slice(1) : 'General Disruption';
-      const peakTime = p.estimated_time_to_peak || 'N/A';
-      const stdEst = p.estimated_resolution_at ? new Date(p.estimated_resolution_at.endsWith('Z') ? p.estimated_resolution_at : p.estimated_resolution_at + 'Z').toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }) + ' WIB' : '2.0 hrs';
-      const aiEst = p.ai_estimated_resolution_at || p.estimated_resolution_at ? new Date((p.ai_estimated_resolution_at || p.estimated_resolution_at).endsWith('Z') ? (p.ai_estimated_resolution_at || p.estimated_resolution_at) : (p.ai_estimated_resolution_at || p.estimated_resolution_at) + 'Z').toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }) + ' WIB' : '1.8 hrs';
+      const peakTime = formatReportTime(p.estimated_time_to_peak);
+      const stdEst = formatReportTime(p.estimated_resolution_at);
+      const aiPredictionField = p.ai_estimated_resolution_at || p.ml_estimated_resolution_at;
+      const aiEst = formatReportTime(aiPredictionField);
       const conf = p.resolution_confidence ? `${Math.round(p.resolution_confidence)}%` : '65%';
       const worsening = p.probability_percentage ? `${Math.round(p.probability_percentage)}% score` : 'Moderate';
       return `
@@ -746,10 +772,10 @@ function exportReport(summary, days, allZones = [], predictions = [], selectedZo
 }
 
 // ── Overall View ───────────────────────────────────────────────────
-function OverallView({ onSelectZone, allZones = [], onExport }) {
+function OverallView({ onSelectZone, allZones = [], onExport, days, setDays }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState(7);
+  
 
   useEffect(() => {
     setLoading(true);
@@ -1155,7 +1181,7 @@ export default function Dashboard({ isOpen, onClose, allZones = [], predictions 
                 {selectedZone ? selectedZone.name : 'Threat Intelligence Dashboard'}
               </h2>
               <p className="text-[10px] text-slate-500">
-                {selectedZone ? 'Zone detail analysis' : 'Jabodetabek overview · last 7 days'}
+                {selectedZone ? 'Zone detail analysis' : `Jabodetabek overview · last ${days} day${days === 1 ? '' : 's'}`}
               </p>
             </div>
           </div>
@@ -1184,7 +1210,7 @@ export default function Dashboard({ isOpen, onClose, allZones = [], predictions 
               onBack={() => setSelectedZone(null)}
             />
           ) : (
-            <OverallView onSelectZone={setSelectedZone} allZones={allZones} onExport={handleExport} />
+            <OverallView onSelectZone={setSelectedZone} allZones={allZones} onExport={handleExport} days={days} setDays={setDays} />
           )}
         </div>
 

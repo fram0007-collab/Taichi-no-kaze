@@ -203,12 +203,12 @@ export default function NotificationPreferences({
             <p className={`mt-3 text-sm ${previewBodyClasses}`}>
               {previewLoading
                 ? 'Preparing a calm alert preview…'
-                : (previewPayload?.message || 'Choose a disruption type to preview how alerts will look.')}
+                : (previewPayload?.message || 'DIS-RUPTURE - [SEVERITY] Alert [disruption type] at [area name]. Score ([risk score]/100).')}
             </p>
             <p className={`mt-2 text-xs ${previewMetaClasses}`}>
               {previewPayload?.safe_area
-                ? `Recommended nearby safe area: ${previewPayload.safe_area.name}, about ${previewPayload.safe_area.distance_km} km away.`
-                : 'No nearby safe area is available yet. Follow official emergency guidance and avoid the affected zone.'}
+                ? `This preview shows the same format used by push notifications. The severity, disruption type, area name, and risk score will change based on the detected alert. Recommended safe area: ${previewPayload.safe_area}.`
+                : 'Follow official emergency guidance and avoid the affected zone.'}
             </p>
           </div>
 
