@@ -1121,6 +1121,7 @@ export default function App() {
                 timelineLoading={timelineLoading}
                 selectedHours={selectedHours}
                 setSelectedHours={setSelectedHours}
+                theme={theme}
               />
 
               {/* Evacuation guidance trigger */}
@@ -1338,9 +1339,10 @@ export default function App() {
                           <ResolutionBadgeCompact
                             estimated_resolution_at={pred.estimated_resolution_at}
                             resolution_confidence={pred.resolution_confidence}
+                            theme={theme}
                           />
                           <div className="mt-1">
-                            <MlResolutionBadgeCompact alertId={pred.id} />
+                            <MlResolutionBadgeCompact alertId={pred.id} theme={theme} />
                           </div>
                         </div>
                       )}

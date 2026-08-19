@@ -1048,6 +1048,7 @@ export default function MapView({
                       <ResolutionBadgeCompact
                         estimated_resolution_at={pred.estimated_resolution_at}
                         resolution_confidence={pred.resolution_confidence}
+                        theme={theme}
                       />
                     </div>
                   )}

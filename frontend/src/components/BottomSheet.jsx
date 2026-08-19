@@ -23,7 +23,8 @@ export default function BottomSheet({
   timelineData,
   timelineLoading,
   selectedHours = 12,
-  setSelectedHours
+  setSelectedHours,
+  theme = 'light'
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const [poiFilter, setPoiFilter] = useState('all');
@@ -142,9 +143,10 @@ export default function BottomSheet({
               <ResolutionBadgeCompact
                 estimated_resolution_at={selectedPrediction.estimated_resolution_at}
                 resolution_confidence={selectedPrediction.resolution_confidence}
+                theme={theme}
               />
               <div className="mt-1">
-                <MlResolutionBadgeCompact alertId={selectedPrediction.id} />
+                <MlResolutionBadgeCompact alertId={selectedPrediction.id} theme={theme} />
               </div>
             </div>
           )}
