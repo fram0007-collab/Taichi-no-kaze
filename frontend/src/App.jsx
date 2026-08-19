@@ -1159,6 +1159,7 @@ export default function App() {
               {showEvacuation && (
                 <div className="w-full overflow-hidden border-t border-slate-800" style={{ height: mapHeight }}>
                   <EvacuationPanel
+                    theme={theme}
                     userLocation={userLocation}
                     predictions={filteredPredictions}
                     safePois={safePois}
@@ -1224,6 +1225,7 @@ export default function App() {
               {showEvacuation && (
                 <div className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">
                   <EvacuationPanel
+                    theme={theme}
                     userLocation={userLocation}
                     predictions={filteredPredictions}
                     safePois={safePois}
@@ -1560,6 +1562,7 @@ export default function App() {
           {/* Right panel: Timeline feeds, historical charts & trend lines */}
           <div data-tour="sidebar-filters" className="flex w-[30%] min-w-[360px] h-full shrink-0">
             <Sidebar 
+              theme={theme}
               predictions={filteredPredictions}
               selectedPrediction={selectedPrediction}
               onSelectPrediction={handleSelectZone}
@@ -1578,6 +1581,7 @@ export default function App() {
               showEvacuationPanel={showEvacuation}
               evacuationPanelNode={
                 <EvacuationPanel
+                  theme={theme}
                   userLocation={userLocation}
                   predictions={filteredPredictions}
                   safePois={safePois}

@@ -39,7 +39,9 @@ export default function Sidebar({
   onGetEvacuation,
   showEvacuationPanel = false,
   evacuationPanelNode = null,
+  theme = 'light',
 }) {
+  const isLight = theme === 'light';
   const [poiFilter, setPoiFilter] = useState('all');
   const [showAllWarnings, setShowAllWarnings] = useState(false);
   const [severityFilter, setSeverityFilter] = useState('all');
@@ -348,9 +350,11 @@ export default function Sidebar({
                 className={`text-[9px] px-2 py-0.5 rounded font-semibold border transition-all duration-200 ${
                   isActive
                     ? tab.id === 'all'
-                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
+                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-500'
                       : tab.color + ' font-bold scale-105'
-                    : 'border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/30 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    : (isLight
+                      ? 'border-slate-300 bg-slate-100 text-slate-700 hover:text-slate-900'
+                      : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200')
                 }`}
               >
                 {tab.label}
@@ -392,21 +396,23 @@ export default function Sidebar({
                   onClick={() => onSelectPrediction(pred)}
                   className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
                     isSelected 
-                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' 
-                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900'
+                      ? (isLight ? 'border-indigo-500 bg-indigo-50' : 'border-indigo-500 bg-indigo-500/10')
+                      : (isLight
+                        ? 'border-slate-200 bg-white hover:bg-slate-50'
+                        : 'border-slate-800 bg-slate-900/50 hover:bg-slate-900')
                   }`}
                 >
                   <div className="flex justify-between items-start">
-                    <span className="font-semibold text-sm text-slate-950 dark:text-slate-200">{pred.zone.name}</span>
+                    <span className={`font-semibold text-sm ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{pred.zone.name}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getRiskColor(pred.risk_level)}`}>
                       {pred.risk_level}
                     </span>
                   </div>
-                  <div className="mt-2 text-xs text-slate-600 dark:text-slate-400 flex justify-between items-center">
-                    <span>Threat: <span className="text-slate-700 dark:text-slate-300 font-medium">{pred.disruption_type}</span></span>
+                  <div className={`mt-2 text-xs flex justify-between items-center ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                    <span>Threat: <span className={`font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>{pred.disruption_type}</span></span>
                     <span>Peak: <span className="text-indigo-400 font-medium">{formatTime(pred.estimated_time_to_peak)}</span></span>
                   </div>
-                  <div className="mt-1.5 text-[10px] text-slate-600 dark:text-slate-500 flex justify-between items-center border-t border-slate-200 dark:border-slate-800/40 pt-1.5">
+                  <div className={`mt-1.5 text-[10px] flex justify-between items-center border-t pt-1.5 ${isLight ? 'text-slate-600 border-slate-200' : 'text-slate-500 border-slate-800/40'}`}>
                     <span>Confidence Level</span>
                     <span className={getConfidenceColor(pred.probability_percentage)}>{pred.probability_percentage}%</span>
                   </div>
@@ -415,9 +421,10 @@ export default function Sidebar({
                       <ResolutionBadgeCompact
                         estimated_resolution_at={pred.estimated_resolution_at}
                         resolution_confidence={pred.resolution_confidence}
+                        theme={theme}
                       />
                       <div className="mt-1">
-                        <MlResolutionBadgeCompact alertId={pred.id} />
+                        <MlResolutionBadgeCompact alertId={pred.id} theme={theme} />
                       </div>
                     </div>
                   )}
@@ -734,34 +741,38 @@ export default function Sidebar({
                   className={`p-3 rounded-lg border text-xs space-y-1.5 transition-all duration-200 ${
                     isSelected 
                       ? 'border-red-500 bg-red-500/10 shadow-[0_0_12px_rgba(239,68,68,0.25)]' 
-                      : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/30 dark:hover:border-slate-700/80'
+                      : (isLight
+                        ? 'border-slate-200 bg-white hover:border-slate-300'
+                        : 'border-slate-800 bg-slate-900/30 hover:border-slate-700/80')
                   }`}
                 >
                   <div className="flex justify-between items-center gap-2">
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{eq.wilayah}</span>
+                    <span className={`font-semibold truncate ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{eq.wilayah}</span>
                     <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                       isMajor ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse' : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
                     }`}>
                       M {eq.magnitude.toFixed(1)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-[10px] text-slate-600 dark:text-slate-500 font-medium">
+                  <div className={`flex justify-between text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>
                     <span>{new Date(eq.datetime).toLocaleDateString()}</span>
                     <span>{new Date(eq.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   {eq.potensi && (
-                    <div className="text-[9.5px] text-indigo-600 dark:text-indigo-400/90 font-semibold italic border-t border-slate-200 dark:border-slate-800/20 pt-1 mt-1">
+                    <div className={`text-[9.5px] font-semibold italic border-t pt-1 mt-1 ${isLight ? 'text-indigo-600 border-slate-200' : 'text-indigo-400/90 border-slate-800/20'}`}>
                       {eq.potensi}
                     </div>
                   )}
-                  <div className="flex justify-between items-center pt-1.5 border-t border-slate-200 dark:border-slate-800/20">
-                    <span className="text-[10px] text-slate-600 dark:text-slate-500 font-medium">Depth: {eq.depth}</span>
+                  <div className={`flex justify-between items-center pt-1.5 border-t ${isLight ? 'border-slate-200' : 'border-slate-800/20'}`}>
+                    <span className={`text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>Depth: {eq.depth}</span>
                     <button
                       onClick={() => onSelectEarthquake && onSelectEarthquake(isSelected ? null : eq)}
                       className={`text-[9px] px-2 py-0.5 rounded font-extrabold tracking-wider uppercase transition-all duration-200 ${
                         isSelected 
                           ? 'bg-red-600 text-white shadow-glow animate-pulse'
-                          : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white'
+                          : (isLight
+                            ? 'bg-slate-800 text-white hover:bg-slate-700'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white')
                       }`}
                     >
                       {isSelected ? 'Viewing' : 'View'}

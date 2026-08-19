@@ -41,7 +41,7 @@ function confColor(pct) {
   return { text: 'text-red-600 dark:text-red-400', bar: 'bg-red-400' };
 }
 
-export function MlResolutionBadgeCompact({ alertId }) {
+export function MlResolutionBadgeCompact({ alertId, theme = 'light' }) {
   const { prediction, loading, unavailable } = useMlResolution(alertId);
   if (loading || unavailable || !prediction) return null;
 
@@ -50,15 +50,17 @@ export function MlResolutionBadgeCompact({ alertId }) {
   if (!time) return null;
   const { text } = confColor(conf);
   const remainingLabel = formatRemainingTimeLabel(prediction.estimated_resolution_at);
+  const isLight = theme === 'light';
+  const mutedText = isLight ? 'text-slate-700' : 'text-slate-300';
 
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-slate-800 dark:text-slate-200">
+    <div className={`flex items-center gap-1.5 text-[10px] ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
       <span>🧠</span>
       <span>
         <span className="font-medium">AI prediction:</span>{' '}
         <span className={`font-bold ${text}`}>{time}</span>
-        {remainingLabel && <span className="ml-1 text-slate-700 dark:text-slate-300">· {remainingLabel}</span>}
-        <span className="ml-1 text-slate-700 dark:text-slate-300">({conf}% confidence)</span>
+        {remainingLabel && <span className={`ml-1 ${mutedText}`}>· {remainingLabel}</span>}
+        <span className={`ml-1 ${mutedText}`}>({conf}% confidence)</span>
       </span>
     </div>
   );

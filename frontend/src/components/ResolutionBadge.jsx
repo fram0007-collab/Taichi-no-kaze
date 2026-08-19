@@ -67,7 +67,7 @@ function confColor(pct) {
 /**
  * Compact variant — one line, used in sidebar card and map popup.
  */
-export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_confidence }) {
+export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_confidence, theme = 'light' }) {
   const time = formatRelativeWIB(estimated_resolution_at);
   const conf = Math.round(resolution_confidence || 0);
   if (!time || conf === 0) return null;
@@ -75,20 +75,22 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
   const { text } = confColor(conf);
   const uncertain = conf < 60;
   const remainingLabel = formatRemainingTimeLabel(estimated_resolution_at);
+  const isLight = theme === 'light';
+  const mutedText = isLight ? 'text-slate-700' : 'text-slate-300';
 
   return (
-    <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-800 dark:text-slate-200">
+    <div className={`flex items-center gap-1.5 text-[10px] font-medium ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
       <span>🕐</span>
       <span>
-        <span className="text-slate-800 dark:text-slate-200">Est. clear</span>{' '}
+        <span>Est. clear</span>{' '}
         <span className={`font-bold ${text}`}>
           {uncertain ? 'Clear time uncertain' : time}
         </span>
-        {remainingLabel && <span className="ml-1 text-slate-700 dark:text-slate-300">· {remainingLabel}</span>}
+        {remainingLabel && <span className={`ml-1 ${mutedText}`}>· {remainingLabel}</span>}
         {uncertain ? (
-          <span className="ml-1 text-slate-700 dark:text-slate-300">(confidence below 60%)</span>
+          <span className={`ml-1 ${mutedText}`}>(confidence below 60%)</span>
         ) : (
-          <span className="ml-1 text-slate-700 dark:text-slate-300">({conf}% confidence)</span>
+          <span className={`ml-1 ${mutedText}`}>({conf}% confidence)</span>
         )}
       </span>
     </div>

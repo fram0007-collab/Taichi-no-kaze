@@ -186,6 +186,7 @@ export default function EvacuationPanel({
   activePrediction = null, // the primary active prediction (for resolution data)
   allZones = [], // live zone_status data — current scores, NOT the stale alert-time snapshot
   zoneIsNearby = true, // false when no active threat is near the user's actual location
+  theme = 'light',
 }) {
   const [phase, setPhase] = useState('idle'); // idle | routing | done | error
   const [routeInfo, setRouteInfo] = useState(null);  // { destination, distanceKm, durationMin, steps }
@@ -406,7 +407,7 @@ export default function EvacuationPanel({
           </p>
         )}
         {zoneGuidances.map((zg, i) => (
-          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} />
+          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} theme={theme} />
         ))}
       </div>
     );
@@ -667,7 +668,7 @@ export default function EvacuationPanel({
           </p>
         )}
         {zoneGuidances.map((zg, i) => (
-          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} />
+          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} theme={theme} />
         ))}
       </div>
     </div>
@@ -766,34 +767,41 @@ function PanelHeader({ title, subtitle, onClose }) {
   );
 }
 
-function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
+function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false, theme = 'light' }) {
   const [guideOpen, setGuideOpen] = useState(defaultGuideOpen);
   const [hotlinesOpen, setHotlinesOpen] = useState(false);
+  const isLight = theme === 'light';
+  const cardShell = isLight
+    ? 'rounded-xl border border-slate-200 bg-white text-slate-900 overflow-hidden'
+    : 'rounded-xl border border-slate-700 bg-slate-800/60 text-slate-100 overflow-hidden';
+  const headerHover = isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-700/50';
+  const titleClass = isLight ? 'text-slate-900' : 'text-slate-100';
+  const divider = isLight ? 'border-slate-200' : 'border-slate-700';
 
   return (
     <div className="space-y-3 p-4 pt-0">
       {/* Step-by-step guide */}
-      <div className="rounded-xl border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 overflow-hidden">
+      <div className={cardShell}>
         <button
           onClick={() => setGuideOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+          className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${headerHover}`}
         >
           <div className="flex items-center gap-2">
             <span className="text-base">{guide.icon}</span>
-            <span className="font-bold text-sm text-slate-950 dark:text-slate-100">{guide.title}</span>
+            <span className={`font-bold text-sm ${titleClass}`}>{guide.title}</span>
           </div>
           {guideOpen
             ? <ChevronUp className="w-4 h-4 text-slate-400" />
             : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </button>
         {guideOpen && (
-          <div className="px-4 pb-4 space-y-2.5 border-t border-slate-200 dark:border-slate-700 pt-3">
+          <div className={`px-4 pb-4 space-y-2.5 border-t pt-3 ${divider}`}>
             {guide.steps.map((step, i) => (
               <div key={i} className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 text-[10px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">
                   {i + 1}
                 </span>
-                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{step}</p>
+                <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>{step}</p>
               </div>
             ))}
           </div>
@@ -801,14 +809,14 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
       </div>
 
       {/* Emergency hotlines */}
-      <div className="rounded-xl border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 overflow-hidden">
+      <div className={cardShell}>
         <button
           onClick={() => setHotlinesOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+          className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${headerHover}`}
         >
           <div className="flex items-center gap-2">
             <Phone className="w-4 h-4 text-emerald-400" />
-            <span className="font-bold text-sm text-slate-950 dark:text-slate-100">Emergency Contacts</span>
+            <span className={`font-bold text-sm ${titleClass}`}>Emergency Contacts</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
               {hotlines.length}
             </span>
@@ -818,12 +826,12 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
             : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </button>
         {hotlinesOpen && (
-          <div className="border-t border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700/60">
+          <div className={`border-t ${divider} divide-y ${isLight ? 'divide-slate-200' : 'divide-slate-700/60'}`}>
             {hotlines.map((h, i) => (
               <div key={i} className="flex items-center justify-between px-4 py-3 gap-3">
                 <div className="min-w-0">
-                  <p className="font-semibold text-xs text-slate-900 dark:text-slate-100 truncate">{h.name}</p>
-                  <p className="text-[10px] text-slate-600 dark:text-slate-400 truncate">{h.role}</p>
+                  <p className={`font-semibold text-xs truncate ${titleClass}`}>{h.name}</p>
+                  <p className={`text-[10px] truncate ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>{h.role}</p>
                 </div>
                 <a
                   href={`tel:${h.number.replace(/[^0-9+]/g, '')}`}
