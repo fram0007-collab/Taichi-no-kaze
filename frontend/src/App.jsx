@@ -9,11 +9,12 @@ import AdminDashboard from './components/AdminDashboard';
 import { ResolutionBadgeCompact } from './components/ResolutionBadge';
 import { MlRiskBadgeCompact } from './components/MlRiskBadge';
 import { MlResolutionBadgeCompact } from './components/MlResolutionBadge';
-import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity, BookOpen } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity, BookOpen, Phone } from 'lucide-react';
 import { getApiUrl } from './utils/getApiUrl';
 import FirstTimeTour from './components/FirstTimeTour';
 import Dashboard from './components/Dashboard';
 import NotificationPreferences from './components/NotificationPreferences';
+import EmergencyHelpModal from './components/EmergencyHelpModal';
 import { calculateDistanceKm } from './utils/haversine';
 import {
   getExistingPushSubscription,
@@ -322,6 +323,7 @@ export default function App() {
   const [pushStatusMessage, setPushStatusMessage] = useState('');
   const [pendingDeepLink, setPendingDeepLink] = useState(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showEmergencyHelp, setShowEmergencyHelp] = useState(false);
   const [mobileTab, setMobileTab] = useState('map'); // 'map', 'feed', 'settings'
   const [dismissedAutoEvacuationKeys, setDismissedAutoEvacuationKeys] = useState(() => new Set());
   const [activeAutoEvacuationKey, setActiveAutoEvacuationKey] = useState(null);
@@ -934,6 +936,15 @@ export default function App() {
 
         {/* Header Controls (Responsive Toggle / Burger menu) */}
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowEmergencyHelp(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 active:scale-95 text-white border border-red-500 shadow-lg shadow-red-900/30 text-xs font-bold transition-all"
+            title="Call emergency services"
+          >
+            <Phone className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Need Help?</span>
+            <span className="sm:hidden">Help</span>
+          </button>
           {!isMobile && (
             // Desktop Header Controls
             <>
@@ -1148,6 +1159,7 @@ export default function App() {
               {showEvacuation && (
                 <div className="w-full overflow-hidden border-t border-slate-800" style={{ height: mapHeight }}>
                   <EvacuationPanel
+                    theme={theme}
                     userLocation={userLocation}
                     predictions={filteredPredictions}
                     safePois={safePois}
@@ -1213,6 +1225,7 @@ export default function App() {
               {showEvacuation && (
                 <div className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">
                   <EvacuationPanel
+                    theme={theme}
                     userLocation={userLocation}
                     predictions={filteredPredictions}
                     safePois={safePois}
@@ -1549,6 +1562,7 @@ export default function App() {
           {/* Right panel: Timeline feeds, historical charts & trend lines */}
           <div data-tour="sidebar-filters" className="flex w-[30%] min-w-[360px] h-full shrink-0">
             <Sidebar 
+              theme={theme}
               predictions={filteredPredictions}
               selectedPrediction={selectedPrediction}
               onSelectPrediction={handleSelectZone}
@@ -1567,6 +1581,7 @@ export default function App() {
               showEvacuationPanel={showEvacuation}
               evacuationPanelNode={
                 <EvacuationPanel
+                  theme={theme}
                   userLocation={userLocation}
                   predictions={filteredPredictions}
                   safePois={safePois}
@@ -1589,6 +1604,11 @@ export default function App() {
           </div>
         </main>
       )}
+        <EmergencyHelpModal
+          isOpen={showEmergencyHelp}
+          onClose={() => setShowEmergencyHelp(false)}
+          theme={theme}
+        />
         {showAboutModal && (
           <div
             className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"

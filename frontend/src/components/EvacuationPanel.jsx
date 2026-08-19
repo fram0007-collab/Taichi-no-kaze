@@ -21,14 +21,9 @@ import {
 import { getApiUrl } from '../utils/getApiUrl';
 import { ResolutionBadgeExpanded } from './ResolutionBadge';
 import { MlResolutionBadgeExpanded } from './MlResolutionBadge';
+import { COMMON_EMERGENCY_HOTLINES } from '../constants/emergencyHotlines';
 
 // ── i18n-ready content block ────────────────────────────────────────────────
-const COMMON_EMERGENCY_HOTLINES = [
-  { name: 'BPBD Jakarta', number: '021-1123', role: 'City disaster management' },
-  { name: 'Basarnas (SAR)', number: '115', role: 'Search & rescue operations' },
-  { name: 'PMI', number: '021-7992325', role: 'Emergency support & relief' },
-  { name: 'Ambulance', number: '119', role: 'Medical emergency' },
-];
 
 const CONTENT = {
   // Step-by-step guides per disruption type
@@ -191,7 +186,9 @@ export default function EvacuationPanel({
   activePrediction = null, // the primary active prediction (for resolution data)
   allZones = [], // live zone_status data — current scores, NOT the stale alert-time snapshot
   zoneIsNearby = true, // false when no active threat is near the user's actual location
+  theme = 'light',
 }) {
+  const isLight = theme === 'light';
   const [phase, setPhase] = useState('idle'); // idle | routing | done | error
   const [routeInfo, setRouteInfo] = useState(null);  // { destination, distanceKm, durationMin, steps }
   const [errorMsg, setErrorMsg] = useState('');
@@ -382,14 +379,14 @@ export default function EvacuationPanel({
   if (!userLocation) {
     return (
       <div className="flex flex-col h-full">
-        <PanelHeader onClose={onClose} title="Evacuation Guidance" subtitle={zoneNameLabel} />
+        <PanelHeader theme={theme} onClose={onClose} title="Evacuation Guidance" subtitle={zoneNameLabel} />
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
           <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
             <MapPin className="w-8 h-8 text-amber-400" />
           </div>
           <div>
-            <p className="font-bold text-slate-100 text-base mb-1">Your location is needed</p>
-            <p className="text-sm text-slate-400 leading-relaxed">
+            <p className={`font-bold text-base mb-1 ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>Your location is needed</p>
+            <p className={`text-sm leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
               To calculate a safe evacuation route away from active threats,
               we need to know where you are right now.
             </p>
@@ -411,7 +408,7 @@ export default function EvacuationPanel({
           </p>
         )}
         {zoneGuidances.map((zg, i) => (
-          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} />
+          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} theme={theme} />
         ))}
       </div>
     );
@@ -420,7 +417,7 @@ export default function EvacuationPanel({
   // ── Main panel ─────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <PanelHeader onClose={onClose} title="Evacuation Guidance" subtitle={zoneNameLabel} />
+      <PanelHeader theme={theme} onClose={onClose} title="Evacuation Guidance" subtitle={zoneNameLabel} />
 
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-3 p-4">
 
@@ -434,7 +431,7 @@ export default function EvacuationPanel({
           return sev === 'MEDIUM';
         })() && (
           <div className="pb-1">
-            <MediumSeverityBanner disruption={primaryDisruption} />
+            <MediumSeverityBanner disruption={primaryDisruption} theme={theme} />
           </div>
         )}
 
@@ -444,19 +441,20 @@ export default function EvacuationPanel({
             estimated_resolution_at={activePrediction.estimated_resolution_at}
             resolution_confidence={activePrediction.resolution_confidence}
             disruption_type={activePrediction.disruption_type}
+            theme={theme}
           />
         )}
 
         {/* ML resolution-time estimate — sits next to the rule-based one above */}
         {activePrediction?.id && (
-          <MlResolutionBadgeExpanded alertId={activePrediction.id} />
+          <MlResolutionBadgeExpanded alertId={activePrediction.id} theme={theme} />
         )}
 
 
           {/* Multiple threats notice */}
         {sortedZoneAlerts.length > 1 && (
-          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2">
-            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+          <div className={`rounded-lg border px-3 py-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-800/40'}`}>
+            <p className={`text-[11px] leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
               ⚠️ This zone has <strong>{sortedZoneAlerts.length} active threats</strong>:{' '}
               {sortedZoneAlerts.map(a => a.disruption_type).join(', ')}.{' '}
               Safe zone guidance below applies to the <strong>{primaryDisruption}</strong> threat.
@@ -468,9 +466,9 @@ export default function EvacuationPanel({
              correspond to any active alert zone, so we don't silently show
              guidance for an unrelated distant zone as if it were relevant */}
         {!zoneIsNearby && (
-          <div className="rounded-lg border border-emerald-300 dark:border-emerald-700/50 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2.5 flex items-start gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-            <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+          <div className={`rounded-lg border px-3 py-2.5 flex items-start gap-2 ${isLight ? 'border-emerald-300 bg-emerald-50' : 'border-emerald-700/50 bg-emerald-900/20'}`}>
+            <ShieldCheck className={`w-4 h-4 mt-0.5 shrink-0 ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />
+            <p className={`text-[11px] leading-relaxed ${isLight ? 'text-emerald-800' : 'text-emerald-300'}`}>
               <strong>No active threat detected near your current location.</strong>{' '}
               The zone shown below (<strong>{zoneNameLabel}</strong>) is the nearest active alert in the system,
               but it may be far from where you are. This guidance is shown for reference only.
@@ -479,11 +477,11 @@ export default function EvacuationPanel({
         )}
 
         {/* Route section */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 overflow-hidden">
-          <div className="px-4 pt-4 pb-3 border-b border-slate-200 dark:border-slate-700">
+        <div className={`rounded-xl border overflow-hidden ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-800/60'}`}>
+          <div className={`px-4 pt-4 pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
             <div className="flex items-center gap-2 mb-1">
               <Navigation className="w-4 h-4 text-indigo-400" />
-              <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
+              <span className={`font-bold text-sm ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
                 {primaryDisruption === 'crowd'
                   ? 'Find a Less Crowded Area'
                   : primaryDisruption === 'traffic'
@@ -491,7 +489,7 @@ export default function EvacuationPanel({
                   : 'Nearest Safe Location'}
               </span>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
+            <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
               {primaryDisruption === 'crowd'
                 ? 'Showing nearby places currently less crowded than this area.'
                 : primaryDisruption === 'traffic'
@@ -505,7 +503,7 @@ export default function EvacuationPanel({
               primaryDisruption === 'crowd' && safePois && safePois.length > 0 ? (
                 /* Crowd: show POI list — user picks destination before routing */
                 <div className="space-y-2">
-                  <p className="text-[10px] text-slate-600 dark:text-slate-500 font-semibold uppercase tracking-wide mb-2">
+                  <p className={`text-[10px] font-semibold uppercase tracking-wide mb-2 ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>
                     Choose a destination
                   </p>
                   {(() => {
@@ -544,9 +542,9 @@ export default function EvacuationPanel({
                       crowdPct >= 35 ? 'text-amber-500' : 'text-emerald-500';
                     return (
                       <div key={idx}
-                        className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">
+                        className={`flex items-center gap-3 p-2.5 rounded-xl border ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-800/40'}`}>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">{poi.name}</p>
+                          <p className={`font-semibold text-sm truncate ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{poi.name}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] text-slate-500 capitalize">{poi.category}</span>
                             {distKm && <span className="text-[10px] text-slate-500">· {distKm} km</span>}
@@ -588,7 +586,7 @@ export default function EvacuationPanel({
             )}
 
             {phase === 'routing' && (
-              <div className="flex items-center justify-center gap-3 py-4 text-slate-400">
+              <div className={`flex items-center justify-center gap-3 py-4 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                 <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
                 <span className="text-sm">Calculating safe route…</span>
               </div>
@@ -602,7 +600,7 @@ export default function EvacuationPanel({
                 </div>
                 <button
                   onClick={() => setPhase('idle')}
-                  className="w-full py-2.5 rounded-xl border border-slate-600 text-slate-300 text-sm font-semibold hover:bg-slate-700 transition-colors"
+                  className={`w-full py-2.5 rounded-xl border text-sm font-semibold transition-colors ${isLight ? 'border-slate-300 text-slate-700 hover:bg-slate-100' : 'border-slate-600 text-slate-300 hover:bg-slate-700'}`}
                 >
                   Try Again
                 </button>
@@ -619,7 +617,7 @@ export default function EvacuationPanel({
                     <p className="text-xs text-slate-500 capitalize">{routeInfo.destination.category?.replace('_', ' ')}</p>
                   </div>
                   <div className="ml-auto text-right shrink-0">
-                    <p className="font-bold text-white text-sm">{routeInfo.distanceKm} km</p>
+                    <p className={`font-bold text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>{routeInfo.distanceKm} km</p>
                     <p className="text-xs text-slate-500">~{routeInfo.durationMin} min walk</p>
                   </div>
                 </div>
@@ -647,7 +645,7 @@ export default function EvacuationPanel({
                     {routeInfo.steps.map((step, i) => (
                       <div key={i} className="flex items-start gap-2.5">
                         <span className="text-[10px] font-bold text-indigo-400 w-4 shrink-0 mt-0.5">{i + 1}</span>
-                        <p className="text-xs text-slate-300 leading-relaxed">{step}</p>
+                        <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>{step}</p>
                       </div>
                     ))}
                   </div>
@@ -656,7 +654,7 @@ export default function EvacuationPanel({
                 {/* Recalculate */}
                 <button
                   onClick={() => calculateRoute()}
-                  className="w-full py-2 rounded-xl border border-slate-600 text-slate-400 text-xs font-semibold hover:bg-slate-700 transition-colors"
+                  className={`w-full py-2 rounded-xl border text-xs font-semibold transition-colors ${isLight ? 'border-slate-300 text-slate-600 hover:bg-slate-100' : 'border-slate-600 text-slate-400 hover:bg-slate-700'}`}
                 >
                   Recalculate Route
                 </button>
@@ -672,7 +670,7 @@ export default function EvacuationPanel({
           </p>
         )}
         {zoneGuidances.map((zg, i) => (
-          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} />
+          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} theme={theme} />
         ))}
       </div>
     </div>
@@ -709,22 +707,23 @@ const MEDIUM_ADVICE = {
   },
 };
 
-function MediumSeverityBanner({ disruption }) {
+function MediumSeverityBanner({ disruption, theme = 'light' }) {
   const [expanded, setExpanded] = useState(false);
   const advice = MEDIUM_ADVICE[disruption] ?? MEDIUM_ADVICE.weather;
+  const isLight = theme === 'light';
 
   return (
-    <div className="rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-500/8 overflow-hidden">
+    <div className={`rounded-xl border overflow-hidden ${isLight ? 'border-amber-300 bg-amber-50' : 'border-amber-500/30 bg-amber-500/8'}`}>
       <button
         onClick={() => setExpanded(e => !e)}
         className="w-full flex items-start gap-3 px-4 py-3 text-left"
       >
         <span className="text-lg shrink-0 mt-0.5">{advice.icon}</span>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-0.5">
+          <p className={`text-xs font-bold uppercase tracking-wider mb-0.5 ${isLight ? 'text-amber-800' : 'text-amber-400'}`}>
             Medium alert — monitor & prepare
           </p>
-          <p className="text-sm font-semibold !text-slate-800 dark:!text-slate-100">
+          <p className={`text-sm font-semibold ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
             {advice.headline}
           </p>
         </div>
@@ -735,10 +734,10 @@ function MediumSeverityBanner({ disruption }) {
 
       {expanded && (
         <div className="px-4 pb-4 pt-0">
-          <p className="text-sm !text-slate-700 dark:!text-slate-300 leading-relaxed">
+          <p className={`text-sm leading-relaxed ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
             {advice.body}
           </p>
-          <p className="mt-2 text-[11px] !text-amber-600 dark:!text-amber-500 font-medium">
+          <p className={`mt-2 text-[11px] font-medium ${isLight ? 'text-amber-800' : 'text-amber-500'}`}>
             Evacuation routes and safe areas below are available as a precaution — you do not need to use them unless conditions worsen.
           </p>
         </div>
@@ -749,21 +748,22 @@ function MediumSeverityBanner({ disruption }) {
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function PanelHeader({ title, subtitle, onClose }) {
+function PanelHeader({ title, subtitle, onClose, theme = 'light' }) {
+  const isLight = theme === 'light';
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
+    <div className={`flex items-center justify-between px-4 py-3 border-b shrink-0 ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-lg">🚨</span>
         <div className="min-w-0">
-          <span className="font-bold text-slate-100 text-sm block">{title}</span>
+          <span className={`font-bold text-sm block ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>{title}</span>
           {subtitle && (
-            <span className="text-[11px] text-slate-600 dark:text-slate-400 truncate block">{subtitle}</span>
+            <span className={`text-[11px] truncate block ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>{subtitle}</span>
           )}
         </div>
       </div>
       <button
         onClick={onClose}
-        className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:text-slate-200 transition-colors shrink-0"
+        className={`p-1.5 rounded-lg shrink-0 transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-500 hover:text-slate-800' : 'hover:bg-slate-700 text-slate-400 hover:text-slate-200'}`}
       >
         <X className="w-4 h-4" />
       </button>
@@ -771,34 +771,41 @@ function PanelHeader({ title, subtitle, onClose }) {
   );
 }
 
-function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
+function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false, theme = 'light' }) {
   const [guideOpen, setGuideOpen] = useState(defaultGuideOpen);
   const [hotlinesOpen, setHotlinesOpen] = useState(false);
+  const isLight = theme === 'light';
+  const cardShell = isLight
+    ? 'rounded-xl border border-slate-200 bg-white text-slate-900 overflow-hidden'
+    : 'rounded-xl border border-slate-700 bg-slate-800/60 text-slate-100 overflow-hidden';
+  const headerHover = isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-700/50';
+  const titleClass = isLight ? 'text-slate-900' : 'text-slate-100';
+  const divider = isLight ? 'border-slate-200' : 'border-slate-700';
 
   return (
     <div className="space-y-3 p-4 pt-0">
       {/* Step-by-step guide */}
-      <div className="rounded-xl border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 overflow-hidden">
+      <div className={cardShell}>
         <button
           onClick={() => setGuideOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+          className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${headerHover}`}
         >
           <div className="flex items-center gap-2">
             <span className="text-base">{guide.icon}</span>
-            <span className="font-bold text-sm text-slate-950 dark:text-slate-100">{guide.title}</span>
+            <span className={`font-bold text-sm ${titleClass}`}>{guide.title}</span>
           </div>
           {guideOpen
             ? <ChevronUp className="w-4 h-4 text-slate-400" />
             : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </button>
         {guideOpen && (
-          <div className="px-4 pb-4 space-y-2.5 border-t border-slate-200 dark:border-slate-700 pt-3">
+          <div className={`px-4 pb-4 space-y-2.5 border-t pt-3 ${divider}`}>
             {guide.steps.map((step, i) => (
               <div key={i} className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 text-[10px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">
                   {i + 1}
                 </span>
-                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{step}</p>
+                <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>{step}</p>
               </div>
             ))}
           </div>
@@ -806,14 +813,14 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
       </div>
 
       {/* Emergency hotlines */}
-      <div className="rounded-xl border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 overflow-hidden">
+      <div className={cardShell}>
         <button
           onClick={() => setHotlinesOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+          className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${headerHover}`}
         >
           <div className="flex items-center gap-2">
             <Phone className="w-4 h-4 text-emerald-400" />
-            <span className="font-bold text-sm text-slate-950 dark:text-slate-100">Emergency Contacts</span>
+            <span className={`font-bold text-sm ${titleClass}`}>Emergency Contacts</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
               {hotlines.length}
             </span>
@@ -823,12 +830,12 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false }) {
             : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </button>
         {hotlinesOpen && (
-          <div className="border-t border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700/60">
+          <div className={`border-t ${divider} divide-y ${isLight ? 'divide-slate-200' : 'divide-slate-700/60'}`}>
             {hotlines.map((h, i) => (
               <div key={i} className="flex items-center justify-between px-4 py-3 gap-3">
                 <div className="min-w-0">
-                  <p className="font-semibold text-xs text-slate-900 dark:text-slate-100 truncate">{h.name}</p>
-                  <p className="text-[10px] text-slate-600 dark:text-slate-400 truncate">{h.role}</p>
+                  <p className={`font-semibold text-xs truncate ${titleClass}`}>{h.name}</p>
+                  <p className={`text-[10px] truncate ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>{h.role}</p>
                 </div>
                 <a
                   href={`tel:${h.number.replace(/[^0-9+]/g, '')}`}
