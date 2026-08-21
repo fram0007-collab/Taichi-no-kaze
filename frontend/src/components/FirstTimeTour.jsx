@@ -16,6 +16,25 @@ import {
 } from 'lucide-react';
 import { ILLUSTRATIONS } from './TourIllustrations';
 
+const STARTUP_STEPS = [
+  {
+    id: 'welcome',
+    title: 'Alerts near you',
+    subtitle: 'Jabodetabek at a glance',
+    content: 'Coloured areas on the map show nearby flood, traffic, weather, crowd, and earthquake alerts. Tap one to see what to do.',
+    icon: MapPin,
+    accent: 'from-indigo-500 to-purple-600',
+  },
+  {
+    id: 'notifications',
+    title: 'Turn on location',
+    subtitle: 'So we can show what is near you',
+    content: 'Allow location to filter the map to your area. You can enable notifications later in Settings so you are warned even when the app is closed.',
+    icon: Bell,
+    accent: 'from-amber-500 to-orange-600',
+  },
+];
+
 const TOUR_STEPS = [
   {
     id: 'welcome',
@@ -37,7 +56,7 @@ const TOUR_STEPS = [
     id: 'layers',
     title: 'Customize Your View',
     subtitle: 'Toggle Map Layers',
-    content: 'Use the Layers button to show or hide hospitals, police stations, malls, and other points of interest on the map.',
+    content: 'Use Map display to show or hide hospitals, police stations, malls, and other points of interest.',
     icon: Layers,
     accent: 'from-fuchsia-500 to-purple-600',
   },
@@ -45,23 +64,23 @@ const TOUR_STEPS = [
     id: 'zonedetails',
     title: 'Zone Details & Live Alerts',
     subtitle: 'Filter Risk & Search Locations',
-    content: 'Use the side panel (or Feed tab on mobile) to filter zones by risk level (Critical, High, Medium), check estimated clearance times, and search key locations.',
+    content: 'Use the Alerts tab (or the side panel on desktop) to see nearby warnings and estimated clearance times.',
     icon: Layers,
     accent: 'from-blue-500 to-cyan-600',
   },
   {
     id: 'evacuation',
-    title: 'Get Evacuation Guidance',
+    title: 'Get a Safe Route',
     subtitle: 'Step-by-Step Safety Routes',
-    content: 'When a threat is active, tap "Get Evacuation Guidance" for a safe route. Medium alerts show lighter "Monitor & Prepare" guidance, while High and Critical alerts give urgent step-by-step routing away from danger.',
+    content: 'When a threat is active, tap "Safe route" for walking directions away from danger. Medium alerts show lighter "See guidance" tips.',
     icon: Navigation,
     accent: 'from-red-500 to-orange-600',
   },
   {
     id: 'dashboard',
-    title: 'Threat Intelligence Dashboard',
+    title: 'Overview Dashboard',
     subtitle: 'See the Bigger Picture',
-    content: 'Open the Dashboard for an overall view of active threats, zone rankings by risk, and drill down into any zone\u2019s full history and trends.',
+    content: 'Open Overview from Settings for an overall view of active threats, zone rankings by risk, and a zone’s history and trends.',
     icon: Activity,
     accent: 'from-teal-500 to-cyan-600',
   },
@@ -88,14 +107,9 @@ const TOUR_STEPS = [
  * ───────────────────────────────────────────────────────────────────────────
  * Two modes, controlled by `isStartupSequence`:
  *
- * 1. STARTUP MODE (isStartupSequence=true) — replaces the old loading-bar
- *    screen entirely. Shown on every app launch while real data loads in
- *    the background. No X/close button — the only way through is the
- *    "Launch App" button, which stays visible on every slide but is
- *    disabled (greyed out) until `isReady` becomes true. A small status
- *    indicator next to it shows live/loading state. Illustrations are
- *    static stylized mockups (TourIllustrations.jsx), NOT live DOM
- *    highlights, since the real app may still be loading behind this.
+ * 1. STARTUP MODE (isStartupSequence=true) — two short screens on first
+ *    launch only (persisted in App). Launch App is disabled until data is
+ *    ready. Replay Guide still uses the full TOUR_STEPS list.
  *
  * 2. REPLAY MODE (isStartupSequence=false, default) — the original
  *    "Guide" button behavior for revisiting the tour after the app has
@@ -107,7 +121,10 @@ export default function FirstTimeTour({
   onClose,
   onComplete,
   isStartupSequence = false,
+  overlayMode = false,
   isReady = true,
+  onEnableNotifications,
+  onOpenNotificationPreferences,
   dbStatus,
   isFallback,
   isMobile = false,
@@ -120,7 +137,7 @@ export default function FirstTimeTour({
 
   const isLight = theme === 'light' || (typeof document !== 'undefined' && document.documentElement.classList.contains('light-mode'));
 
-  const steps = TOUR_STEPS;
+  const steps = isStartupSequence ? STARTUP_STEPS : TOUR_STEPS;
   const step = steps[currentStep] || steps[0];
   const isLastStep = currentStep === steps.length - 1;
   const StepIcon = step.icon;
@@ -203,12 +220,19 @@ export default function FirstTimeTour({
   const dragOffsetX = touchStart && touchEnd ? (touchEnd.x - touchStart.x) * 0.35 : 0;
 
   return (
-    <div className={`fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-3 sm:p-6 pointer-events-auto select-none ${isStartupSequence ? (isLight ? 'bg-slate-50' : 'bg-brand-dark') : ''}`}>
+    <div className={`fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-3 sm:p-6 select-none ${
+      isStartupSequence && !overlayMode
+        ? (isLight ? 'bg-slate-50 pointer-events-auto' : 'bg-brand-dark pointer-events-auto')
+        : 'pointer-events-none'
+    }`}>
+      {overlayMode && isStartupSequence && (
+        <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px] pointer-events-auto" aria-hidden="true" />
+      )}
       {/* Backdrop — only semi-transparent in replay mode (so the real app
-          shows through slightly); in startup mode it's a solid background
-          since there's nothing meaningful behind it yet */}
+          shows through slightly); in startup overlayMode the dim layer above
+          lets the map show through */}
       {!isStartupSequence && (
-        <div className={`absolute inset-0 transition-opacity duration-300 ${isLight ? 'bg-slate-900/20' : 'bg-slate-950/40'}`}></div>
+        <div className={`absolute inset-0 transition-opacity duration-300 pointer-events-auto ${isLight ? 'bg-slate-900/20' : 'bg-slate-950/40'}`}></div>
       )}
 
       {/* Responsive Tour Card Box with Swipe Gesture Support */}
@@ -216,7 +240,7 @@ export default function FirstTimeTour({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className={`relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden mb-2 sm:mb-0 border touch-pan-y ${isLight
+        className={`relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden mb-2 sm:mb-0 border touch-pan-y pointer-events-auto ${isLight
           ? 'bg-white/95 border-slate-200/80 text-slate-800 backdrop-blur-sm'
           : 'bg-slate-900/95 border-slate-800 text-slate-100 backdrop-blur-md'
           }`}
@@ -304,6 +328,39 @@ export default function FirstTimeTour({
                 <p className={`text-xs sm:text-sm leading-relaxed pt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
                   {step.content}
                 </p>
+                {isStartupSequence && step.id === 'notifications' && (
+                  <div className="mt-3 space-y-2">
+                    {onEnableNotifications && (
+                      <button
+                        type="button"
+                        onClick={onEnableNotifications}
+                        className={`w-full min-h-[44px] rounded-xl text-xs font-bold border transition-colors ${
+                          isLight
+                            ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                            : 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20'
+                        }`}
+                      >
+                        Enable notifications
+                      </button>
+                    )}
+                    {onOpenNotificationPreferences && (
+                      <button
+                        type="button"
+                        onClick={onOpenNotificationPreferences}
+                        className={`w-full min-h-[44px] rounded-xl text-xs font-semibold border transition-colors ${
+                          isLight
+                            ? 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                            : 'border-slate-700 text-slate-400 hover:bg-slate-800'
+                        }`}
+                      >
+                        Notification settings
+                      </button>
+                    )}
+                    <p className={`text-[11px] leading-relaxed ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Tip: Add this app to your home screen for quick access when alerts appear.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -186,6 +186,7 @@ export default function EvacuationPanel({
   activePrediction = null, // the primary active prediction (for resolution data)
   allZones = [], // live zone_status data — current scores, NOT the stale alert-time snapshot
   zoneIsNearby = true, // false when no active threat is near the user's actual location
+  compact = false,
   theme = 'light',
 }) {
   const isLight = theme === 'light';
@@ -196,6 +197,7 @@ export default function EvacuationPanel({
   const [selectedCrowdPoi, setSelectedCrowdPoi] = useState(null);
   const [globalPois, setGlobalPois] = useState([]);
   const [expandedHotlines, setExpandedHotlines] = useState(false);
+  const [showMlDetails, setShowMlDetails] = useState(false);
 
   // Derive the primary disruption type from the zone actually being viewed —
   // NOT predictions[0], which is an unrelated list that doesn't track what
@@ -379,7 +381,7 @@ export default function EvacuationPanel({
   if (!userLocation) {
     return (
       <div className="flex flex-col h-full">
-        <PanelHeader theme={theme} onClose={onClose} title="Evacuation Guidance" subtitle={zoneNameLabel} />
+        <PanelHeader theme={theme} onClose={onClose} title="Safe route" subtitle={zoneNameLabel} />
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
           <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
             <MapPin className="w-8 h-8 text-amber-400" />
@@ -408,16 +410,86 @@ export default function EvacuationPanel({
           </p>
         )}
         {zoneGuidances.map((zg, i) => (
-          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} theme={theme} />
+          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={!compact && i === 0} theme={theme} />
         ))}
       </div>
     );
   }
 
   // ── Main panel ─────────────────────────────────────────────────────────────
+  if (compact && userLocation) {
+    const summaryText = `${guide.icon} ${zoneNameLabel ?? 'Active alert'}: ${guide.steps[0]}`;
+    const emergencyNumber = hotlines.find(h => h.number)?.number ?? '112';
+
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <PanelHeader theme={theme} onClose={onClose} title="Safe route" subtitle={zoneNameLabel} />
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <p className={`text-sm leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
+            {summaryText}
+          </p>
+
+          {phase === 'idle' && (
+            <button
+              type="button"
+              onClick={() => calculateRoute()}
+              className="w-full min-h-[44px] py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm flex items-center justify-center gap-2"
+            >
+              <Navigation className="w-4 h-4" />
+              Start route
+            </button>
+          )}
+          {phase === 'routing' && (
+            <div className={`flex items-center justify-center gap-3 py-3 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+              <span className="text-sm">Calculating safe route…</span>
+            </div>
+          )}
+          {phase === 'error' && (
+            <p className="text-xs text-red-400">{errorMsg}</p>
+          )}
+          {phase === 'done' && routeInfo && (
+            <p className={`text-xs ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+              Route ready — {routeInfo.distanceKm} km, ~{routeInfo.durationMin} min to {routeInfo.destination.name}
+            </p>
+          )}
+
+          <a
+            href={`tel:${String(emergencyNumber).replace(/[^0-9+]/g, '')}`}
+            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl border font-bold text-sm ${
+              isLight
+                ? 'border-red-300 bg-red-50 text-red-700'
+                : 'border-red-500/40 bg-red-500/10 text-red-400'
+            }`}
+          >
+            <Phone className="w-4 h-4" />
+            Call emergency ({emergencyNumber})
+          </a>
+
+          <details className={`rounded-xl border ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
+            <summary className={`min-h-[44px] cursor-pointer px-3 py-3 text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+              Full steps
+            </summary>
+            <div className="px-2 pb-2 space-y-1">
+              {zoneGuidances.map((zg) => (
+                <GuidanceAccordion
+                  key={zg.disruption_type}
+                  guide={zg.guide}
+                  hotlines={zg.hotlines}
+                  defaultGuideOpen={false}
+                  theme={theme}
+                />
+              ))}
+            </div>
+          </details>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <PanelHeader theme={theme} onClose={onClose} title="Evacuation Guidance" subtitle={zoneNameLabel} />
+      <PanelHeader theme={theme} onClose={onClose} title="Safe route" subtitle={zoneNameLabel} />
 
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-3 p-4">
 
@@ -445,9 +517,21 @@ export default function EvacuationPanel({
           />
         )}
 
-        {/* ML resolution-time estimate — sits next to the rule-based one above */}
         {activePrediction?.id && (
-          <MlResolutionBadgeExpanded alertId={activePrediction.id} theme={theme} />
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowMlDetails((v) => !v)}
+              className={`text-[11px] font-semibold ${isLight ? 'text-indigo-600' : 'text-indigo-400'}`}
+            >
+              {showMlDetails ? 'Hide extra estimates' : 'More details'}
+            </button>
+            {showMlDetails && (
+              <div className="mt-2">
+                <MlResolutionBadgeExpanded alertId={activePrediction.id} theme={theme} />
+              </div>
+            )}
+          </div>
         )}
 
 
@@ -670,7 +754,7 @@ export default function EvacuationPanel({
           </p>
         )}
         {zoneGuidances.map((zg, i) => (
-          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={i === 0} theme={theme} />
+          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={!compact && i === 0} theme={theme} />
         ))}
       </div>
     </div>

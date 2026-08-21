@@ -82,16 +82,11 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
     <div className={`flex items-center gap-1.5 text-[10px] font-medium ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
       <span>🕐</span>
       <span>
-        <span>Est. clear</span>{' '}
+        <span>Clears around</span>{' '}
         <span className={`font-bold ${text}`}>
-          {uncertain ? 'Clear time uncertain' : time}
+          {uncertain ? 'uncertain' : time}
         </span>
         {remainingLabel && <span className={`ml-1 ${mutedText}`}>· {remainingLabel}</span>}
-        {uncertain ? (
-          <span className={`ml-1 ${mutedText}`}>(confidence below 60%)</span>
-        ) : (
-          <span className={`ml-1 ${mutedText}`}>({conf}% confidence)</span>
-        )}
       </span>
     </div>
   );

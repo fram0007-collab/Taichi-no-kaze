@@ -1203,7 +1203,7 @@ export default function Dashboard({ isOpen, onClose, allZones = [], predictions 
             <Activity className="w-5 h-5 text-indigo-400" />
             <div>
               <h2 className="text-base font-bold text-slate-100">
-                {selectedZone ? selectedZone.name : 'Threat Intelligence Dashboard'}
+                {selectedZone ? selectedZone.name : 'Overview'}
               </h2>
               <p className="text-[10px] text-slate-500">
                 {selectedZone ? 'Zone detail analysis' : `Jabodetabek overview · last ${days} day${days === 1 ? '' : 's'}`}

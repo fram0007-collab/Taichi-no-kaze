@@ -6,15 +6,13 @@ import BottomSheet from './components/BottomSheet';
 import EvacuationPanel from './components/EvacuationPanel';
 import MetricsGrid from './components/MetricsGrid';
 import AdminDashboard from './components/AdminDashboard';
-import { ResolutionBadgeCompact } from './components/ResolutionBadge';
-import { MlRiskBadgeCompact } from './components/MlRiskBadge';
-import { MlResolutionBadgeCompact } from './components/MlResolutionBadge';
-import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, Menu, X, Settings, Bell, Locate, Activity, BookOpen, Phone } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, X, Settings, Bell, Locate, Activity, Phone, MoreHorizontal } from 'lucide-react';
 import { getApiUrl } from './utils/getApiUrl';
 import FirstTimeTour from './components/FirstTimeTour';
 import Dashboard from './components/Dashboard';
 import NotificationPreferences from './components/NotificationPreferences';
 import EmergencyHelpModal from './components/EmergencyHelpModal';
+import AlertCard from './components/AlertCard';
 import { calculateDistanceKm } from './utils/haversine';
 import {
   getExistingPushSubscription,
@@ -24,6 +22,34 @@ import {
 } from './utils/pushNotifications';
 import { saveUserLocation } from './utils/idbLocation';
 import { saveNotificationPreferences } from './utils/idbPreferences';
+
+const FIRST_RUN_KEY = 'disruptionFirstRunDone';
+const AREA_SEARCH_KEY = 'disruptionAreaSearch';
+
+function isNearMeDefaultRelevant(pred) {
+  const sev = (pred.risk_level || pred.severity || '').toLowerCase();
+  if (sev === 'critical' || sev === 'high') return true;
+  if (sev === 'medium') {
+    const t = (pred.disruption_type || '').toLowerCase();
+    return t === 'flood' || t === 'waterway' || t === 'earthquake';
+  }
+  return false;
+}
+
+function getMobileMapStatus({ nearMeFilterActive, userLocation, filteredPredictions, predictions, nearMeRadius }) {
+  if (!nearMeFilterActive || !userLocation) return null;
+  if (filteredPredictions.length === 0) {
+    if (predictions.length === 0) {
+      return { tone: 'clear', title: 'All clear', detail: 'No active disruptions in Jabodetabek' };
+    }
+    return { tone: 'clear', title: "You're in the clear", detail: `No alerts within ${nearMeRadius} km` };
+  }
+  const n = filteredPredictions.length;
+  return { tone: 'alert', title: `${n} alert${n === 1 ? '' : 's'} nearby`, detail: `Within ${nearMeRadius} km of you` };
+}
+
+const MOBILE_NAV_BOTTOM = 'calc(4rem + env(safe-area-inset-bottom, 0px))';
+const MOBILE_LOCATE_ABOVE_CTA = 'calc(4rem + 3.75rem + env(safe-area-inset-bottom, 0px))';
 
 const API_URL = getApiUrl();
 const NOTIFICATION_PREFERENCES_KEY = 'notificationPreferences';
@@ -73,6 +99,7 @@ export default function App() {
     setEvacuationRoute(geoJSON);
   };
   const [selectedPrediction, setSelectedPrediction] = useState(null);
+  const [bottomSheetExpanded, setBottomSheetExpanded] = useState(true);
   const [timelineData, setTimelineData] = useState(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -85,6 +112,13 @@ export default function App() {
   const [userLocation, setUserLocation] = useState(null); // { lat, lon, accuracy }
   const [locationError, setLocationError] = useState(null);
   const [locating, setLocating] = useState(false);
+  const [areaSearchQuery, setAreaSearchQuery] = useState(() => {
+    try {
+      return window.localStorage.getItem(AREA_SEARCH_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
 
   // Waterway Dynamic Buffer Overlay parameters
   const [waterwayThreshold, setWaterwayThreshold] = useState(75); // capacity percentage threshold
@@ -120,38 +154,49 @@ export default function App() {
 
   // Derived state: predictions filtered by spatial proximity if nearMeFilterActive is true
   const filteredPredictions = useMemo(() => {
-    if (!nearMeFilterActive || !userLocation) return predictions;
-    
-    return predictions.filter(pred => {
-      const geometry = pred.zone?.geometry;
-      if (!geometry || !geometry.coordinates || geometry.coordinates.length === 0) return false;
-      const coords = geometry.coordinates[0];
-      const sumLon = coords.reduce((sum, c) => sum + c[0], 0);
-      const sumLat = coords.reduce((sum, c) => sum + c[1], 0);
-      const centerLat = sumLat / coords.length;
-      const centerLon = sumLon / coords.length;
-      
-      const distance = calculateDistanceKm(userLocation.lat, userLocation.lon, centerLat, centerLon);
-      return distance <= nearMeRadius;
-    });
+    let list = predictions;
+    if (nearMeFilterActive && userLocation) {
+      list = predictions.filter(pred => {
+        const geometry = pred.zone?.geometry;
+        if (!geometry || !geometry.coordinates || geometry.coordinates.length === 0) return false;
+        const coords = geometry.coordinates[0];
+        const sumLon = coords.reduce((sum, c) => sum + c[0], 0);
+        const sumLat = coords.reduce((sum, c) => sum + c[1], 0);
+        const centerLat = sumLat / coords.length;
+        const centerLon = sumLon / coords.length;
+        const distance = calculateDistanceKm(userLocation.lat, userLocation.lon, centerLat, centerLon);
+        return distance <= nearMeRadius;
+      });
+      list = list.filter(isNearMeDefaultRelevant);
+    }
+    return list;
   }, [predictions, nearMeFilterActive, nearMeRadius, userLocation]);
 
   // Severity filter state for mobile view tab
   const [mobileSeverityFilter, setMobileSeverityFilter] = useState('all');
   const mobileFilteredPredictions = useMemo(() => {
     if (mobileSeverityFilter === 'all') return filteredPredictions;
-    return filteredPredictions.filter(pred => 
+    if (mobileSeverityFilter === 'high_plus') {
+      return filteredPredictions.filter(pred => {
+        const sev = (pred.risk_level || pred.severity || '').toLowerCase();
+        return sev === 'critical' || sev === 'high';
+      });
+    }
+    if (mobileSeverityFilter === 'medium_plus') {
+      return filteredPredictions.filter(pred => {
+        const sev = (pred.risk_level || pred.severity || '').toLowerCase();
+        return sev === 'critical' || sev === 'high' || sev === 'medium';
+      });
+    }
+    return filteredPredictions.filter(pred =>
       pred.risk_level?.toLowerCase() === mobileSeverityFilter.toLowerCase()
     );
   }, [filteredPredictions, mobileSeverityFilter]);
 
-  const activeZoneIds = useMemo(() => new Set(
-    predictions.map(p => p.zone?.zone_id ?? p.zone?.id).filter(Boolean)
-  ), [predictions]);
-  const mobileLowZones = useMemo(() => allZones.filter(zs =>
-    !activeZoneIds.has(zs.zone_id) && zs.zone &&
-    (zs.overall_risk_score > 0 || zs.traffic_score > 0 || zs.crowd_score > 0)
-  ), [allZones, activeZoneIds]);
+  const mobileMapStatus = useMemo(
+    () => getMobileMapStatus({ nearMeFilterActive, userLocation, filteredPredictions, predictions, nearMeRadius }),
+    [nearMeFilterActive, userLocation, filteredPredictions, predictions, nearMeRadius]
+  );
 
   // Earthquake states
   const [earthquakes, setEarthquakes] = useState([]);
@@ -205,6 +250,7 @@ export default function App() {
         const { latitude, longitude, accuracy } = pos.coords;
         setUserLocation({ lat: latitude, lon: longitude, accuracy });
         saveUserLocation({ lat: latitude, lng: longitude, timestamp: Date.now() });
+        setNearMeFilterActive(true);
         setLocating(false);
       },
       (err) => {
@@ -225,7 +271,13 @@ export default function App() {
   // we're in "startup" state; it's dismissed only when the user clicks
   // "Launch App" inside the tour (via handleLaunchComplete below), not
   // automatically once data arrives — the button just becomes enabled.
-  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(() => {
+    try {
+      return window.localStorage.getItem(FIRST_RUN_KEY) !== '1';
+    } catch {
+      return true;
+    }
+  });
   const [dbStatus, setDbStatus] = useState("connecting");
 
   // Manual replay of the tour after the app has already loaded (via the
@@ -276,8 +328,23 @@ export default function App() {
   const isAppReady = !loading && (!isFallback || allowFallbackBypass || dbStatus === 'healthy');
 
   const handleLaunchComplete = () => {
+    try {
+      window.localStorage.setItem(FIRST_RUN_KEY, '1');
+    } catch {
+      /* ignore */
+    }
     setShowLoadingScreen(false);
+    locateUser();
   };
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(FIRST_RUN_KEY) === '1') locateUser();
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Listen for browser history back/forward events
   useEffect(() => {
@@ -323,6 +390,7 @@ export default function App() {
   const [pushStatusMessage, setPushStatusMessage] = useState('');
   const [pendingDeepLink, setPendingDeepLink] = useState(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showEmergencyHelp, setShowEmergencyHelp] = useState(false);
   const [mobileTab, setMobileTab] = useState('map'); // 'map', 'feed', 'settings'
   const [dismissedAutoEvacuationKeys, setDismissedAutoEvacuationKeys] = useState(() => new Set());
@@ -420,6 +488,7 @@ export default function App() {
     });
 
     if (match) {
+      setBottomSheetExpanded(true);
       setSelectedPrediction(match);
       setView('map');
       setMobileTab('map');
@@ -648,6 +717,27 @@ export default function App() {
       setNotificationMessage('Unable to request notification permission right now.');
       setPushStatus('failed');
       setPushStatusMessage('Unable to request notification permission right now.');
+    }
+  };
+
+  const handleStartupNotificationRequest = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    try {
+      const permission = window.Notification.permission === 'granted'
+        ? 'granted'
+        : await window.Notification.requestPermission();
+      setNotificationPermission(permission);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const saveAreaSearch = (value) => {
+    setAreaSearchQuery(value);
+    try {
+      window.localStorage.setItem(AREA_SEARCH_KEY, value);
+    } catch {
+      /* ignore */
     }
   };
 
@@ -887,31 +977,17 @@ export default function App() {
   }, [selectedHours]);
 
   // 4. Handle zone selection action
-  const handleSelectZone = (prediction) => {
+  const handleSelectZone = (prediction, { expanded = true } = {}) => {
+    setBottomSheetExpanded(expanded);
     setSelectedPrediction(prediction);
     fetchTimeline(prediction.zone.id, selectedHours);
   };
-
-  if (showLoadingScreen) {
-    return (
-      <FirstTimeTour
-        isOpen={true}
-        isStartupSequence={true}
-        isReady={isAppReady}
-        onComplete={handleLaunchComplete}
-        dbStatus={dbStatus}
-        isFallback={isFallback}
-        isMobile={isMobile}
-        theme={theme}
-      />
-    );
-  }
 
   return (
     <div className={`flex flex-col h-screen h-[100dvh] w-screen overflow-hidden font-sans ${theme === 'light' ? 'light-mode' : 'bg-brand-dark text-slate-100'}`}>
       
       {/* Premium Header */}
-      <header className="h-16 shrink-0 bg-brand-elevated border-b border-slate-800/80 px-6 flex items-center justify-between z-10">
+      <header className="relative h-16 shrink-0 bg-brand-elevated border-b border-slate-800/80 px-6 flex items-center justify-between z-[2500]">
         <div className="flex items-center space-x-3">
           <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-glow-orange animate-pulse">
             <Shield className="w-5 h-5" />
@@ -921,20 +997,12 @@ export default function App() {
               DIS-RUPTURE
             </h1>
             <p className="text-[10px] text-slate-400 font-medium tracking-widest uppercase">
-              Early Warning Command Center
+              Alerts near you
             </p>
           </div>
         </div>
 
-        {/* Fallback Simulation Notice Badge */}
-        {isFallback && (
-          <div className="hidden md:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold animate-pulse">
-            <Cpu className="w-3.5 h-3.5" />
-            <span>Reconnecting...</span>
-          </div>
-        )}
-
-        {/* Header Controls (Responsive Toggle / Burger menu) */}
+        {/* Fallback status is shown only under Settings → For developers */}
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setShowEmergencyHelp(true)}
@@ -961,30 +1029,43 @@ export default function App() {
                 )}
               </button>
 
-              <button
-                onClick={() => setShowTourReplay(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-all text-xs font-semibold"
-                title="Replay First Time Tour"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Guide</span>
-              </button>
-
-              <button
-                onClick={() => setShowAboutModal(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all text-xs font-semibold"
-              >
-                <span>ℹ️ About</span>
-              </button>
-
-              <button
-                data-tour="dashboard-trigger"
-                onClick={() => setShowDashboard(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600/30 hover:text-indigo-300 transition-all text-xs font-semibold"
-                title="Threat Intelligence Dashboard"
-              >
-                <span>📊 Dashboard</span>
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowMoreMenu((v) => !v)}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all text-xs font-semibold"
+                  title="More"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                  <span className="hidden sm:inline">More</span>
+                </button>
+                {showMoreMenu && (
+                  <div className="absolute right-0 mt-2 w-44 rounded-xl border border-slate-800 bg-slate-950 shadow-xl z-[2000] py-1">
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
+                      onClick={() => { setShowTourReplay(true); setShowMoreMenu(false); }}
+                    >
+                      Guide
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
+                      onClick={() => { setShowAboutModal(true); setShowMoreMenu(false); }}
+                    >
+                      About
+                    </button>
+                    <button
+                      type="button"
+                      data-tour="dashboard-trigger"
+                      className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
+                      onClick={() => { setShowDashboard(true); setShowMoreMenu(false); }}
+                    >
+                      Overview
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <button
                 data-tour="notifications-trigger"
@@ -1001,7 +1082,7 @@ export default function App() {
                 className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all text-xs font-semibold"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Poll Telemetry</span>
+                <span className="hidden sm:inline">Refresh</span>
               </button>
 
               {/* Use My Location */}
@@ -1071,22 +1152,75 @@ export default function App() {
           
           {/* Active View Selector */}
           {mobileTab === 'map' && (
-            <div className="flex flex-col w-full" style={{ height: mapHeight }}>
-              {/* Status Overlay Banner for Mobile fallbacks */}
-              {isFallback && (
-                <div className="absolute top-4 left-4 right-4 z-[999] glass-panel px-3 py-2 rounded-xl flex items-center justify-between border border-amber-500/20 text-amber-400 text-xs">
-                  <span className="flex items-center space-x-1.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-400 animate-bounce" />
-                    <span>Operating with simulated telemetry hooks</span>
-                  </span>
-                  <button 
-                    onClick={refresh}
-                    className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-500/10"
-                  >
-                    Retry
-                  </button>
+            <div className="relative flex flex-col w-full" style={{ height: mapHeight }}>
+              {mobileMapStatus && (
+                <div className="absolute top-3 left-3 right-16 z-[1200] pointer-events-none">
+                  <div className={`inline-flex max-w-full rounded-xl px-3 py-2 border backdrop-blur-md shadow-lg ${
+                    mobileMapStatus.tone === 'clear'
+                      ? theme === 'light'
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : theme === 'light'
+                        ? 'bg-white/95 border-slate-200 text-slate-900'
+                        : 'bg-slate-900/95 border-slate-700 text-slate-100'
+                  }`}>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold truncate">{mobileMapStatus.title}</div>
+                      <div className={`text-[11px] truncate ${
+                        mobileMapStatus.tone === 'clear'
+                          ? theme === 'light' ? 'text-emerald-700' : 'text-emerald-300/90'
+                          : theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+                      }`}>
+                        {mobileMapStatus.detail}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
+
+              {!userLocation && !locating && (
+                <div className="absolute top-14 left-3 right-3 z-[1100] pointer-events-auto">
+                  <div className="rounded-xl border border-indigo-500/30 bg-slate-900/95 p-3 space-y-2 shadow-lg">
+                    <p className="text-xs font-semibold text-slate-200">Turn on location to see alerts near you</p>
+                    <button
+                      type="button"
+                      onClick={locateUser}
+                      className="w-full min-h-[44px] py-2.5 rounded-lg bg-indigo-600 text-white text-xs font-bold"
+                    >
+                      Use my location
+                    </button>
+                    {locationError && (
+                      <>
+                        <p className="text-[11px] text-amber-400">Location blocked. Enter an area name (saved locally):</p>
+                        <input
+                          type="text"
+                          value={areaSearchQuery}
+                          onChange={(e) => saveAreaSearch(e.target.value)}
+                          placeholder="e.g. Kelurahan Menteng"
+                          className="w-full min-h-[44px] px-3 rounded-lg border border-slate-700 bg-slate-950 text-sm text-slate-100"
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={locateUser}
+                disabled={locating}
+                className="absolute right-3 z-[1160] flex items-center gap-1.5 px-3 py-2.5 rounded-full bg-indigo-600 text-white text-xs font-bold shadow-lg disabled:opacity-50"
+                style={{
+                  bottom: showEvacuation
+                    ? '48vh'
+                    : filteredPredictions.length > 0
+                      ? MOBILE_LOCATE_ABOVE_CTA
+                      : MOBILE_NAV_BOTTOM,
+                }}
+              >
+                <Locate className={`w-4 h-4 ${locating ? 'animate-spin' : ''}`} />
+                {locating ? 'Locating…' : 'My location'}
+              </button>
 
               {/* Interactive Leaflet Map — explicit pixel height prevents Leaflet offset bug */}
               <div data-tour="map-container" style={{ width: mapWidth || '100%', height: mapHeight || '100%', touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none', flexShrink: 0 }}>
@@ -1110,6 +1244,7 @@ export default function App() {
                   setNearMeRadius={setNearMeRadius}
                   evacuationRoute={evacuationRoute}
                   suppressMapControls={showNotificationPreferences}
+                  isMobile={isMobile}
                 />
               </div>
 
@@ -1122,11 +1257,15 @@ export default function App() {
                 selectedHours={selectedHours}
                 setSelectedHours={setSelectedHours}
                 theme={theme}
+                defaultExpanded={bottomSheetExpanded}
               />
 
               {/* Evacuation guidance trigger */}
               {filteredPredictions.length > 0 && !showEvacuation && (
-                <div className="px-3 py-2 shrink-0">
+                <div
+                  className="absolute left-0 right-0 z-[1150] px-3 py-2 pointer-events-none"
+                  style={{ bottom: MOBILE_NAV_BOTTOM }}
+                >
                   {(() => {
                     const _p = selectedPrediction || filteredPredictions[0];
                     const _sev = _p?.severity?.toUpperCase();
@@ -1135,7 +1274,7 @@ export default function App() {
                       <button
                         data-tour="evacuation-trigger-mobile"
                         onClick={() => openEvacuationPanel(selectedPrediction || null)}
-                        className={`w-full py-3 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                        className={`pointer-events-auto w-full min-h-[44px] py-3 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
                           _isMed
                             ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-900/20'
                             : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/30'
@@ -1143,7 +1282,7 @@ export default function App() {
                       >
                         <span>{_isMed ? '⚠️' : '🚨'}</span>
                         <span className="flex flex-col items-center">
-                          {_isMed ? 'Monitor & Prepare' : 'Get Evacuation Guidance'}
+                          {_isMed ? 'See guidance' : 'Safe route'}
                           {_isMed && (
                             <span className="text-[10px] font-normal opacity-80">
                               Conditions developing — tap for guidance
@@ -1158,26 +1297,32 @@ export default function App() {
 
               {/* Evacuation panel */}
               {showEvacuation && (
-                <div className="w-full overflow-hidden border-t border-slate-800" style={{ height: mapHeight }}>
-                  <EvacuationPanel
-                    theme={theme}
-                    userLocation={userLocation}
-                    predictions={filteredPredictions}
-                    safePois={safePois}
-                    activeThreatZones={filteredPredictions.map(p => ({
-                      lat: p.zone?.latitude ?? p.zone?.geometry?.[0]?.[0],
-                      lon: p.zone?.longitude ?? p.zone?.geometry?.[0]?.[1],
-                      radius_m: p.zone?.radius_m ?? 1000,
-                      name: p.zone?.name ?? 'threat zone',
-                    }))}
-                    tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
-                    onRouteReady={handleRouteReady}
-                    onClose={closeEvacuationPanel}
-                    onRequestLocation={locateUser}
-                    activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
-              zoneIsNearby={evacuationZoneIsNearby}
-                    allZones={allZones}
-                  />
+                <div
+                  className="absolute left-0 right-0 z-[1200] overflow-hidden rounded-t-2xl border-t border-slate-700 bg-brand-elevated shadow-2xl"
+                  style={{ bottom: MOBILE_NAV_BOTTOM, maxHeight: '45vh' }}
+                >
+                  <div className="overflow-y-auto" style={{ maxHeight: '45vh' }}>
+                    <EvacuationPanel
+                      compact
+                      theme={theme}
+                      userLocation={userLocation}
+                      predictions={filteredPredictions}
+                      safePois={safePois}
+                      activeThreatZones={filteredPredictions.map(p => ({
+                        lat: p.zone?.latitude ?? p.zone?.geometry?.[0]?.[0],
+                        lon: p.zone?.longitude ?? p.zone?.geometry?.[0]?.[1],
+                        radius_m: p.zone?.radius_m ?? 1000,
+                        name: p.zone?.name ?? 'threat zone',
+                      }))}
+                      tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
+                      onRouteReady={handleRouteReady}
+                      onClose={closeEvacuationPanel}
+                      onRequestLocation={locateUser}
+                      activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
+                      zoneIsNearby={evacuationZoneIsNearby}
+                      allZones={allZones}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -1188,7 +1333,7 @@ export default function App() {
               <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                 <div className="flex items-center space-x-2">
                   <Bell className="w-5 h-5 text-indigo-400" />
-                  <h2 className="text-base font-bold text-slate-200">Active Warnings Feed</h2>
+                  <h2 className="text-base font-bold text-slate-200">Nearby alerts</h2>
                 </div>
                 <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                   {filteredPredictions.length} alerts
@@ -1202,7 +1347,7 @@ export default function App() {
                 const _isMed = _sev === 'MEDIUM';
                 return (
                   <button
-                    onClick={() => { openEvacuationPanel(selectedPrediction || null); setMobileTab('feed'); }}
+                    onClick={() => { openEvacuationPanel(selectedPrediction || null); setMobileTab('map'); }}
                     className={`w-full py-3 rounded-xl active:scale-95 font-bold text-sm transition-all flex items-center justify-center gap-2 ${
                       _isMed
                         ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-900/20'
@@ -1211,7 +1356,7 @@ export default function App() {
                   >
                     <span>{_isMed ? '⚠️' : '🚨'}</span>
                     <span className="flex flex-col items-center">
-                      {_isMed ? 'Monitor & Prepare' : 'Get Evacuation Guidance'}
+                      {_isMed ? 'See guidance' : 'Safe route'}
                       {_isMed && (
                         <span className="text-[10px] font-normal opacity-80">
                           Conditions developing — tap for guidance
@@ -1221,51 +1366,22 @@ export default function App() {
                   </button>
                 );
               })()}
-
-              {/* Evacuation panel — mobile */}
-              {showEvacuation && (
-                <div className="rounded-xl border border-slate-700 bg-slate-800/60 overflow-hidden">
-                  <EvacuationPanel
-                    theme={theme}
-                    userLocation={userLocation}
-                    predictions={filteredPredictions}
-                    safePois={safePois}
-                    activeThreatZones={filteredPredictions.map(p => ({
-                      lat: p.zone?.latitude ?? p.zone?.geometry?.[0]?.[0],
-                      lon: p.zone?.longitude ?? p.zone?.geometry?.[0]?.[1],
-                      radius_m: p.zone?.radius_m ?? 1000,
-                      name: p.zone?.name ?? 'threat zone',
-                    }))}
-                    tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
-                    onRouteReady={handleRouteReady}
-                    onClose={closeEvacuationPanel}
-                    onRequestLocation={locateUser}
-                    activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
-              zoneIsNearby={evacuationZoneIsNearby}
-                    allZones={allZones}
-                  />
-                </div>
-              )}
               
-              {/* Severity Filter Tabs */}
-              <div className="flex flex-wrap gap-1 pb-2 border-b border-slate-800/40">
+              {/* Severity Filter Tabs — 3 large toggles */}
+              <div className="grid grid-cols-3 gap-2 pb-2 border-b border-slate-800/40">
                 {[
                   { id: 'all', label: 'All' },
-                  { id: 'Critical', label: 'Critical', color: 'border-red-500/20 text-red-400 bg-red-500/5' },
-                  { id: 'High', label: 'High', color: 'border-orange-500/20 text-orange-400 bg-orange-500/5' },
-                  { id: 'Medium', label: 'Medium', color: 'border-yellow-500/20 text-yellow-400 bg-yellow-500/5' },
-                  { id: 'Low', label: 'Low', color: 'border-emerald-500/20 text-emerald-400 bg-emerald-500/5' }
+                  { id: 'high_plus', label: 'High+' },
+                  { id: 'medium_plus', label: 'Medium+' },
                 ].map(tab => {
                   const isActive = mobileSeverityFilter === tab.id;
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setMobileSeverityFilter(tab.id)}
-                      className={`text-[9px] px-2 py-0.5 rounded font-semibold border transition-all duration-200 ${
+                      className={`min-h-[44px] text-xs px-2 py-2 rounded-lg font-semibold border transition-all duration-200 ${
                         isActive
-                          ? tab.id === 'all'
-                            ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
-                            : tab.color + ' font-bold scale-105'
+                          ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400 font-bold'
                           : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
                       }`}
                     >
@@ -1276,103 +1392,95 @@ export default function App() {
               </div>
 
               {nearMeFilterActive && userLocation && (
-                <div className="glass-panel px-3 py-2.5 rounded-xl border border-indigo-500/20 text-indigo-400 text-xs flex items-center justify-between animate-pulse shrink-0">
+                <div className="glass-panel px-3 py-2.5 rounded-xl border border-indigo-500/20 text-indigo-400 text-xs flex items-center justify-between shrink-0">
                   <div className="flex items-center space-x-1.5 font-semibold">
-                    <span>📍 Within {nearMeRadius} km of my location</span>
+                    <span>Within {nearMeRadius} km of my location</span>
                   </div>
                   <button 
                     onClick={() => setNearMeFilterActive(false)}
                     className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-indigo-500/10 hover:bg-indigo-500/20 transition-all"
                   >
-                    Reset
+                    Show all
                   </button>
                 </div>
               )}
               
               <div className="space-y-3">
-                {mobileSeverityFilter === 'Low' ? (
-                  mobileLowZones.length === 0 ? (
-                    <div className="text-center py-12 border border-dashed border-slate-800 rounded-2xl">
-                      <p className="text-xs text-slate-500 font-medium">All zones have active alerts or no data yet.</p>
-                    </div>
-                  ) : (
-                    mobileLowZones.map(zs => (
-                      <div key={zs.zone_id} className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-xs font-bold text-emerald-400">{zs.zone?.name ?? `Zone ${zs.zone_id}`}</p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">No active alerts — being monitored</p>
-                          {zs.overall_risk_score > 0 && (
-                            <p className="text-[10px] text-slate-500">Risk score: {Number(zs.overall_risk_score).toFixed(1)}</p>
-                          )}
-                        </div>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold border border-emerald-500/20 text-emerald-400 bg-emerald-500/5 shrink-0">LOW</span>
-                      </div>
-                    ))
-                  )
-                ) : mobileFilteredPredictions.length === 0 ? (
-                  <div className="text-center py-12 border border-dashed border-slate-800 rounded-2xl">
-                    <p className="text-xs text-slate-500 font-medium">No active warnings detected.</p>
+                {mobileFilteredPredictions.length === 0 ? (
+                  <div className="text-center py-12 rounded-2xl border border-emerald-500/30 bg-emerald-500/10">
+                    <div className="text-3xl mb-2">✅</div>
+                    <p className="text-sm font-bold text-emerald-400">
+                      {nearMeFilterActive && userLocation
+                        ? `All clear within ${nearMeRadius} km`
+                        : predictions.length === 0
+                          ? 'All clear — no active disruptions'
+                          : 'No alerts match this filter'}
+                    </p>
+                    <p className="text-xs text-emerald-300/80 mt-1 px-4">
+                      {nearMeFilterActive && userLocation && predictions.length > 0
+                        ? 'Active disruptions exist elsewhere in Jabodetabek.'
+                        : 'Check the map for your area status.'}
+                    </p>
                   </div>
                 ) : (
                   mobileFilteredPredictions.map(pred => (
-                    <div 
+                    <AlertCard
                       key={pred.id}
+                      prediction={pred}
+                      theme={theme}
+                      selected={selectedPrediction?.id === pred.id}
                       onClick={() => {
-                        setSelectedPrediction(pred);
-                        fetchTimeline(pred.zone.id, selectedHours);
-                        setMobileTab('map'); // Switch to map tab to highlight the zone geofence circle!
+                        handleSelectZone(pred, { expanded: false });
+                        setMobileTab('map');
                       }}
-                      className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 hover:bg-slate-900 transition-all duration-200 active:scale-[0.98]"
-                    >
-                      <div className="flex justify-between items-start">
-                        <span className="font-bold text-sm text-slate-200">{pred.zone.name}</span>
-                        <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-slate-700 bg-slate-800 text-slate-300`}>
-                          {pred.risk_level}
-                        </span>
-                      </div>
-                      <div className="mt-2 text-xs text-slate-400 flex justify-between items-center">
-                        <span>Threat: <span className="text-slate-200 font-semibold">{pred.disruption_type}</span></span>
-                        <span>Confidence: <span className="text-indigo-400 font-semibold">{pred.probability_percentage}%</span></span>
-                      </div>
-                      {pred.estimated_resolution_at && (
-                        <div className="mt-1.5 pt-1.5 border-t border-slate-800/40">
-                          <ResolutionBadgeCompact
-                            estimated_resolution_at={pred.estimated_resolution_at}
-                            resolution_confidence={pred.resolution_confidence}
-                            theme={theme}
-                          />
-                          <div className="mt-1">
-                            <MlResolutionBadgeCompact alertId={pred.id} theme={theme} />
-                          </div>
-                        </div>
-                      )}
-                      <div className="mt-1.5 pt-1.5 border-t border-slate-800/40">
-                        <MlRiskBadgeCompact zoneId={pred.zone?.zone_id ?? pred.zone?.id} />
-                      </div>
-                    </div>
+                      showSafeRoute
+                      onSafeRoute={() => {
+                        openEvacuationPanel(pred);
+                        setMobileTab('map');
+                      }}
+                    />
                   ))
                 )}
               </div>
+
+              {nearMeFilterActive && userLocation && (
+                <button
+                  type="button"
+                  onClick={() => setNearMeFilterActive(false)}
+                  className="w-full min-h-[44px] py-2.5 mt-2 rounded-xl border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800/50"
+                >
+                  See all of Jabodetabek
+                </button>
+              )}
             </div>
           )}
 
           {mobileTab === 'settings' && (
-            <div className="overflow-y-auto p-5 space-y-6 bg-brand-dark text-slate-100 scrollbar-thin" style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}>
-              <div className="flex items-center space-x-2 pb-2 border-b border-slate-800">
+            <div
+              className={`overflow-y-auto p-5 space-y-6 scrollbar-thin ${
+                theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-brand-dark text-slate-100'
+              }`}
+              style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}
+            >
+              <div className={`flex items-center space-x-2 pb-2 border-b ${theme === 'light' ? 'border-slate-200' : 'border-slate-800'}`}>
                 <Settings className="w-5 h-5 text-indigo-400" />
-                <h2 className="text-base font-bold text-slate-200">Mobile Command Center</h2>
+                <h2 className={`text-base font-bold ${theme === 'light' ? 'text-slate-900' : 'text-slate-200'}`}>Settings</h2>
               </div>
 
               {/* Theme Toggle Selection Block */}
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
-                <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400">User Interface Theme</h3>
+              <div className={`rounded-xl p-4 space-y-3 border ${
+                theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900/40 border-slate-800/80'
+              }`}>
+                <h3 className={`text-xs uppercase font-extrabold tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                  User Interface Theme
+                </h3>
                 <div className="grid grid-cols-2 gap-3">
                   <button 
                     onClick={() => setTheme('light')}
                     className={`flex items-center justify-center space-x-2 py-2.5 rounded-lg border text-xs font-semibold transition-all ${
                       theme === 'light' 
-                        ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400' 
-                        : 'border-slate-800 bg-slate-900/60 text-slate-400'
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-600' 
+                        : 'border-slate-700 bg-slate-800/60 text-slate-300'
                     }`}
                   >
                     <Sun className="w-4 h-4" />
@@ -1383,7 +1491,9 @@ export default function App() {
                     className={`flex items-center justify-center space-x-2 py-2.5 rounded-lg border text-xs font-semibold transition-all ${
                       theme === 'dark' 
                         ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400' 
-                        : 'border-slate-800 bg-slate-900/60 text-slate-400'
+                        : theme === 'light'
+                          ? 'border-slate-300 bg-slate-100 text-slate-700'
+                          : 'border-slate-800 bg-slate-900/60 text-slate-400'
                     }`}
                   >
                     <Moon className="w-4 h-4" />
@@ -1416,21 +1526,41 @@ export default function App() {
               />
 
               {/* Telemetry Operations Block */}
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
-                <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400">Telemetry Data Operations</h3>
+              <div className={`rounded-xl p-4 space-y-3 border ${
+                theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900/40 border-slate-800/80'
+              }`}>
+                <h3 className={`text-xs uppercase font-extrabold tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Data
+                </h3>
                 <button 
                   onClick={handlePollTelemetry}
-                  className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-slate-100 text-xs font-bold transition-all active:scale-[0.98]"
+                  className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all active:scale-[0.98]"
                 >
                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  <span>Poll Live Telemetry Feeds</span>
+                  <span>Refresh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDashboard(true)}
+                  className={`w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+                    theme === 'light'
+                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                      : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-100'
+                  }`}
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Overview</span>
                 </button>
 
                 {/* Use My Location — mobile */}
                 <button
                   onClick={() => { locateUser(); setMobileTab('map'); }}
                   disabled={locating}
-                  className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50"
+                  className={`w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg border text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 ${
+                    theme === 'light'
+                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                      : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-100'
+                  }`}
                 >
                   <Locate className={`w-4 h-4 ${locating ? 'animate-spin' : ''}`} />
                   <span>{locating ? 'Locating…' : 'Use My Location'}</span>
@@ -1441,23 +1571,29 @@ export default function App() {
               </div>
               
               {/* System Status Metrics */}
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 space-y-2 text-xs">
-                <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400 mb-3">System Diagnostics</h3>
-                <div className="flex justify-between py-1 border-b border-slate-800/40">
-                  <span className="text-slate-400">Database Status:</span>
-                  <span className="font-semibold text-emerald-400">Connected</span>
+              <details className={`rounded-xl p-4 text-xs border ${
+                theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900/40 border-slate-800/80'
+              }`}>
+                <summary className={`text-xs uppercase font-extrabold tracking-wider cursor-pointer ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                  For developers
+                </summary>
+                <div className="mt-3 space-y-2">
+                <div className={`flex justify-between py-1 border-b ${theme === 'light' ? 'border-slate-200' : 'border-slate-800/40'}`}>
+                  <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>Database Status:</span>
+                  <span className="font-semibold text-emerald-500">Connected</span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-800/40">
-                  <span className="text-slate-400">Zoning Engine:</span>
-                  <span className="font-semibold text-indigo-400">Active</span>
+                <div className={`flex justify-between py-1 border-b ${theme === 'light' ? 'border-slate-200' : 'border-slate-800/40'}`}>
+                  <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>Zoning Engine:</span>
+                  <span className="font-semibold text-indigo-500">Active</span>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span className="text-slate-400">Simulated Feeds:</span>
-                  <span className={isFallback ? 'font-semibold text-amber-400' : 'font-semibold text-emerald-400'}>
+                  <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>Simulated Feeds:</span>
+                  <span className={isFallback ? 'font-semibold text-amber-500' : 'font-semibold text-emerald-500'}>
                     {isFallback ? 'Active' : 'Offline (Prod mode)'}
                   </span>
                 </div>
-              </div>
+                </div>
+              </details>
             </div>
           )}
 
@@ -1472,7 +1608,7 @@ export default function App() {
           >
             <button 
               onClick={() => setMobileTab('map')}
-              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all ${
+              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/3 transition-all ${
                 mobileTab === 'map' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'
               }`}
             >
@@ -1481,27 +1617,19 @@ export default function App() {
             </button>
             <button 
               onClick={() => setMobileTab('feed')}
-              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all relative ${
+              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/3 transition-all relative ${
                 mobileTab === 'feed' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'
               }`}
             >
               <Bell className="w-5 h-5" />
-              <span className="text-[10px] font-bold tracking-wider uppercase">Feed</span>
+              <span className="text-[10px] font-bold tracking-wider uppercase">Alerts</span>
               {filteredPredictions.length > 0 && (
                 <span className="absolute top-1 right-[25%] w-2 h-2 bg-red-500 rounded-full animate-ping" />
               )}
             </button>
-            <button
-              data-tour="dashboard-trigger-mobile"
-              onClick={() => setShowDashboard(true)}
-              className="flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all text-slate-400 hover:text-indigo-400"
-            >
-              <Activity className="w-5 h-5" />
-              <span className="text-[10px] font-bold tracking-wider uppercase">Dash</span>
-            </button>
             <button 
               onClick={() => setMobileTab('settings')}
-              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all ${
+              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/3 transition-all ${
                 mobileTab === 'settings' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'
               }`}
             >
@@ -1518,23 +1646,7 @@ export default function App() {
             {/* Dynamic KPIs */}
             {false && <MetricsGrid predictions={filteredPredictions} />}
 
-            {/* Simulated Banner Warning (Floating overlay) */}
-            {isFallback && (
-              <div className="absolute top-6 left-6 right-32 z-[1000] glass-panel px-4 py-2.5 rounded-xl border border-amber-500/15 text-amber-400 text-xs flex items-center justify-between shadow-2xl">
-                <div className="flex items-center space-x-2">
-                  <AlertTriangle className="w-4 h-4 animate-pulse text-amber-400" />
-                  <span>
-                    <strong>Telemetry Simulator Mode Active</strong> — TomTom API keys or local DB feeds are pending. Using high-fidelity synthetic variations to enable immediate local evaluation.
-                  </span>
-                </div>
-                <button 
-                  onClick={refresh}
-                  className="px-2.5 py-1 rounded bg-amber-500/10 text-[10px] uppercase tracking-wider font-bold hover:bg-amber-500/20 transition-all"
-                >
-                  Force Poll API
-                </button>
-              </div>
-            )}
+            {/* Fallback status is shown only under Settings → For developers */}
 
             {/* Expanded Leaflet Map */}
             <div data-tour="map-container" className="flex-1 min-h-0 w-full h-full">
@@ -1557,6 +1669,7 @@ export default function App() {
                 setNearMeRadius={setNearMeRadius}
                 evacuationRoute={evacuationRoute}
                 suppressMapControls={showNotificationPreferences}
+                isMobile={false}
               />
             </div>
           </div>
@@ -1583,6 +1696,7 @@ export default function App() {
               showEvacuationPanel={showEvacuation}
               evacuationPanelNode={
                 <EvacuationPanel
+                  compact={false}
                   theme={theme}
                   userLocation={userLocation}
                   predictions={filteredPredictions}
@@ -1721,6 +1835,23 @@ export default function App() {
         isMobile={isMobile}
         theme={theme}
       />
+
+      {/* First-run startup overlay — map visible underneath */}
+      {showLoadingScreen && (
+        <FirstTimeTour
+          isOpen={true}
+          isStartupSequence={true}
+          overlayMode={true}
+          isReady={isAppReady}
+          onComplete={handleLaunchComplete}
+          onEnableNotifications={handleStartupNotificationRequest}
+          onOpenNotificationPreferences={() => setShowNotificationPreferences(true)}
+          dbStatus={dbStatus}
+          isFallback={isFallback}
+          isMobile={isMobile}
+          theme={theme}
+        />
+      )}
     </div>
   );
 }
