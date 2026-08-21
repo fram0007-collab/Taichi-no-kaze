@@ -1080,7 +1080,7 @@ export default function MapView({
               fillOpacity: 0.01,
               opacity: 0.04,
               weight: 0.5,
-              className: 'transition-all duration-300 pointer-events-none'
+              className: 'transition-all duration-300'
             };
           } else if (isSelected) {
             pathOptions = { ...riskStyle, weight: 5, fillOpacity: 1, opacity: 0.20, dashArray: '6, 6' };
@@ -1088,7 +1088,7 @@ export default function MapView({
  
           return (
             <Circle
-              key={`${zone.id}_${pred.disruption_type}`}
+              key={`${zone.id}_${pred.disruption_type}_${isOutOfRadius ? 'out' : 'in'}`}
               center={center}
               radius={radius}
               pathOptions={pathOptions}
@@ -1218,14 +1218,14 @@ export default function MapView({
                   className: score >= 65 ? 'animate-pulse' : '',
                 };
                 if (isOutOfRadius) {
-                  po = { ...po, fillOpacity: 0.01, opacity: 0.04, weight: 0.5, className: 'pointer-events-none' };
+                  po = { ...po, fillOpacity: 0.01, opacity: 0.04, weight: 0.5, className: '' };
                 } else if (isSelected) {
                   po = { ...po, weight: 4, fillOpacity: 0.30, opacity: 0.8, dashArray: '6,6' };
                 }
 
                 circles.push(
                   <Circle
-                    key={`${zone.zone_id}-${dim}`}
+                    key={`${zone.zone_id}-${dim}-${isOutOfRadius ? 'out' : 'in'}`}
                     center={center} radius={r} pathOptions={po}
                     interactive={!isOutOfRadius}
                     eventHandlers={{
