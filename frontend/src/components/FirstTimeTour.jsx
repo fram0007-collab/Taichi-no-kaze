@@ -120,6 +120,7 @@ export default function FirstTimeTour({
   isOpen,
   onClose,
   onComplete,
+  onSkipLocation,
   isStartupSequence = false,
   overlayMode = false,
   isReady = true,
@@ -359,6 +360,22 @@ export default function FirstTimeTour({
                     <p className={`text-[11px] leading-relaxed ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                       Tip: Add this app to your home screen for quick access when alerts appear.
                     </p>
+                    {onSkipLocation && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSkipLocation();
+                          if (isReady) onComplete?.();
+                        }}
+                        className={`w-full min-h-[44px] rounded-xl text-xs font-semibold border transition-colors ${
+                          isLight
+                            ? 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                            : 'border-slate-700 text-slate-400 hover:bg-slate-800'
+                        }`}
+                      >
+                        Continue without location
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

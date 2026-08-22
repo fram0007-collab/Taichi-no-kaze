@@ -13,6 +13,7 @@ import Dashboard from './components/Dashboard';
 import NotificationPreferences from './components/NotificationPreferences';
 import EmergencyHelpModal from './components/EmergencyHelpModal';
 import AlertCard from './components/AlertCard';
+import AreaSearchInput from './components/AreaSearchInput';
 import { calculateDistanceKm } from './utils/haversine';
 import {
   getExistingPushSubscription,
@@ -25,6 +26,7 @@ import { saveNotificationPreferences } from './utils/idbPreferences';
 
 const FIRST_RUN_KEY = 'disruptionFirstRunDone';
 const AREA_SEARCH_KEY = 'disruptionAreaSearch';
+const LOCATION_PROMPT_SKIPPED_KEY = 'disruptionLocationPromptSkipped';
 
 function isNearMeDefaultRelevant(pred) {
   const sev = (pred.risk_level || pred.severity || '').toLowerCase();
@@ -119,6 +121,15 @@ export default function App() {
       return '';
     }
   });
+  const [locationPromptSkipped, setLocationPromptSkipped] = useState(() => {
+    try {
+      return window.localStorage.getItem(LOCATION_PROMPT_SKIPPED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [showAreaSearch, setShowAreaSearch] = useState(false);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
 
   // Waterway Dynamic Buffer Overlay parameters
   const [waterwayThreshold, setWaterwayThreshold] = useState(75); // capacity percentage threshold
@@ -252,6 +263,7 @@ export default function App() {
         saveUserLocation({ lat: latitude, lng: longitude, timestamp: Date.now() });
         setNearMeFilterActive(true);
         setLocating(false);
+        setShowLocationPrompt(false);
       },
       (err) => {
         setLocationError(err.message);
@@ -741,6 +753,29 @@ export default function App() {
     }
   };
 
+  const skipLocationPrompt = () => {
+    setLocationPromptSkipped(true);
+    setShowLocationPrompt(false);
+    try {
+      window.localStorage.setItem(LOCATION_PROMPT_SKIPPED_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleMyLocationClick = () => {
+    if (userLocation) {
+      locateUser();
+      return;
+    }
+    if (locationPromptSkipped || locationError) {
+      setShowLocationPrompt(true);
+      setShowAreaSearch(true);
+      return;
+    }
+    locateUser();
+  };
+
   const openEvacuationPanel = (prediction = null) => {
     let targetPrediction = prediction;
     let isNearby = true; // assume nearby unless we compute otherwise below
@@ -915,7 +950,9 @@ export default function App() {
       // Fallback timeline dataset in case backend is loading/offline
       const now = new Date();
       const syntheticTimeline = [];
-      const zone = predictions.find(p => p.zone.id === zoneId)?.zone;
+      const zone =
+        predictions.find((p) => p.zone.id === zoneId)?.zone
+        ?? allZones.find((z) => (z.zone?.zone_id ?? z.zone_id) === zoneId)?.zone;
       const baseline = zone ? zone.traffic_speed_baseline : 35.0;
 
       // Generate 3 hours of past traffic control data
@@ -981,6 +1018,29 @@ export default function App() {
     setBottomSheetExpanded(expanded);
     setSelectedPrediction(prediction);
     fetchTimeline(prediction.zone.id, selectedHours);
+  };
+
+  const handleAreaZoneSelected = (zoneStatusEntry) => {
+    const zone = zoneStatusEntry?.zone;
+    if (!zone) return;
+
+    const zoneId = zone.zone_id ?? zone.id;
+    const activePred = predictions.find(
+      (p) => p.zone?.id === zoneId || p.zone?.zone_id === zoneId
+    );
+
+    const prediction = activePred ?? {
+      zone: { ...zone, id: zoneId },
+      risk_level: zoneStatusEntry.display_severity ?? 'Low',
+      disruption_type: zoneStatusEntry.dominant_risk ?? 'weather',
+      probability_percentage: zoneStatusEntry.overall_risk_score ?? 0,
+    };
+
+    handleSelectZone(prediction, { expanded: false });
+    saveAreaSearch(zone.name ?? '');
+    skipLocationPrompt();
+    setShowAreaSearch(false);
+    setShowLocationPrompt(false);
   };
 
   return (
@@ -1178,28 +1238,59 @@ export default function App() {
                 </div>
               )}
 
-              {!userLocation && !locating && (
-                <div className="absolute top-14 left-3 right-3 z-[1100] pointer-events-auto">
-                  <div className="rounded-xl border border-indigo-500/30 bg-slate-900/95 p-3 space-y-2 shadow-lg">
-                    <p className="text-xs font-semibold text-slate-200">Turn on location to see alerts near you</p>
-                    <button
-                      type="button"
-                      onClick={locateUser}
-                      className="w-full min-h-[44px] py-2.5 rounded-lg bg-indigo-600 text-white text-xs font-bold"
-                    >
-                      Use my location
-                    </button>
+              {!userLocation && !locating && (!locationPromptSkipped || showLocationPrompt) && (
+                <div className="absolute top-36 left-3 right-3 z-[1050] pointer-events-auto">
+                  <div className={`rounded-xl border p-3 space-y-2 shadow-lg ${
+                    theme === 'light'
+                      ? 'border-slate-200 bg-white/95 text-slate-900'
+                      : 'border-indigo-500/30 bg-slate-900/95 text-slate-100'
+                  }`}>
+                    <p className={`text-xs font-semibold ${theme === 'light' ? 'text-slate-800' : 'text-slate-200'}`}>
+                      Turn on location to see alerts near you
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={locateUser}
+                        className="flex-1 min-h-[44px] py-2.5 rounded-lg bg-indigo-600 text-white text-xs font-bold"
+                      >
+                        Use my location
+                      </button>
+                      <button
+                        type="button"
+                        onClick={skipLocationPrompt}
+                        className={`min-h-[44px] px-3 py-2.5 rounded-lg border text-xs font-bold ${
+                          theme === 'light'
+                            ? 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                            : 'border-slate-600 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        Skip
+                      </button>
+                    </div>
                     {locationError && (
-                      <>
-                        <p className="text-[11px] text-amber-400">Location blocked. Enter an area name (saved locally):</p>
-                        <input
-                          type="text"
-                          value={areaSearchQuery}
-                          onChange={(e) => saveAreaSearch(e.target.value)}
-                          placeholder="e.g. Kelurahan Menteng"
-                          className="w-full min-h-[44px] px-3 rounded-lg border border-slate-700 bg-slate-950 text-sm text-slate-100"
-                        />
-                      </>
+                      <p className={`text-[11px] ${theme === 'light' ? 'text-amber-700' : 'text-amber-400'}`}>
+                        Location blocked. Search a monitored area instead:
+                      </p>
+                    )}
+                    {(showAreaSearch || locationError) ? (
+                      <AreaSearchInput
+                        allZones={allZones}
+                        value={areaSearchQuery}
+                        onChange={saveAreaSearch}
+                        onZoneSelected={handleAreaZoneSelected}
+                        theme={theme}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowAreaSearch(true)}
+                        className={`w-full text-[11px] font-semibold py-1 ${
+                          theme === 'light' ? 'text-indigo-600 hover:text-indigo-700' : 'text-indigo-300 hover:text-indigo-200'
+                        }`}
+                      >
+                        Search by area name instead
+                      </button>
                     )}
                   </div>
                 </div>
@@ -1207,7 +1298,7 @@ export default function App() {
 
               <button
                 type="button"
-                onClick={locateUser}
+                onClick={handleMyLocationClick}
                 disabled={locating}
                 className="absolute right-3 z-[1160] flex items-center gap-1.5 px-3 py-2.5 rounded-full bg-indigo-600 text-white text-xs font-bold shadow-lg disabled:opacity-50"
                 style={{
@@ -1844,6 +1935,7 @@ export default function App() {
           overlayMode={true}
           isReady={isAppReady}
           onComplete={handleLaunchComplete}
+          onSkipLocation={skipLocationPrompt}
           onEnableNotifications={handleStartupNotificationRequest}
           onOpenNotificationPreferences={() => setShowNotificationPreferences(true)}
           dbStatus={dbStatus}
