@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import AlertCard from './AlertCard';
 import { ResolutionBadgeCompact } from './ResolutionBadge';
+import { MlResolutionBadgeCompact } from './MlResolutionBadge';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
 import { useMlResolution } from '../hooks/useMlResolution';
@@ -50,6 +51,10 @@ export default function Sidebar({
   const [showZoneDetails, setShowZoneDetails] = useState(false);
   const [helpTab, setHelpTab] = useState('read');
   const { prediction: mlPrediction } = useMlResolution(selectedPrediction?.id);
+
+  useEffect(() => {
+    setShowZoneDetails(false);
+  }, [selectedPrediction?.id]);
 
   // LOW tier: zones monitored with no OPEN alert
   const activeZoneIds = new Set(
@@ -103,7 +108,6 @@ export default function Sidebar({
 
 
   
-  // Format dates to human-readable strings (treating naive timestamps as UTC and using 24h format)
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
     let normalizedStr = timeStr;
@@ -112,6 +116,16 @@ export default function Sidebar({
     }
     const date = new Date(normalizedStr);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const getRiskColor = (risk) => {
+    switch (risk) {
+      case 'Critical': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'High': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+      case 'Medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'Low':
+      default: return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+    }
   };
 
   const getPoiIcon = (category) => {
@@ -257,16 +271,28 @@ export default function Sidebar({
               <MapPin className="w-4 h-4" />
               <span className="text-xs uppercase tracking-wider">Selected Zone Analysis</span>
             </div>
-            <h1 className="text-2xl font-bold text-slate-100">{selectedPrediction?.zone?.name ?? 'Unknown Zone'}</h1>
-            
-            <div className="grid grid-cols-1 gap-3 mt-4">
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2 text-center">
-                <p className="text-[10px] text-slate-400">Baseline Speed</p>
-                <p className="text-lg font-bold text-slate-200">{selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'} <span className="text-xs font-normal">km/h</span></p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold text-slate-100">{selectedPrediction?.zone?.name ?? 'Unknown Zone'}</h1>
+              {selectedPrediction?.risk_level && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getRiskColor(selectedPrediction.risk_level)}`}>
+                  {selectedPrediction.risk_level}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2.5 flex flex-col justify-center">
+                <span className="text-[10px] text-slate-400">Predicted Disruption</span>
+                <span className="font-semibold text-sm text-slate-200">{selectedPrediction.disruption_type}</span>
+              </div>
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2.5 flex flex-col justify-center">
+                <span className="text-[10px] text-slate-400">Peak around</span>
+                <span className="font-semibold text-sm text-indigo-400">{formatTime(selectedPrediction.estimated_time_to_peak)}</span>
               </div>
             </div>
             {selectedPrediction?.estimated_resolution_at && (
               <div className="mt-3 bg-slate-900/40 border border-slate-800/80 rounded-lg p-2.5">
+                <span className="text-[10px] text-slate-400 block mb-1">Resolution Estimate</span>
                 <ResolutionBadgeCompact
                   estimated_resolution_at={selectedPrediction.estimated_resolution_at}
                   resolution_confidence={selectedPrediction.resolution_confidence}
@@ -285,6 +311,16 @@ export default function Sidebar({
 
           {showZoneDetails && (
           <>
+          <MlResolutionBadgeCompact alertId={selectedPrediction.id} theme={theme} />
+
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2.5 text-center">
+            <p className="text-[10px] text-slate-400">Baseline Speed</p>
+            <p className="text-lg font-bold text-slate-200">
+              {selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'}{' '}
+              <span className="text-xs font-normal">km/h</span>
+            </p>
+          </div>
+
           {/* Dynamic Infrastructure POI Section */}
           <div className="space-y-3 pt-2 border-t border-slate-800/50">
             <h3 className="text-sm font-semibold text-slate-300 flex items-center space-x-2">

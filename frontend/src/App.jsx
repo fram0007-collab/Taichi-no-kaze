@@ -1282,6 +1282,20 @@ export default function App() {
                 <span className="hidden sm:inline">Refresh</span>
               </button>
 
+              <button
+                type="button"
+                onClick={() => setShowDesktopNavigate((open) => !open)}
+                title="Navigate to a place"
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border transition-all text-xs font-semibold ${
+                  showDesktopNavigate
+                    ? 'bg-indigo-500 text-white border-indigo-400'
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700'
+                }`}
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Navigate</span>
+              </button>
+
               {/* Use My Location */}
               <button
                 onClick={locateUser}
@@ -1910,14 +1924,6 @@ export default function App() {
         <main className="flex-1 flex min-h-0 w-full">
           {/* Left panel: Map + KPIs */}
           <div className="flex-1 flex flex-col min-w-0 relative">
-            <button
-              type="button"
-              onClick={() => setShowDesktopNavigate(true)}
-              className="absolute top-4 left-4 z-[1200] flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold shadow-lg"
-            >
-              <Navigation className="w-4 h-4" />
-              Navigate
-            </button>
             {showDesktopNavigate && (
               <div className="absolute inset-y-0 left-0 z-[1300] w-[min(22rem,100%)] shadow-2xl">
                 <NavigatePanel

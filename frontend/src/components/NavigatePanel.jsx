@@ -1,6 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Navigation, Search, Locate, Loader2, MapPin } from 'lucide-react';
-import { circleToBbox, fetchTomtomRoute, searchTomtomPlaces } from '../utils/tomtomRoute';
+import {
+  circleToBbox,
+  fetchTomtomRoute,
+  filterCarReachablePlaces,
+  NAVIGATE_SEARCH_RADIUS_KM,
+  searchTomtomPlaces,
+} from '../utils/tomtomRoute';
 
 const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY || '';
 
@@ -18,33 +24,62 @@ export default function NavigatePanel({
   const [searching, setSearching] = useState(false);
   const [routing, setRouting] = useState(false);
   const [error, setError] = useState('');
+  const [searchedWithNoResults, setSearchedWithNoResults] = useState(false);
+  const searchRequestId = useRef(0);
 
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
       setResults([]);
+      setSearchedWithNoResults(false);
       return undefined;
     }
     if (!TOMTOM_KEY) {
       setError('TomTom API key is missing.');
       return undefined;
     }
+    if (!userLocation) {
+      setResults([]);
+      setSearchedWithNoResults(false);
+      return undefined;
+    }
+
     const timer = setTimeout(async () => {
+      const requestId = ++searchRequestId.current;
       setSearching(true);
       setError('');
+      setSearchedWithNoResults(false);
       try {
         const hits = await searchTomtomPlaces({
           apiKey: TOMTOM_KEY,
           query: q,
-          lat: userLocation?.lat,
-          lon: userLocation?.lon,
+          lat: userLocation.lat,
+          lon: userLocation.lon,
+          radiusKm: NAVIGATE_SEARCH_RADIUS_KM,
         });
-        setResults(hits);
+        if (requestId !== searchRequestId.current) return;
+
+        const reachable = await filterCarReachablePlaces({
+          apiKey: TOMTOM_KEY,
+          origin: { lat: userLocation.lat, lon: userLocation.lon },
+          places: hits,
+        });
+        if (requestId !== searchRequestId.current) return;
+
+        const sorted = [...reachable].sort(
+          (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity)
+        );
+        setResults(sorted);
+        setSearchedWithNoResults(sorted.length === 0);
       } catch (err) {
+        if (requestId !== searchRequestId.current) return;
         setError(err.message || 'Search failed.');
         setResults([]);
+        setSearchedWithNoResults(false);
       } finally {
-        setSearching(false);
+        if (requestId === searchRequestId.current) {
+          setSearching(false);
+        }
       }
     }, 300);
     return () => clearTimeout(timer);
@@ -105,6 +140,8 @@ export default function NavigatePanel({
     });
   };
 
+  const searchDisabled = !userLocation;
+
   return (
     <div className={`h-full overflow-y-auto p-5 space-y-4 ${isLight ? 'bg-slate-50 text-slate-900' : 'bg-brand-dark text-slate-100'}`}>
       <div className="flex items-center justify-between gap-2">
@@ -121,7 +158,7 @@ export default function NavigatePanel({
 
       {!userLocation && (
         <div className={`rounded-xl border p-3 space-y-2 ${isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-900/50'}`}>
-          <p className="text-xs">Turn on location so we can route from where you are.</p>
+          <p className="text-xs">Turn on location so we can search and route from where you are.</p>
           <button
             type="button"
             onClick={onRequestLocation}
@@ -139,14 +176,27 @@ export default function NavigatePanel({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search a place (hospital, mall, station…)"
+          disabled={searchDisabled}
+          placeholder={
+            searchDisabled
+              ? 'Enable location to search places'
+              : 'Search a place (hospital, mall, station…)'
+          }
           className={`w-full min-h-[44px] pl-9 pr-3 rounded-lg border text-sm ${
+            searchDisabled ? 'opacity-60 cursor-not-allowed' : ''
+          } ${
             isLight
               ? 'border-slate-300 bg-white text-slate-900'
               : 'border-slate-700 bg-slate-950 text-slate-100'
           }`}
         />
       </div>
+
+      {userLocation && (
+        <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+          Showing places within {NAVIGATE_SEARCH_RADIUS_KM} km by car
+        </p>
+      )}
 
       {searching && (
         <p className="text-xs text-slate-400 flex items-center gap-2">
@@ -159,6 +209,12 @@ export default function NavigatePanel({
         </p>
       )}
       {error && <p className="text-xs text-amber-500">{error}</p>}
+
+      {searchedWithNoResults && !searching && (
+        <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+          No reachable places within {NAVIGATE_SEARCH_RADIUS_KM} km. Try another name or move closer.
+        </p>
+      )}
 
       <ul className="space-y-2">
         {results.map((place) => (
@@ -173,7 +229,12 @@ export default function NavigatePanel({
             >
               <p className="text-sm font-semibold flex items-center gap-2">
                 <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                {place.name}
+                <span className="truncate">{place.name}</span>
+                {Number.isFinite(place.distanceKm) && (
+                  <span className={`ml-auto shrink-0 text-[11px] font-normal ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {place.distanceKm} km
+                  </span>
+                )}
               </p>
               {place.address && (
                 <p className={`mt-1 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{place.address}</p>
@@ -219,6 +280,11 @@ export function NavigateRouteBar({
       >
         <div className="text-[10px] font-bold uppercase tracking-wide">{label}</div>
         <div className="text-xs font-semibold">{route.durationMin} min · {route.distanceKm} km</div>
+        {route.viaLabel && (
+          <div className={`mt-0.5 text-[10px] leading-snug ${active ? 'text-indigo-100' : isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            {route.viaLabel}
+          </div>
+        )}
       </button>
     );
   };
