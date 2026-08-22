@@ -41,15 +41,17 @@ function isNearMeDefaultRelevant(pred) {
   return false;
 }
 
-function getMobileMapStatus({ nearMeFilterActive, userLocation, filteredPredictions, predictions, nearMeRadius }) {
+function getMobileMapStatus({ nearMeFilterActive, userLocation, nearbyPredictions, predictions, nearMeRadius }) {
   if (!nearMeFilterActive || !userLocation) return null;
-  if (filteredPredictions.length === 0) {
+  // Count every active alert in range, not just High/Critical. Medium crowd/traffic
+  // still draws a circle on the map — calling that "all clear" is misleading.
+  if (nearbyPredictions.length === 0) {
     if (predictions.length === 0) {
       return { tone: 'clear', title: 'All clear', detail: 'No active disruptions in Jabodetabek' };
     }
     return { tone: 'clear', title: "You're in the clear", detail: `No alerts within ${nearMeRadius} km` };
   }
-  const n = filteredPredictions.length;
+  const n = nearbyPredictions.length;
   return { tone: 'alert', title: `${n} alert${n === 1 ? '' : 's'} nearby`, detail: `Within ${nearMeRadius} km of you` };
 }
 
@@ -189,25 +191,34 @@ export default function App() {
   }, [showEvacuation, predictions, selectedPrediction, API_URL]);
   const [nearMeRadius, setNearMeRadius] = useState(5); // in km (default 5km)
 
-  // Derived state: predictions filtered by spatial proximity if nearMeFilterActive is true
-  const filteredPredictions = useMemo(() => {
-    let list = predictions;
-    if (nearMeFilterActive && userLocation) {
-      list = predictions.filter(pred => {
+  const nearbyPredictions = useMemo(() => {
+    if (!nearMeFilterActive || !userLocation) return predictions;
+    return predictions.filter((pred) => {
+      const center = getPredictionZoneCenter(pred);
+      if (!center) {
         const geometry = pred.zone?.geometry;
-        if (!geometry || !geometry.coordinates || geometry.coordinates.length === 0) return false;
+        if (!geometry?.coordinates?.length) return false;
         const coords = geometry.coordinates[0];
         const sumLon = coords.reduce((sum, c) => sum + c[0], 0);
         const sumLat = coords.reduce((sum, c) => sum + c[1], 0);
-        const centerLat = sumLat / coords.length;
-        const centerLon = sumLon / coords.length;
-        const distance = calculateDistanceKm(userLocation.lat, userLocation.lon, centerLat, centerLon);
+        const distance = calculateDistanceKm(
+          userLocation.lat,
+          userLocation.lon,
+          sumLat / coords.length,
+          sumLon / coords.length
+        );
         return distance <= nearMeRadius;
-      });
-      list = list.filter(isNearMeDefaultRelevant);
-    }
-    return list;
+      }
+      const distance = calculateDistanceKm(userLocation.lat, userLocation.lon, center.lat, center.lon);
+      return distance <= nearMeRadius;
+    });
   }, [predictions, nearMeFilterActive, nearMeRadius, userLocation]);
+
+  // Alerts list still prefers High/Critical; map status uses all nearby alerts.
+  const filteredPredictions = useMemo(() => {
+    if (!nearMeFilterActive || !userLocation) return nearbyPredictions;
+    return nearbyPredictions.filter(isNearMeDefaultRelevant);
+  }, [nearbyPredictions, nearMeFilterActive, userLocation]);
 
   // Severity filter state for mobile view tab
   const [mobileSeverityFilter, setMobileSeverityFilter] = useState('all');
@@ -231,8 +242,8 @@ export default function App() {
   }, [filteredPredictions, mobileSeverityFilter]);
 
   const mobileMapStatus = useMemo(
-    () => getMobileMapStatus({ nearMeFilterActive, userLocation, filteredPredictions, predictions, nearMeRadius }),
-    [nearMeFilterActive, userLocation, filteredPredictions, predictions, nearMeRadius]
+    () => getMobileMapStatus({ nearMeFilterActive, userLocation, nearbyPredictions, predictions, nearMeRadius }),
+    [nearMeFilterActive, userLocation, nearbyPredictions, predictions, nearMeRadius]
   );
 
   const nearestAlertToasts = useMemo(() => {
