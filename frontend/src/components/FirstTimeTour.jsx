@@ -12,7 +12,6 @@ import {
   Sparkles,
   Navigation,
   Bell,
-  Loader2,
 } from 'lucide-react';
 import { ILLUSTRATIONS } from './TourIllustrations';
 
@@ -154,9 +153,7 @@ export default function FirstTimeTour({
   const handleNext = () => {
     if (isLastStep) {
       if (isStartupSequence) {
-        if (isReady) onComplete?.();
-        // if not ready, Next on the last slide does nothing — the Launch
-        // button below is the only path forward, and it's disabled
+        onComplete?.();
       } else {
         handleReplayComplete();
       }
@@ -181,7 +178,6 @@ export default function FirstTimeTour({
   };
 
   const handleLaunch = () => {
-    if (!isReady) return;
     onComplete?.();
   };
 
@@ -365,7 +361,7 @@ export default function FirstTimeTour({
                         type="button"
                         onClick={() => {
                           onSkipLocation();
-                          if (isReady) onComplete?.();
+                          onComplete?.();
                         }}
                         className={`w-full min-h-[44px] rounded-xl text-xs font-semibold border transition-colors ${
                           isLight
@@ -403,23 +399,12 @@ export default function FirstTimeTour({
 
           {/* Footer Controls */}
           <div className={`flex items-center justify-between pt-3 border-t gap-3 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-            {isStartupSequence ? (
-              <div className="flex items-center gap-1.5 min-w-0">
-                {isReady ? (
-                  <>
-                    <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />
-                    <span className={`text-[10px] font-bold uppercase tracking-wide ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>Ready</span>
-                  </>
-                ) : (
-                  <>
-                    <Loader2 className={`w-3.5 h-3.5 shrink-0 animate-spin ${isLight ? 'text-indigo-500' : 'text-indigo-400'}`} />
-                    <span className={`text-[10px] font-semibold truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                      Preparing live data\u2026
-                    </span>
-                  </>
-                )}
-              </div>
-            ) : (
+              {isStartupSequence ? (
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />
+                  <span className={`text-[10px] font-bold uppercase tracking-wide ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>Ready</span>
+                </div>
+              ) : (
               <button
                 onClick={handleReplayComplete}
                 className={`text-xs font-semibold uppercase tracking-wider transition-colors ${isLight ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
@@ -459,15 +444,10 @@ export default function FirstTimeTour({
               {isStartupSequence ? (
                 <button
                   onClick={handleLaunch}
-                  disabled={!isReady}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center space-x-1 ${
-                    isReady
-                      ? `text-white bg-gradient-to-r ${step.accent} hover:opacity-90 cursor-pointer`
-                      : `cursor-not-allowed ${isLight ? 'bg-slate-200 text-slate-400' : 'bg-slate-800 text-slate-600'}`
-                  }`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r ${step.accent} hover:opacity-90 transition-opacity shadow-lg flex items-center space-x-1 cursor-pointer`}
                 >
                   <span>Launch App</span>
-                  {isReady && <ChevronRight className="w-4 h-4" />}
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               ) : (
                 isLastStep && (

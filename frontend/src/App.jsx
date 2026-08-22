@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { usePredictions } from './hooks/usePredictions';
-import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
 import BottomSheet from './components/BottomSheet';
 import EvacuationPanel from './components/EvacuationPanel';
@@ -9,6 +8,7 @@ import AdminDashboard from './components/AdminDashboard';
 import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, X, Settings, Bell, Locate, Activity, Phone, MoreHorizontal } from 'lucide-react';
 import { getApiUrl } from './utils/getApiUrl';
 import FirstTimeTour from './components/FirstTimeTour';
+import StackLoadingScreen from './components/StackLoadingScreen';
 import Dashboard from './components/Dashboard';
 import NotificationPreferences from './components/NotificationPreferences';
 import EmergencyHelpModal from './components/EmergencyHelpModal';
@@ -23,6 +23,8 @@ import {
 } from './utils/pushNotifications';
 import { saveUserLocation } from './utils/idbLocation';
 import { saveNotificationPreferences } from './utils/idbPreferences';
+
+const MapView = lazy(() => import('./components/MapView'));
 
 const FIRST_RUN_KEY = 'disruptionFirstRunDone';
 const AREA_SEARCH_KEY = 'disruptionAreaSearch';
@@ -52,6 +54,18 @@ function getMobileMapStatus({ nearMeFilterActive, userLocation, filteredPredicti
 
 const MOBILE_NAV_BOTTOM = 'calc(4rem + env(safe-area-inset-bottom, 0px))';
 const MOBILE_LOCATE_ABOVE_CTA = 'calc(4rem + 3.75rem + env(safe-area-inset-bottom, 0px))';
+
+function MapViewGate({ ready, theme, children }) {
+  if (!ready) {
+    return (
+      <div
+        className="w-full h-full"
+        style={{ background: theme === 'light' ? '#f8fafc' : '#020617' }}
+      />
+    );
+  }
+  return <Suspense fallback={<div className="w-full h-full" />}>{children}</Suspense>;
+}
 
 const API_URL = getApiUrl();
 const NOTIFICATION_PREFERENCES_KEY = 'notificationPreferences';
@@ -278,12 +292,13 @@ export default function App() {
     return window.location.pathname === '/admin' ? 'admin' : 'map';
   });
 
-  // The First-Time Tour now IS the startup sequence (replaces the old
-  // animated loading-bar screen). `showLoadingScreen` still gates whether
-  // we're in "startup" state; it's dismissed only when the user clicks
-  // "Launch App" inside the tour (via handleLaunchComplete below), not
-  // automatically once data arrives — the button just becomes enabled.
-  const [showLoadingScreen, setShowLoadingScreen] = useState(() => {
+  // Stack splash on every cold start; first-run tour only after splash
+  // (unless the user skips straight to the map).
+  const [showStackSplash, setShowStackSplash] = useState(true);
+  const [skippedToMap, setSkippedToMap] = useState(false);
+  const [minSplashElapsed, setMinSplashElapsed] = useState(false);
+  const [zonesLoaded, setZonesLoaded] = useState(0);
+  const [showFirstRunTour, setShowFirstRunTour] = useState(() => {
     try {
       return window.localStorage.getItem(FIRST_RUN_KEY) !== '1';
     } catch {
@@ -299,6 +314,11 @@ export default function App() {
   const [realDbEmpty, setRealDbEmpty] = useState(true);
   const [allowFallbackBypass, setAllowFallbackBypass] = useState(false);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setMinSplashElapsed(true), 700);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Trigger automatic bypass of loading screen after 30 seconds max if database is still unseeded
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -307,7 +327,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Poll system diagnostics — runs always (not just during loading screen)
+  // Poll system diagnostics — faster while the stack splash is visible
   useEffect(() => {
     const checkDiagnostics = async () => {
       try {
@@ -316,15 +336,18 @@ export default function App() {
           const data = await res.json();
           setDbStatus(data.database?.status ?? 'connecting');
           setDbLatency(data.database?.latency_ms ?? 0);
+          setZonesLoaded(Number(data.cache?.zones_loaded ?? 0));
+        } else {
+          setDbStatus('unreachable');
         }
-      } catch (err) {
+      } catch {
         setDbStatus('unreachable');
       }
     };
     checkDiagnostics();
-    const interval = setInterval(checkDiagnostics, 10000);
+    const interval = setInterval(checkDiagnostics, showStackSplash ? 2000 : 10000);
     return () => clearInterval(interval);
-  }, []); // empty deps — runs for the lifetime of the app
+  }, [API_URL, showStackSplash]);
 
   // Track if actual db predictions are seeded
   useEffect(() => {
@@ -333,11 +356,34 @@ export default function App() {
     }
   }, [loading, predictions, isFallback]);
 
-  // "Ready" — same condition that used to auto-dismiss the old loading
-  // screen. Now it only ENABLES the tour's "Launch App" button; dismissal
-  // itself happens when the user clicks it (handleLaunchComplete below),
-  // not automatically the moment data arrives.
   const isAppReady = !loading && (!isFallback || allowFallbackBypass || dbStatus === 'healthy');
+
+  const stackChecks = {
+    api: dbStatus === 'unreachable' ? 'fail' : dbStatus === 'connecting' ? 'pending' : 'ok',
+    database: String(dbStatus).startsWith('healthy')
+      ? 'ok'
+      : dbStatus === 'unreachable'
+        ? 'fail'
+        : 'pending',
+    zones: zonesLoaded > 0 || allZones.length > 0
+      ? 'ok'
+      : dbStatus === 'unreachable'
+        ? 'fail'
+        : 'pending',
+    alerts: !loading ? 'ok' : allowFallbackBypass ? 'fail' : 'pending',
+  };
+
+  useEffect(() => {
+    if (!showStackSplash || !minSplashElapsed) return;
+    if (isAppReady || allowFallbackBypass) {
+      setShowStackSplash(false);
+    }
+  }, [showStackSplash, minSplashElapsed, isAppReady, allowFallbackBypass]);
+
+  const handleSkipSplash = () => {
+    setShowStackSplash(false);
+    setSkippedToMap(true);
+  };
 
   const handleLaunchComplete = () => {
     try {
@@ -345,7 +391,7 @@ export default function App() {
     } catch {
       /* ignore */
     }
-    setShowLoadingScreen(false);
+    setShowFirstRunTour(false);
     locateUser();
   };
 
@@ -1045,7 +1091,15 @@ export default function App() {
 
   return (
     <div className={`flex flex-col h-screen h-[100dvh] w-screen overflow-hidden font-sans ${theme === 'light' ? 'light-mode' : 'bg-brand-dark text-slate-100'}`}>
-      
+      {showStackSplash && (
+        <StackLoadingScreen
+          checks={stackChecks}
+          timedOut={allowFallbackBypass}
+          theme={theme}
+          onSkip={handleSkipSplash}
+        />
+      )}
+
       {/* Premium Header */}
       <header className="relative h-16 shrink-0 bg-brand-elevated border-b border-slate-800/80 px-6 flex items-center justify-between z-[2500]">
         <div className="flex items-center space-x-3">
@@ -1315,28 +1369,30 @@ export default function App() {
 
               {/* Interactive Leaflet Map — explicit pixel height prevents Leaflet offset bug */}
               <div data-tour="map-container" style={{ width: mapWidth || '100%', height: mapHeight || '100%', touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none', flexShrink: 0 }}>
-                <MapView 
-                  key={mapKey}
-                  predictions={predictions} 
-                  selectedZone={selectedPrediction}
-                  onSelectZone={handleSelectZone}
-                  theme={theme}
-                  userLocation={userLocation}
-                  waterwayThreshold={waterwayThreshold}
-                  setWaterwayThreshold={setWaterwayThreshold}
-                  waterwayBuffer={waterwayBuffer}
-                  setWaterwayBuffer={setWaterwayBuffer}
-                  earthquakes={earthquakes}
-                  selectedEarthquake={selectedEarthquake}
-                  onClearSelectedEarthquake={() => setSelectedEarthquake(null)}
-                  nearMeFilterActive={nearMeFilterActive}
-                  setNearMeFilterActive={setNearMeFilterActive}
-                  nearMeRadius={nearMeRadius}
-                  setNearMeRadius={setNearMeRadius}
-                  evacuationRoute={evacuationRoute}
-                  suppressMapControls={showNotificationPreferences}
-                  isMobile={isMobile}
-                />
+                <MapViewGate ready={!showStackSplash} theme={theme}>
+                  <MapView 
+                    key={mapKey}
+                    predictions={predictions} 
+                    selectedZone={selectedPrediction}
+                    onSelectZone={handleSelectZone}
+                    theme={theme}
+                    userLocation={userLocation}
+                    waterwayThreshold={waterwayThreshold}
+                    setWaterwayThreshold={setWaterwayThreshold}
+                    waterwayBuffer={waterwayBuffer}
+                    setWaterwayBuffer={setWaterwayBuffer}
+                    earthquakes={earthquakes}
+                    selectedEarthquake={selectedEarthquake}
+                    onClearSelectedEarthquake={() => setSelectedEarthquake(null)}
+                    nearMeFilterActive={nearMeFilterActive}
+                    setNearMeFilterActive={setNearMeFilterActive}
+                    nearMeRadius={nearMeRadius}
+                    setNearMeRadius={setNearMeRadius}
+                    evacuationRoute={evacuationRoute}
+                    suppressMapControls={showNotificationPreferences}
+                    isMobile={isMobile}
+                  />
+                </MapViewGate>
               </div>
 
               {/* Swipeable Drawer */}
@@ -1741,27 +1797,29 @@ export default function App() {
 
             {/* Expanded Leaflet Map */}
             <div data-tour="map-container" className="flex-1 min-h-0 w-full h-full">
-              <MapView 
-                predictions={predictions} 
-                selectedZone={selectedPrediction}
-                onSelectZone={handleSelectZone}
-                theme={theme}
-                userLocation={userLocation}
-                waterwayThreshold={waterwayThreshold}
-                setWaterwayThreshold={setWaterwayThreshold}
-                waterwayBuffer={waterwayBuffer}
-                setWaterwayBuffer={setWaterwayBuffer}
-                earthquakes={earthquakes}
-                selectedEarthquake={selectedEarthquake}
-                onClearSelectedEarthquake={() => setSelectedEarthquake(null)}
-                nearMeFilterActive={nearMeFilterActive}
-                setNearMeFilterActive={setNearMeFilterActive}
-                nearMeRadius={nearMeRadius}
-                setNearMeRadius={setNearMeRadius}
-                evacuationRoute={evacuationRoute}
-                suppressMapControls={showNotificationPreferences}
-                isMobile={false}
-              />
+              <MapViewGate ready={!showStackSplash} theme={theme}>
+                <MapView 
+                  predictions={predictions} 
+                  selectedZone={selectedPrediction}
+                  onSelectZone={handleSelectZone}
+                  theme={theme}
+                  userLocation={userLocation}
+                  waterwayThreshold={waterwayThreshold}
+                  setWaterwayThreshold={setWaterwayThreshold}
+                  waterwayBuffer={waterwayBuffer}
+                  setWaterwayBuffer={setWaterwayBuffer}
+                  earthquakes={earthquakes}
+                  selectedEarthquake={selectedEarthquake}
+                  onClearSelectedEarthquake={() => setSelectedEarthquake(null)}
+                  nearMeFilterActive={nearMeFilterActive}
+                  setNearMeFilterActive={setNearMeFilterActive}
+                  nearMeRadius={nearMeRadius}
+                  setNearMeRadius={setNearMeRadius}
+                  evacuationRoute={evacuationRoute}
+                  suppressMapControls={showNotificationPreferences}
+                  isMobile={false}
+                />
+              </MapViewGate>
             </div>
           </div>
 
@@ -1927,13 +1985,13 @@ export default function App() {
         theme={theme}
       />
 
-      {/* First-run startup overlay — map visible underneath */}
-      {showLoadingScreen && (
+      {/* First-run tour after splash (skipped if user chose Skip and open map) */}
+      {!showStackSplash && showFirstRunTour && !skippedToMap && (
         <FirstTimeTour
           isOpen={true}
           isStartupSequence={true}
           overlayMode={true}
-          isReady={isAppReady}
+          isReady={true}
           onComplete={handleLaunchComplete}
           onSkipLocation={skipLocationPrompt}
           onEnableNotifications={handleStartupNotificationRequest}
