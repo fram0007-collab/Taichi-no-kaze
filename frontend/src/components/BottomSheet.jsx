@@ -16,6 +16,7 @@ import {
    ReferenceLine
 } from 'recharts';
 import { MapPin, X, ChevronUp, ChevronDown, Clock, ShieldAlert, CloudRain, ShoppingBag, Train, Building, Store, Layers, Info } from 'lucide-react';
+import ForecastHelpContent from './ForecastHelpContent';
 
 export default function BottomSheet({ 
   selectedPrediction, 
@@ -447,37 +448,9 @@ export default function BottomSheet({
             </div>
 
             <div className={`max-h-[calc(90vh-140px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 space-y-4 sm:space-y-5 text-sm leading-6 ${
-              isDark ? 'text-slate-300' : 'text-slate-700'
+              isDark ? 'dark text-slate-300' : 'text-slate-700'
             }`}>
-              <p>These graphs help explain what may happen in this area during the next few hours. They support the warning card, but they are predictions, not guarantees.</p>
-
-              <div className={`rounded-xl border p-4 ${
-                isDark ? 'border-slate-700 bg-slate-800/70' : 'border-slate-200/80 bg-slate-50/80'
-              }`}>
-                <p className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Time Buttons: 3h, 6h, 12h, 24h</p>
-                <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>These buttons choose how far ahead the graph looks. For example, 12h means the graph shows the next 12 hours.</p>
-              </div>
-
-              <div className={`rounded-xl border p-4 ${
-                isDark ? 'border-slate-700 bg-slate-800/70' : 'border-slate-200/80 bg-slate-50/80'
-              }`}>
-                <p className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Rainfall & Humidity Forecast</p>
-                <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>The x-axis shows time. The left y-axis shows humidity from 0% to 100%. The right y-axis shows rainfall amount in millimeters. If the line goes up, weather risk may be increasing. More rain and humidity can slow traffic, increase flood risk, and make outdoor movement harder.</p>
-              </div>
-
-              <div className={`rounded-xl border p-4 ${
-                isDark ? 'border-slate-700 bg-slate-800/70' : 'border-slate-200/80 bg-slate-50/80'
-              }`}>
-                <p className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Speed Degradation Curve</p>
-                <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>The x-axis shows time. The y-axis shows speed in km/h. The dashed line is the normal speed, and the red line is the current or predicted speed. If the red line is below the dashed line, traffic is slower than normal. If it moves closer to the dashed line, traffic may be recovering.</p>
-              </div>
-
-              <div className={`rounded-xl border p-4 ${
-                isDark ? 'border-indigo-900/50 bg-indigo-950/20' : 'border-indigo-200/80 bg-indigo-50/80'
-              }`}>
-                <p className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Note</p>
-                <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>These graphs are predictions, not guarantees. During emergencies, follow official instructions from local authorities.</p>
-              </div>
+              <ForecastHelpContent />
             </div>
           </div>
         </div>

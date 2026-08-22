@@ -9,6 +9,7 @@ import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, X, Settings, Bell, Lo
 import { getApiUrl } from './utils/getApiUrl';
 import FirstTimeTour from './components/FirstTimeTour';
 import StackLoadingScreen from './components/StackLoadingScreen';
+import NearestAlertToast from './components/NearestAlertToast';
 import Dashboard from './components/Dashboard';
 import NotificationPreferences from './components/NotificationPreferences';
 import EmergencyHelpModal from './components/EmergencyHelpModal';
@@ -99,6 +100,17 @@ function getPredictionZoneCenter(prediction) {
   }
 
   return null;
+}
+
+function formatDisruptionType(type) {
+  const t = String(type || '').toLowerCase();
+  if (t === 'flood' || t === 'flooding' || t === 'waterway') return 'Flood';
+  if (t === 'crowd' || t === 'crowding') return 'Crowd';
+  if (t === 'weather') return 'Weather';
+  if (t === 'earthquake') return 'Earthquake';
+  if (t === 'traffic') return 'Traffic';
+  if (!t) return 'Alert';
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 function getPredictionKey(prediction) {
@@ -222,6 +234,32 @@ export default function App() {
     () => getMobileMapStatus({ nearMeFilterActive, userLocation, filteredPredictions, predictions, nearMeRadius }),
     [nearMeFilterActive, userLocation, filteredPredictions, predictions, nearMeRadius]
   );
+
+  const nearestAlertToasts = useMemo(() => {
+    if (!userLocation) return [];
+    return predictions
+      .map((prediction) => {
+        const center = getPredictionZoneCenter(prediction);
+        if (!center) return null;
+        const km = calculateDistanceKm(
+          userLocation.lat,
+          userLocation.lon,
+          center.lat,
+          center.lon
+        );
+        if (!Number.isFinite(km)) return null;
+        const zoneName = prediction.zone?.name || 'this area';
+        return {
+          id: getPredictionKey(prediction),
+          km,
+          prediction,
+          message: `${formatDisruptionType(prediction.disruption_type)} at ${zoneName}, ${km.toFixed(1)} km from you`,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.km - b.km)
+      .slice(0, 3);
+  }, [predictions, userLocation]);
 
   // Earthquake states
   const [earthquakes, setEarthquakes] = useState([]);
@@ -1292,6 +1330,15 @@ export default function App() {
                 </div>
               )}
 
+              {!showStackSplash && userLocation && (!showFirstRunTour || skippedToMap) && (
+                <NearestAlertToast
+                  items={nearestAlertToasts}
+                  theme={theme}
+                  offsetBelowChip={!!mobileMapStatus}
+                  onSelect={(prediction) => handleSelectZone(prediction, { expanded: false })}
+                />
+              )}
+
               {!userLocation && !locating && (!locationPromptSkipped || showLocationPrompt) && (
                 <div className="absolute top-36 left-3 right-3 z-[1050] pointer-events-auto">
                   <div className={`rounded-xl border p-3 space-y-2 shadow-lg ${
@@ -1790,6 +1837,13 @@ export default function App() {
         <main className="flex-1 flex min-h-0 w-full">
           {/* Left panel: Map + KPIs */}
           <div className="flex-1 flex flex-col min-w-0 relative">
+            {!showStackSplash && userLocation && (!showFirstRunTour || skippedToMap) && (
+              <NearestAlertToast
+                items={nearestAlertToasts}
+                theme={theme}
+                onSelect={(prediction) => handleSelectZone(prediction, { expanded: false })}
+              />
+            )}
             {/* Dynamic KPIs */}
             {false && <MetricsGrid predictions={filteredPredictions} />}
 
