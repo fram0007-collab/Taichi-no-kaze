@@ -24,14 +24,25 @@ export default function BottomSheet({
   timelineLoading,
   selectedHours = 12,
   setSelectedHours,
-  theme = 'light'
+  theme = 'light',
+  defaultExpanded = true,
 }) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [poiFilter, setPoiFilter] = useState('all');
   const [globalPois, setGlobalPois] = useState([]);
   const [showForecastHelp, setShowForecastHelp] = useState(false);
 
   const isDark = theme === 'dark';
+
+  useEffect(() => {
+    if (selectedPrediction?.id) {
+      setIsOpen(defaultExpanded);
+    } else {
+      setIsOpen(false);
+    }
+    setShowDetails(false);
+  }, [selectedPrediction?.id, defaultExpanded]);
 
   useEffect(() => {
     fetch(`${getApiUrl()}/pois`)
@@ -95,9 +106,10 @@ export default function BottomSheet({
   return (
     <>
     <div 
-      className={`fixed bottom-0 left-0 right-0 z-[1000] glass-panel rounded-t-2xl shadow-2xl transition-all duration-300 bottom-sheet-transition ${
-        isOpen ? 'h-[72vh]' : 'h-14'
+      className={`fixed left-0 right-0 z-[1600] glass-panel rounded-t-2xl shadow-2xl transition-all duration-300 bottom-sheet-transition ${
+        !isOpen ? 'h-14' : showDetails ? 'h-[55vh]' : 'h-auto'
       }`}
+      style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
     >
       {/* Drawer Drag Handle Bar */}
       <div 
@@ -127,7 +139,14 @@ export default function BottomSheet({
 
       {/* Expandable Content Panel */}
       {isOpen && (
-        <div className="w-full overflow-y-auto p-5 space-y-5 scrollbar-thin" style={{ height: "calc(72vh - 3.5rem)", paddingBottom: "5rem" }}>
+        <div
+          className={`w-full overflow-y-auto scrollbar-thin ${showDetails ? 'p-5 space-y-5' : 'p-4 space-y-3'}`}
+          style={
+            showDetails
+              ? { height: 'calc(55vh - 3.5rem)', paddingBottom: '1rem' }
+              : { height: 'auto', paddingBottom: '0.75rem' }
+          }
+        >
           {/* Metadata Cards */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-slate-950/40 border border-slate-900 rounded-lg p-2.5 flex flex-col justify-center">
@@ -135,7 +154,7 @@ export default function BottomSheet({
               <span className="font-semibold text-sm text-slate-200">{selectedPrediction.disruption_type}</span>
             </div>
             <div className="bg-slate-950/40 border border-slate-900 rounded-lg p-2.5 flex flex-col justify-center">
-              <span className="text-[10px] text-slate-400">Peak Threat Horizon</span>
+              <span className="text-[10px] text-slate-400">Peak around</span>
               <span className="font-semibold text-sm text-indigo-400">{formatTime(selectedPrediction.estimated_time_to_peak)}</span>
             </div>
           </div>
@@ -149,13 +168,30 @@ export default function BottomSheet({
                 resolution_confidence={selectedPrediction.resolution_confidence}
                 theme={theme}
               />
-              <div className="mt-1">
-                <MlResolutionBadgeCompact alertId={selectedPrediction.id} theme={theme} />
-              </div>
             </div>
           )}
 
+          {!showDetails ? (
+            <button
+              type="button"
+              onClick={() => setShowDetails(true)}
+              className="w-full py-2 rounded-lg border border-slate-700 text-xs font-semibold text-indigo-400"
+            >
+              More details
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowDetails(false)}
+              className="w-full py-2 rounded-lg border border-slate-700 text-xs font-semibold text-indigo-400"
+            >
+              Hide details
+            </button>
+          )}
 
+          {showDetails && (
+          <>
+          <MlResolutionBadgeCompact alertId={selectedPrediction.id} theme={theme} />
           {/* Dynamic Infrastructure POI Section */}
           <div className="space-y-3 pt-2 border-t border-slate-800/40">
             <h3 className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
@@ -176,7 +212,7 @@ export default function BottomSheet({
                 <button
                   key={tab.id}
                   onClick={() => setPoiFilter(tab.id)}
-                  className={`text-[9px] px-2 py-0.5 rounded font-medium border transition-all duration-200 ${
+                  className={`text-xs px-2 py-0.5 rounded font-medium border transition-all duration-200 ${
                     poiFilter === tab.id
                       ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400 font-bold'
                       : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
@@ -323,7 +359,7 @@ export default function BottomSheet({
 
                   {/* Speed Line Chart */}
                   <div className="h-36 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-2.5 flex flex-col">
-                    <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Speed Degradation Curve</span>
+                    <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Traffic speed</span>
                     <div className="flex-1 min-h-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart 
@@ -370,6 +406,8 @@ export default function BottomSheet({
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
       )}
     </div>

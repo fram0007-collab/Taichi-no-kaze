@@ -287,6 +287,31 @@ function MapController({ selectedZone, selectedEarthquake }) {
  
   return null;
 }
+
+/**
+ * Zooms the map to the user's location and the Near Me radius (e.g. 5 km).
+ * Re-runs when location is obtained/refreshed or when the radius slider changes.
+ */
+function UserLocationController({ userLocation, nearMeRadius = 5, enabled = true }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!enabled || !userLocation?.lat || !userLocation?.lon) return;
+
+    const radiusKm = Math.max(1, Number(nearMeRadius) || 5);
+    // LatLng.toBounds(sizeInMeters): each edge is size/2 meters from center → pass diameter
+    const bounds = L.latLng(userLocation.lat, userLocation.lon).toBounds(radiusKm * 1000 * 2);
+
+    map.fitBounds(bounds, {
+      padding: [48, 48],
+      maxZoom: 15,
+      animate: true,
+      duration: 0.9,
+    });
+  }, [userLocation, nearMeRadius, enabled, map]);
+
+  return null;
+}
  
 function MapClickListener({ onClearSelectedEarthquake }) {
   useMapEvents({
@@ -405,13 +430,14 @@ export default function MapView({
   setNearMeRadius,
   evacuationRoute = null,
   suppressMapControls = false,
+  isMobile = false,
 }) {
   const [globalPois, setGlobalPois] = useState([]);
   const hasActiveDisruptions = predictions.length > 0;
   const [waterways, setWaterways] = useState([]);
   const [allZones, setAllZones] = useState([]);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
-  const [isLegendMinimized, setIsLegendMinimized] = useState(false);
+  const [isLegendMinimized, setIsLegendMinimized] = useState(true);
   const [activeLayers, setActiveLayers] = useState({
     hospital: false,
     police: false,
@@ -560,6 +586,34 @@ export default function MapView({
   const toggleLayer = (layerId) => {
     setActiveLayers(prev => ({ ...prev, [layerId]: !prev[layerId] }));
   };
+
+  const applyLayerPreset = (presetKey) => {
+    const base = {
+      hospital: false,
+      police: false,
+      university: false,
+      mall: false,
+      market: false,
+      station: false,
+      waterways: false,
+      earthquakes: false,
+      safe_zones: true,
+      threat_traffic: true,
+      threat_weather: true,
+      threat_crowd: true,
+      threat_waterway: true,
+      threat_earthquake: true,
+    };
+    if (presetKey === 'hospitals') {
+      setActiveLayers({ ...base, hospital: true });
+      return;
+    }
+    if (presetKey === 'safe_places') {
+      setActiveLayers({ ...base, hospital: true, police: true, safe_zones: true });
+      return;
+    }
+    setActiveLayers(base);
+  };
   const [safeZones, setSafeZones] = useState([]);
   // Re-fetch whenever active threat layers change so the right safe zone category shows:
   // flood/waterway → high_ground, everything else → evacuation_point
@@ -655,8 +709,8 @@ export default function MapView({
     <div className="relative w-full h-full overflow-hidden">
       {!suppressMapControls && (
         <>
-          {/* Risk Legend */}
-          <div className="absolute left-4 top-4 z-[1100]">
+          {/* Risk Legend — on mobile, sit below the Near Me status chip (primary "am I safe?" signal) */}
+          <div className={`absolute left-4 z-[1100] ${isMobile ? 'top-[4.75rem]' : 'top-4'}`}>
             {isLegendMinimized ? (
               <button
                 type="button"
@@ -742,27 +796,26 @@ export default function MapView({
               </div>
             )}
           </div>
-          {/* Floating Layer Toggle Panel */}
-          {/* pointer-events-none on container prevents the invisible panel from
-               intercepting touches on the right half of the map on mobile */}
-          <div className="absolute top-6 right-6 z-[999] pointer-events-none">
+          {/* Floating Layer Toggle Panel — items-end keeps the trigger on the map's right edge
+               even while the panel (min-w-[220px]) is closed / invisible */}
+          <div className="absolute top-3 right-3 z-[1100] flex flex-col items-end pointer-events-none sm:top-4 sm:right-4">
    
     <button
       data-tour="layers-trigger"
       onClick={() => setShowLayerPanel(!showLayerPanel)}
-      className="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all font-bold pointer-events-auto"
+      className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all pointer-events-auto"
     >
-      ⚙️ Layers
+      Map display
     </button>
    
     <div
-      className={`glass-panel mt-2 p-2.5 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-1 min-w-[220px] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-6 opacity-0 pointer-events-none'}`}
+      className={`glass-panel mt-2 p-2.5 rounded-xl border border-slate-700/60 shadow-2xl text-slate-100 flex flex-col space-y-1 w-[min(220px,calc(100vw-1.5rem))] max-h-[55vh] overflow-y-auto transform transition-transform duration-300 ease-out ${showLayerPanel ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-3 opacity-0 pointer-events-none'}`}
       aria-hidden={!showLayerPanel}
     >
       <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
         <div className="flex items-center space-x-2">
           <Layers className="w-4 h-4 text-indigo-400" />
-          <span className="text-xs uppercase font-extrabold tracking-wider">Map Layer Filters</span>
+          <span className="text-xs uppercase font-extrabold tracking-wider">Map display</span>
         </div>
         <button
           onClick={() => setShowLayerPanel(false)}
@@ -770,6 +823,25 @@ export default function MapView({
           ✕
         </button>
       </div>
+          {isMobile ? (
+            <div className="grid grid-cols-1 gap-1.5 pb-2 border-b border-slate-800">
+              {[
+                { key: 'essentials', label: 'Essentials (threats only)' },
+                { key: 'hospitals', label: 'Hospitals' },
+                { key: 'safe_places', label: 'Safe places' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => applyLayerPreset(key)}
+                  className="min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 text-left text-xs font-semibold text-slate-200 hover:border-indigo-500/50 hover:text-indigo-300 transition-colors"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : (
+          <>
           <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Threat Zones</div>
           <div className="flex flex-col space-y-1.5">
           {[
@@ -815,12 +887,14 @@ export default function MapView({
             </label>
           ))}
         </div>
-      
+          </>
+          )}
+
         {/* Radius query control integrated in layer filters panel */}
         {userLocation && (
           <div className="border-t border-slate-800/80 pt-2.5 mt-1.5 space-y-2.5">
             <div className="flex items-center justify-between py-1 px-0.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all select-none">
-              <span className="text-[11px] font-extrabold uppercase text-indigo-400">Near Me Filter 📍</span>
+              <span className="text-[11px] font-extrabold uppercase text-indigo-400">Near me / Distance</span>
               <input
                 type="checkbox"
                 checked={nearMeFilterActive}
@@ -830,8 +904,8 @@ export default function MapView({
             </div>
             
             <div className="space-y-1">
-              <div className="flex justify-between text-[9px] font-semibold">
-                <span className="text-slate-400">Query Radius:</span>
+              <div className="flex justify-between text-xs font-semibold">
+                <span className="text-slate-400">Distance:</span>
                 <span className="text-indigo-400 font-bold font-mono">{nearMeRadius} km</span>
               </div>
               <input
@@ -1006,7 +1080,7 @@ export default function MapView({
               fillOpacity: 0.01,
               opacity: 0.04,
               weight: 0.5,
-              className: 'transition-all duration-300 pointer-events-none'
+              className: 'transition-all duration-300'
             };
           } else if (isSelected) {
             pathOptions = { ...riskStyle, weight: 5, fillOpacity: 1, opacity: 0.20, dashArray: '6, 6' };
@@ -1014,7 +1088,7 @@ export default function MapView({
  
           return (
             <Circle
-              key={`${zone.id}_${pred.disruption_type}`}
+              key={`${zone.id}_${pred.disruption_type}_${isOutOfRadius ? 'out' : 'in'}`}
               center={center}
               radius={radius}
               pathOptions={pathOptions}
@@ -1038,10 +1112,7 @@ export default function MapView({
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-300 mt-1">
-                    Threat: <span className="font-semibold text-slate-100">{pred.disruption_type}</span>
-                  </div>
-                  <div className="text-[11px] text-slate-300">
-                    Confidence: <span className="font-semibold text-slate-100">{pred.probability_percentage}%</span>
+                    {pred.disruption_type}
                   </div>
                   {pred.estimated_resolution_at && (
                     <div className="mt-1.5 pt-1.5 border-t border-slate-700/40">
@@ -1147,19 +1218,29 @@ export default function MapView({
                   className: score >= 65 ? 'animate-pulse' : '',
                 };
                 if (isOutOfRadius) {
-                  po = { ...po, fillOpacity: 0.01, opacity: 0.04, weight: 0.5, className: 'pointer-events-none' };
+                  po = { ...po, fillOpacity: 0.01, opacity: 0.04, weight: 0.5, className: '' };
                 } else if (isSelected) {
                   po = { ...po, weight: 4, fillOpacity: 0.30, opacity: 0.8, dashArray: '6,6' };
                 }
 
                 circles.push(
                   <Circle
-                    key={`${zone.zone_id}-${dim}`}
+                    key={`${zone.zone_id}-${dim}-${isOutOfRadius ? 'out' : 'in'}`}
                     center={center} radius={r} pathOptions={po}
                     interactive={!isOutOfRadius}
-                    eventHandlers={{ click: () => matchedPredsByDim[dim]
-                      ? onSelectZone(matchedPredsByDim[dim])
-                      : onSelectZone({ zone: { ...zone, id: zone.zone_id }, risk_level: riskKey, disruption_type: dim, probability_percentage: score })
+                    eventHandlers={{
+                      click: () => {
+                        if (isOutOfRadius) return;
+                        matchedPredsByDim[dim]
+                          ? onSelectZone(matchedPredsByDim[dim])
+                          : onSelectZone({ zone: { ...zone, id: zone.zone_id }, risk_level: riskKey, disruption_type: dim, probability_percentage: score });
+                      },
+                      touchend: () => {
+                        if (isOutOfRadius) return;
+                        matchedPredsByDim[dim]
+                          ? onSelectZone(matchedPredsByDim[dim])
+                          : onSelectZone({ zone: { ...zone, id: zone.zone_id }, risk_level: riskKey, disruption_type: dim, probability_percentage: score });
+                      },
                     }}
                   >
                     <Tooltip sticky>
@@ -1496,6 +1577,11 @@ export default function MapView({
 
         {/* Listen for selected zone changes and reposition camera */}
         <MapController selectedZone={selectedZone?.zone} selectedEarthquake={selectedEarthquake} />
+        <UserLocationController
+          userLocation={userLocation}
+          nearMeRadius={nearMeRadius}
+          enabled={!evacuationRoute}
+        />
  
         {/* Map click listener to dismiss selection */}
         <MapClickListener onClearSelectedEarthquake={onClearSelectedEarthquake} />

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import AlertCard from './AlertCard';
+import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
-import { ResolutionBadgeCompact } from './ResolutionBadge';
-import { MlRiskBadgeCompact } from './MlRiskBadge';
-import { MlResolutionBadgeCompact } from './MlResolutionBadge';
 import { useMlResolution } from '../hooks/useMlResolution';
 import { 
   ResponsiveContainer, 
@@ -47,6 +46,7 @@ export default function Sidebar({
   const [severityFilter, setSeverityFilter] = useState('all');
   const [showPredictionHelp, setShowPredictionHelp] = useState(false);
   const [showForecastHelp, setShowForecastHelp] = useState(false);
+  const [showZoneDetails, setShowZoneDetails] = useState(false);
   const [helpTab, setHelpTab] = useState('read');
   const { prediction: mlPrediction } = useMlResolution(selectedPrediction?.id);
 
@@ -111,23 +111,6 @@ export default function Sidebar({
     }
     const date = new Date(normalizedStr);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  };
-
-  const getRiskColor = (risk) => {
-    switch (risk) {
-      case 'Critical': return 'text-risk-critical border-red-500/20 bg-red-500/5';
-      case 'High': return 'text-risk-high border-orange-500/20 bg-orange-500/5';
-      case 'Medium': return 'text-risk-medium border-yellow-500/20 bg-yellow-500/5';
-      case 'Low':
-      default: return 'text-risk-low border-emerald-500/20 bg-emerald-500/5';
-    }
-  };
-
-  const getConfidenceColor = (prob) => {
-    if (prob >= 80) return 'text-red-400 font-bold';
-    if (prob >= 60) return 'text-orange-400 font-bold';
-    if (prob >= 40) return 'text-yellow-400 font-semibold';
-    return 'text-emerald-400 font-medium';
   };
 
   const getPoiIcon = (category) => {
@@ -265,12 +248,269 @@ export default function Sidebar({
     <div className="w-full flex flex-col h-full bg-brand-elevated border-l border-slate-800 overflow-hidden">
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      {/* Selected Zone Analytical Projections */}
+      {selectedPrediction && (
+        <div className="flex flex-col space-y-6 pb-4 border-b border-slate-800">
+          <div>
+            <div className="flex items-center space-x-2 text-indigo-400 font-semibold mb-1">
+              <MapPin className="w-4 h-4" />
+              <span className="text-xs uppercase tracking-wider">Selected Zone Analysis</span>
+            </div>
+            <h1 className="text-2xl font-bold text-slate-100">{selectedPrediction?.zone?.name ?? 'Unknown Zone'}</h1>
+            
+            <div className="grid grid-cols-1 gap-3 mt-4">
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2 text-center">
+                <p className="text-[10px] text-slate-400">Baseline Speed</p>
+                <p className="text-lg font-bold text-slate-200">{selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'} <span className="text-xs font-normal">km/h</span></p>
+              </div>
+            </div>
+            {selectedPrediction?.estimated_resolution_at && (
+              <div className="mt-3 bg-slate-900/40 border border-slate-800/80 rounded-lg p-2.5">
+                <ResolutionBadgeCompact
+                  estimated_resolution_at={selectedPrediction.estimated_resolution_at}
+                  resolution_confidence={selectedPrediction.resolution_confidence}
+                  theme={theme}
+                />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowZoneDetails((v) => !v)}
+              className="mt-3 w-full py-2 rounded-lg border border-slate-700 text-xs font-semibold text-indigo-400"
+            >
+              {showZoneDetails ? 'Hide details' : 'More details'}
+            </button>
+          </div>
+
+          {showZoneDetails && (
+          <>
+          {/* Dynamic Infrastructure POI Section */}
+          <div className="space-y-3 pt-2 border-t border-slate-800/50">
+            <h3 className="text-sm font-semibold text-slate-300 flex items-center space-x-2">
+              <Layers className="w-4 h-4 text-indigo-400" />
+              <span>Nearby Infrastructure & POIs</span>
+            </h3>
+            
+            {/* Category Filter Tabs */}
+            <div className="flex flex-wrap gap-1.5 pb-2">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'hospital', label: '🏥 Hospital' },
+                { id: 'police', label: '🚔 Police' },
+                { id: 'university', label: '🎓 University' },
+                { id: 'mall', label: '🏬 Mall' },
+                { id: 'station', label: '🚉 Station' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setPoiFilter(tab.id)}
+                  className={`text-[10px] px-2 py-1 rounded font-medium border transition-all duration-200 ${
+                    poiFilter === tab.id
+                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400 font-bold'
+                      : 'border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/30 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* POI Scroll Container */}
+            <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+              {filteredPois.length > 0 ? (
+                filteredPois.map((poi, idx) => (
+                  <div key={idx} className="p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        {getPoiIcon(poi.category)}
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{poi.name}</span>
+                      </div>
+                      <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950/60 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                        {poi.category.replace('_', ' ')}
+                      </span>
+                    </div>
+                    {poi.crowd_score != null ? (
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[9px] text-slate-500 font-semibold">👥 Crowd</span>
+                          <span className={`text-[9px] font-bold ${
+                            poi.crowd_score >= 65 ? 'text-red-400' :
+                            poi.crowd_score >= 35 ? 'text-amber-400' : 'text-emerald-400'
+                          }`}>
+                            {poi.crowd_score >= 65 ? 'High' : poi.crowd_score >= 35 ? 'Moderate' : 'Low'}
+                            <span className="font-normal text-slate-500 ml-1">({Math.round(poi.crowd_score)})</span>
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
+                          <div
+                            className={`h-1 rounded-full transition-all ${
+                              poi.crowd_score >= 65 ? 'bg-red-500' :
+                              poi.crowd_score >= 35 ? 'bg-amber-400' : 'bg-emerald-400'
+                            }`}
+                            style={{ width: `${Math.min(100, poi.crowd_score)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[9px] text-slate-600">No crowd data</span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-4 text-[11px] text-slate-500 border border-dashed border-slate-800 rounded-lg">
+                  No matching facilities found in this geofence.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Dynamic Weather & Speed Projections */}
+          <div className="flex-1 flex flex-col space-y-4 pt-2 border-t border-slate-800/50">
+            <div className="flex justify-between items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-300 flex items-center space-x-2">
+                  <CloudRain className="w-4 h-4 text-sky-400" />
+                  <span>{selectedHours}-Hour Forecast Projections</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowForecastHelp(true)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-slate-600 transition hover:border-indigo-500/60 hover:text-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-indigo-400"
+                  aria-label="Forecast graph help"
+                  title="Forecast graph help"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800/60 rounded-lg p-0.5 space-x-0.5">
+                {[3, 6, 12, 24].map(h => {
+                  const isActive = selectedHours === h;
+                  return (
+                    <button
+                      key={h}
+                      onClick={() => setSelectedHours(h)}
+                      className={`text-[9px] px-2 py-0.5 rounded font-semibold transition-all duration-200 ${
+                        isActive
+                          ? 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 dark:text-indigo-400 font-bold'
+                          : 'border border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {h}h
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {timelineLoading ? (
+              <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
+                Analyzing spatial indexes and streaming API updates...
+              </div>
+            ) : timelineData && timelineData.timeline && timelineData.timeline.length > 0 ? (
+              <div className="space-y-6 flex-1">
+                {/* Weather Chart */}
+                <div className="h-44 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-3 flex flex-col">
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Rainfall &amp; Humidity Forecast</span>
+                  <div className="flex-1 min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart 
+                        data={timelineData.timeline.filter(d => d.humidity != null || d.rainfall != null).map(d => ({
+                          time: formatTime(d.timestamp),
+                          probability: d.humidity ?? null,
+                          rain: d.rainfall ?? null
+                        }))}
+                        margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
+                      >
+                        <XAxis dataKey="time" stroke="#475569" fontSize={9} />
+                        <YAxis yAxisId="left" stroke="#38bdf8" fontSize={9} unit="%" domain={[0, 100]} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#6636f1" fontSize={9} unit="mm" />
+                        <ChartTooltip 
+                          contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+                          labelStyle={{ color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
+                          itemStyle={{ fontSize: '10px' }}
+                        />
+                        <Area yAxisId="left" type="monotone" dataKey="probability" fill="#38bdf8" stroke="#38bdf8" fillOpacity={0.15} name="Humidity (%)" />
+                        <Bar yAxisId="right" dataKey="rain" fill="#6366f1" radius={[2, 2, 0, 0]} name="Rain (mm)" />
+                        {nowLabel && (
+                          <ReferenceLine 
+                            yAxisId="left"
+                            x={nowLabel} 
+                            stroke="#ef4444" 
+                            strokeWidth={1.5}
+                            strokeDasharray="3 3" 
+                            label={{ value: 'NOW', position: 'insideTopLeft', fill: '#f87171', fontSize: 8, fontWeight: 'bold' }} 
+                          />
+                        )}
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Speed Drop Chart */}
+                <div className="h-44 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-3 flex flex-col">
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span>Traffic speed</span>
+                    <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
+                  </span>
+                  <div className="flex-1 min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart 
+                        data={(() => {
+                          const pts = (timelineData?.timeline || []).filter(d => d.speed != null);
+                          return pts.map(d => ({
+                            time: formatTime(d.timestamp),
+                            speed: d.speed,
+                          }));
+                        })()}
+                        margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
+                      >
+                        <XAxis dataKey="time" stroke="#475569" fontSize={9} />
+                        <YAxis stroke="#94a3b8" fontSize={9} unit="km/h" />
+                        <ChartTooltip 
+                          contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+                          labelStyle={{ color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
+                          itemStyle={{ fontSize: '10px' }}
+                        />
+                        {(timelineData?.timeline || []).filter(d => d.speed != null).length >= 2 ? (
+                          <>
+                            <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2.5} dot={false} activeDot={false} name="Expected Speed" />
+                            <ReferenceLine y={selectedPrediction?.zone?.traffic_speed_baseline ?? 40} stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 4" label={{ value: 'Baseline', position: 'insideBottomRight', fill: '#64748b', fontSize: 8 }} />
+                          </>
+                        ) : (
+                          <text x="50%" y="50%" textAnchor="middle" fill="#475569" fontSize={11}>No traffic snapshot data</text>
+                        )}
+                        {nowLabel && (
+                          <ReferenceLine 
+                            x={nowLabel} 
+                            stroke="#ef4444" 
+                            strokeWidth={1.5}
+                            strokeDasharray="3 3" 
+                            label={{ value: 'NOW', position: 'insideTopLeft', fill: '#f87171', fontSize: 8, fontWeight: 'bold' }} 
+                          />
+                        )}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-slate-500 text-xs">
+                Select a polygon zone on the map to visualize predictions.
+              </div>
+            )}
+          </div>
+          </>
+          )}
+        </div>
+      )}
+
       {/* Active Notifications Block */}
       <div>
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-bold text-lg min-w-0">
             <Bell className="w-5 h-5 text-indigo-400 shrink-0" />
-            <h2 className="truncate">Predictive Warning Feed</h2>
+            <h2 className="truncate">Nearby alerts</h2>
           </div>
           <button
             type="button"
@@ -300,7 +540,7 @@ export default function Sidebar({
               >
                 <span>{_isMed ? '⚠️' : '🚨'}</span>
                 <span className="flex flex-col items-center">
-                  {_isMed ? 'Monitor & Prepare' : 'Get Evacuation Guidance'}
+                      {_isMed ? 'See guidance' : 'Safe route'}
                   {_isMed && (
                     <span className="text-[10px] font-normal opacity-80">
                       Conditions developing — tap for guidance
@@ -340,7 +580,6 @@ export default function Sidebar({
             { id: 'Critical', label: 'Critical', color: 'border-red-500/20 text-red-400 bg-red-500/5' },
             { id: 'High', label: 'High', color: 'border-orange-500/20 text-orange-400 bg-orange-500/5' },
             { id: 'Medium', label: 'Medium', color: 'border-yellow-500/20 text-yellow-400 bg-yellow-500/5' },
-            { id: 'Low', label: 'Low', color: 'border-emerald-500/20 text-emerald-400 bg-emerald-500/5' }
           ].map(tab => {
             const isActive = severityFilter === tab.id;
             return (
@@ -388,52 +627,17 @@ export default function Sidebar({
               <p className="text-xs text-slate-600 dark:text-slate-500 font-medium">No warnings match this filter.</p>
             </div>
           ) : (
-            displayedWarnings.map(pred => {
-              const isSelected = selectedPrediction?.id === pred.id;
-              return (
-                <div 
-                  key={pred.id}
-                  onClick={() => onSelectPrediction(pred)}
-                  className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
-                    isSelected 
-                      ? (isLight ? 'border-indigo-500 bg-indigo-50' : 'border-indigo-500 bg-indigo-500/10')
-                      : (isLight
-                        ? 'border-slate-200 bg-white hover:bg-slate-50'
-                        : 'border-slate-800 bg-slate-900/50 hover:bg-slate-900')
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <span className={`font-semibold text-sm ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{pred.zone.name}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getRiskColor(pred.risk_level)}`}>
-                      {pred.risk_level}
-                    </span>
-                  </div>
-                  <div className={`mt-2 text-xs flex justify-between items-center ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                    <span>Threat: <span className={`font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>{pred.disruption_type}</span></span>
-                    <span>Peak: <span className="text-indigo-400 font-medium">{formatTime(pred.estimated_time_to_peak)}</span></span>
-                  </div>
-                  <div className={`mt-1.5 text-[10px] flex justify-between items-center border-t pt-1.5 ${isLight ? 'text-slate-600 border-slate-200' : 'text-slate-500 border-slate-800/40'}`}>
-                    <span>Confidence Level</span>
-                    <span className={getConfidenceColor(pred.probability_percentage)}>{pred.probability_percentage}%</span>
-                  </div>
-                  {pred.estimated_resolution_at && (
-                    <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800/40">
-                      <ResolutionBadgeCompact
-                        estimated_resolution_at={pred.estimated_resolution_at}
-                        resolution_confidence={pred.resolution_confidence}
-                        theme={theme}
-                      />
-                      <div className="mt-1">
-                        <MlResolutionBadgeCompact alertId={pred.id} theme={theme} />
-                      </div>
-                    </div>
-                  )}
-                  <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800/40">
-                    <MlRiskBadgeCompact zoneId={pred.zone?.zone_id ?? pred.zone?.id} />
-                  </div>
-                </div>
-              );
-            })
+            displayedWarnings.map(pred => (
+              <AlertCard
+                key={pred.id}
+                prediction={pred}
+                theme={theme}
+                selected={selectedPrediction?.id === pred.id}
+                onClick={() => onSelectPrediction(pred)}
+                showSafeRoute={Boolean(onGetEvacuation)}
+                onSafeRoute={() => onGetEvacuation?.()}
+              />
+            ))
           )}
         </div>
 
@@ -785,250 +989,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Selected Zone Analytical Projections */}
-      {selectedPrediction ? (
-        <div className="flex-1 flex flex-col space-y-6 pt-4 border-t border-slate-800">
-          <div>
-            <div className="flex items-center space-x-2 text-indigo-400 font-semibold mb-1">
-              <MapPin className="w-4 h-4" />
-              <span className="text-xs uppercase tracking-wider">Selected Zone Analysis</span>
-            </div>
-            <h1 className="text-2xl font-bold text-slate-100">{selectedPrediction?.zone?.name ?? 'Unknown Zone'}</h1>
-            
-            <div className="grid grid-cols-1 gap-3 mt-4">
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2 text-center">
-                <p className="text-[10px] text-slate-400">Baseline Speed</p>
-                <p className="text-lg font-bold text-slate-200">{selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'} <span className="text-xs font-normal">km/h</span></p>
-              </div>
-            </div>
-          </div>
 
-          {/* Dynamic Infrastructure POI Section */}
-          <div className="space-y-3 pt-2 border-t border-slate-800/50">
-            <h3 className="text-sm font-semibold text-slate-300 flex items-center space-x-2">
-              <Layers className="w-4 h-4 text-indigo-400" />
-              <span>Nearby Infrastructure & POIs</span>
-            </h3>
-            
-            {/* Category Filter Tabs */}
-            <div className="flex flex-wrap gap-1.5 pb-2">
-              {[
-                { id: 'all', label: 'All' },
-                { id: 'hospital', label: '🏥 Hospital' },
-                { id: 'police', label: '🚔 Police' },
-                { id: 'university', label: '🎓 University' },
-                { id: 'mall', label: '🏬 Mall' },
-                { id: 'station', label: '🚉 Station' },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setPoiFilter(tab.id)}
-                  className={`text-[10px] px-2 py-1 rounded font-medium border transition-all duration-200 ${
-                    poiFilter === tab.id
-                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400 font-bold'
-                      : 'border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/30 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* POI Scroll Container */}
-            <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
-              {filteredPois.length > 0 ? (
-                filteredPois.map((poi, idx) => (
-                  <div key={idx} className="p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center space-x-2 min-w-0">
-                        {getPoiIcon(poi.category)}
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{poi.name}</span>
-                      </div>
-                      <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500 bg-slate-950/60 px-1.5 py-0.5 rounded shrink-0 ml-2">
-                        {poi.category.replace('_', ' ')}
-                      </span>
-                    </div>
-                    {poi.crowd_score != null ? (
-                      <div>
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[9px] text-slate-500 font-semibold">👥 Crowd</span>
-                          <span className={`text-[9px] font-bold ${
-                            poi.crowd_score >= 65 ? 'text-red-400' :
-                            poi.crowd_score >= 35 ? 'text-amber-400' : 'text-emerald-400'
-                          }`}>
-                            {poi.crowd_score >= 65 ? 'High' : poi.crowd_score >= 35 ? 'Moderate' : 'Low'}
-                            <span className="font-normal text-slate-500 ml-1">({Math.round(poi.crowd_score)})</span>
-                          </span>
-                        </div>
-                        <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
-                          <div
-                            className={`h-1 rounded-full transition-all ${
-                              poi.crowd_score >= 65 ? 'bg-red-500' :
-                              poi.crowd_score >= 35 ? 'bg-amber-400' : 'bg-emerald-400'
-                            }`}
-                            style={{ width: `${Math.min(100, poi.crowd_score)}%` }}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-[9px] text-slate-600">No crowd data</span>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-4 text-[11px] text-slate-500 border border-dashed border-slate-800 rounded-lg">
-                  No matching facilities found in this geofence.
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Dynamic Weather & Speed Projections */}
-          <div className="flex-1 flex flex-col space-y-4 pt-2 border-t border-slate-800/50">
-            <div className="flex justify-between items-center gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-300 flex items-center space-x-2">
-                  <CloudRain className="w-4 h-4 text-sky-400" />
-                  <span>{selectedHours}-Hour Forecast Projections</span>
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowForecastHelp(true)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-slate-600 transition hover:border-indigo-500/60 hover:text-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-indigo-400"
-                  aria-label="Forecast graph help"
-                  title="Forecast graph help"
-                >
-                  <Info className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="flex bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800/60 rounded-lg p-0.5 space-x-0.5">
-                {[3, 6, 12, 24].map(h => {
-                  const isActive = selectedHours === h;
-                  return (
-                    <button
-                      key={h}
-                      onClick={() => setSelectedHours(h)}
-                      className={`text-[9px] px-2 py-0.5 rounded font-semibold transition-all duration-200 ${
-                        isActive
-                          ? 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 dark:text-indigo-400 font-bold'
-                          : 'border border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      {h}h
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {timelineLoading ? (
-              <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
-                Analyzing spatial indexes and streaming API updates...
-              </div>
-            ) : timelineData && timelineData.timeline && timelineData.timeline.length > 0 ? (
-              <div className="space-y-6 flex-1">
-                {/* Weather Chart */}
-                <div className="h-44 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-3 flex flex-col">
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Rainfall &amp; Humidity Forecast</span>
-                  <div className="flex-1 min-h-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart 
-                        data={timelineData.timeline.filter(d => d.humidity != null || d.rainfall != null).map(d => ({
-                          time: formatTime(d.timestamp),
-                          probability: d.humidity ?? null,
-                          rain: d.rainfall ?? null
-                        }))}
-                        margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
-                      >
-                        <XAxis dataKey="time" stroke="#475569" fontSize={9} />
-                        <YAxis yAxisId="left" stroke="#38bdf8" fontSize={9} unit="%" domain={[0, 100]} />
-                        <YAxis yAxisId="right" orientation="right" stroke="#6636f1" fontSize={9} unit="mm" />
-                        <ChartTooltip 
-                          contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
-                          labelStyle={{ color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
-                          itemStyle={{ fontSize: '10px' }}
-                        />
-                        <Area yAxisId="left" type="monotone" dataKey="probability" fill="#38bdf8" stroke="#38bdf8" fillOpacity={0.15} name="Humidity (%)" />
-                        <Bar yAxisId="right" dataKey="rain" fill="#6366f1" radius={[2, 2, 0, 0]} name="Rain (mm)" />
-                        {nowLabel && (
-                          <ReferenceLine 
-                            yAxisId="left"
-                            x={nowLabel} 
-                            stroke="#ef4444" 
-                            strokeWidth={1.5}
-                            strokeDasharray="3 3" 
-                            label={{ value: 'NOW', position: 'insideTopLeft', fill: '#f87171', fontSize: 8, fontWeight: 'bold' }} 
-                          />
-                        )}
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Speed Drop Chart */}
-                <div className="h-44 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-3 flex flex-col">
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-2 flex items-center justify-between">
-                    <span>Speed Degradation Curve</span>
-                    <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
-                  </span>
-                  <div className="flex-1 min-h-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart 
-                        data={(() => {
-                          const pts = (timelineData?.timeline || []).filter(d => d.speed != null);
-                          return pts.map(d => ({
-                            time: formatTime(d.timestamp),
-                            speed: d.speed,
-                          }));
-                        })()}
-                        margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
-                      >
-                        <XAxis dataKey="time" stroke="#475569" fontSize={9} />
-                        <YAxis stroke="#94a3b8" fontSize={9} unit="km/h" />
-                        <ChartTooltip 
-                          contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
-                          labelStyle={{ color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
-                          itemStyle={{ fontSize: '10px' }}
-                        />
-                        {(timelineData?.timeline || []).filter(d => d.speed != null).length >= 2 ? (
-                          <>
-                            <Line type="monotone" dataKey="speed" stroke="#f43f5e" strokeWidth={2.5} dot={false} activeDot={false} name="Expected Speed" />
-                            <ReferenceLine y={selectedPrediction?.zone?.traffic_speed_baseline ?? 40} stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 4" label={{ value: 'Baseline', position: 'insideBottomRight', fill: '#64748b', fontSize: 8 }} />
-                          </>
-                        ) : (
-                          <text x="50%" y="50%" textAnchor="middle" fill="#475569" fontSize={11}>No traffic snapshot data</text>
-                        )}
-                        {nowLabel && (
-                          <ReferenceLine 
-                            x={nowLabel} 
-                            stroke="#ef4444" 
-                            strokeWidth={1.5}
-                            strokeDasharray="3 3" 
-                            label={{ value: 'NOW', position: 'insideTopLeft', fill: '#f87171', fontSize: 8, fontWeight: 'bold' }} 
-                          />
-                        )}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-slate-500 text-xs">
-                Select a polygon zone on the map to visualize predictions.
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex flex-col justify-center items-center text-center p-8 border-t border-slate-800 text-slate-400 space-y-2">
-          <MapPin className="w-8 h-8 text-slate-600 animate-bounce" />
-          <p className="text-sm font-semibold">No Zone Geofence Inspected</p>
-          <p className="text-xs text-slate-500 max-w-xs">
-            Select an active warning card from the top feed or click a zone directly on the map to query PostGIS logs and construct risk timelines.
-          </p>
-        </div>
-      )}
 
       </div>
     </div>
