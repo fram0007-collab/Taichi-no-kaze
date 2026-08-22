@@ -5,7 +5,7 @@ import BottomSheet from './components/BottomSheet';
 import EvacuationPanel from './components/EvacuationPanel';
 import MetricsGrid from './components/MetricsGrid';
 import AdminDashboard from './components/AdminDashboard';
-import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, X, Settings, Bell, Locate, Activity, Phone, MoreHorizontal } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, Cpu, Sun, Moon, X, Settings, Bell, Locate, Activity, Phone, MoreHorizontal, Navigation } from 'lucide-react';
 import { getApiUrl } from './utils/getApiUrl';
 import FirstTimeTour from './components/FirstTimeTour';
 import StackLoadingScreen from './components/StackLoadingScreen';
@@ -15,6 +15,7 @@ import NotificationPreferences from './components/NotificationPreferences';
 import EmergencyHelpModal from './components/EmergencyHelpModal';
 import AlertCard from './components/AlertCard';
 import AreaSearchInput from './components/AreaSearchInput';
+import NavigatePanel, { NavigateRouteBar } from './components/NavigatePanel';
 import { calculateDistanceKm } from './utils/haversine';
 import {
   getExistingPushSubscription,
@@ -167,6 +168,9 @@ export default function App() {
   const [nearMeFilterActive, setNearMeFilterActive] = useState(false);
   const [showEvacuation, setShowEvacuation] = useState(false);
   const [evacuationRoute, setEvacuationRoute] = useState(null); // GeoJSON LineString
+  const [navigateRoutes, setNavigateRoutes] = useState(null); // { destination, safer, faster, saferError }
+  const [selectedNavigateRoute, setSelectedNavigateRoute] = useState('safer');
+  const [showDesktopNavigate, setShowDesktopNavigate] = useState(false);
   const [allZones, setAllZones] = useState([]); // all zone_status for LOW tier
   const [showDashboard, setShowDashboard] = useState(false);
   const [safePois, setSafePois] = useState([]);
@@ -271,6 +275,27 @@ export default function App() {
       .sort((a, b) => a.km - b.km)
       .slice(0, 3);
   }, [predictions, userLocation]);
+
+  const threatZones = useMemo(
+    () => predictions.map((p) => {
+      const c = getPredictionZoneCenter(p);
+      if (!c) return null;
+      return {
+        lat: c.lat,
+        lon: c.lon,
+        radius_m: p.zone?.radius_m ?? 1000,
+        name: p.zone?.name,
+      };
+    }).filter(Boolean),
+    [predictions]
+  );
+
+  const handleNavigateRoutesReady = (payload) => {
+    setNavigateRoutes(payload);
+    setSelectedNavigateRoute(payload.safer ? 'safer' : 'faster');
+    setMobileTab('map');
+    setShowDesktopNavigate(false);
+  };
 
   // Earthquake states
   const [earthquakes, setEarthquakes] = useState([]);
@@ -499,7 +524,7 @@ export default function App() {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showEmergencyHelp, setShowEmergencyHelp] = useState(false);
-  const [mobileTab, setMobileTab] = useState('map'); // 'map', 'feed', 'settings'
+  const [mobileTab, setMobileTab] = useState('map'); // 'map', 'navigate', 'feed', 'settings'
   const [dismissedAutoEvacuationKeys, setDismissedAutoEvacuationKeys] = useState(() => new Set());
   const [activeAutoEvacuationKey, setActiveAutoEvacuationKey] = useState(null);
   const [evacuationTargetPrediction, setEvacuationTargetPrediction] = useState(null);
@@ -1140,6 +1165,15 @@ export default function App() {
 
   return (
     <div className={`flex flex-col h-screen h-[100dvh] w-screen overflow-hidden font-sans ${theme === 'light' ? 'light-mode' : 'bg-brand-dark text-slate-100'}`}>
+      {!showStackSplash && userLocation && (!showFirstRunTour || skippedToMap) && (!isMobile || mobileTab === 'map') && (
+        <NearestAlertToast
+          items={nearestAlertToasts}
+          theme={theme}
+          offsetBelowChip={isMobile && !!mobileMapStatus}
+          onSelect={(prediction) => handleSelectZone(prediction, { expanded: false })}
+        />
+      )}
+
       {showStackSplash && (
         <StackLoadingScreen
           checks={stackChecks}
@@ -1341,15 +1375,6 @@ export default function App() {
                 </div>
               )}
 
-              {!showStackSplash && userLocation && (!showFirstRunTour || skippedToMap) && (
-                <NearestAlertToast
-                  items={nearestAlertToasts}
-                  theme={theme}
-                  offsetBelowChip={!!mobileMapStatus}
-                  onSelect={(prediction) => handleSelectZone(prediction, { expanded: false })}
-                />
-              )}
-
               {!userLocation && !locating && (!locationPromptSkipped || showLocationPrompt) && (
                 <div className="absolute top-36 left-3 right-3 z-[1050] pointer-events-auto">
                   <div className={`rounded-xl border p-3 space-y-2 shadow-lg ${
@@ -1447,11 +1472,27 @@ export default function App() {
                     nearMeRadius={nearMeRadius}
                     setNearMeRadius={setNearMeRadius}
                     evacuationRoute={evacuationRoute}
+                    navigateSaferRoute={navigateRoutes?.safer?.geometry}
+                    navigateFasterRoute={navigateRoutes?.faster?.geometry}
+                    selectedNavigateRoute={selectedNavigateRoute}
                     suppressMapControls={showNotificationPreferences}
                     isMobile={isMobile}
                   />
                 </MapViewGate>
               </div>
+              {navigateRoutes && mobileTab === 'map' && (
+                <div className="absolute left-3 right-3 z-[1260]" style={{ bottom: MOBILE_NAV_BOTTOM }}>
+                  <NavigateRouteBar
+                    destination={navigateRoutes.destination}
+                    safer={navigateRoutes.safer}
+                    faster={navigateRoutes.faster}
+                    selected={selectedNavigateRoute}
+                    onSelect={setSelectedNavigateRoute}
+                    onClear={() => setNavigateRoutes(null)}
+                    theme={theme}
+                  />
+                </div>
+              )}
 
               {/* Swipeable Drawer */}
               <BottomSheet 
@@ -1530,6 +1571,18 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {mobileTab === 'navigate' && (
+            <div style={{ height: 'calc(100dvh - 8rem)' }}>
+              <NavigatePanel
+                userLocation={userLocation}
+                onRequestLocation={locateUser}
+                threatZones={threatZones}
+                theme={theme}
+                onRoutesReady={handleNavigateRoutesReady}
+              />
             </div>
           )}
 
@@ -1813,7 +1866,7 @@ export default function App() {
           >
             <button 
               onClick={() => setMobileTab('map')}
-              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/3 transition-all ${
+              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all ${
                 mobileTab === 'map' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'
               }`}
             >
@@ -1821,20 +1874,29 @@ export default function App() {
               <span className="text-[10px] font-bold tracking-wider uppercase">Map</span>
             </button>
             <button 
+              onClick={() => setMobileTab('navigate')}
+              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all ${
+                mobileTab === 'navigate' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              <Navigation className="w-5 h-5" />
+              <span className="text-[10px] font-bold tracking-wider uppercase">Go</span>
+            </button>
+            <button 
               onClick={() => setMobileTab('feed')}
-              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/3 transition-all relative ${
+              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all relative ${
                 mobileTab === 'feed' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'
               }`}
             >
               <Bell className="w-5 h-5" />
               <span className="text-[10px] font-bold tracking-wider uppercase">Alerts</span>
               {filteredPredictions.length > 0 && (
-                <span className="absolute top-1 right-[25%] w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                <span className="absolute top-1 right-[18%] w-2 h-2 bg-red-500 rounded-full animate-ping" />
               )}
             </button>
             <button 
               onClick={() => setMobileTab('settings')}
-              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/3 transition-all ${
+              className={`flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all ${
                 mobileTab === 'settings' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'
               }`}
             >
@@ -1848,12 +1910,38 @@ export default function App() {
         <main className="flex-1 flex min-h-0 w-full">
           {/* Left panel: Map + KPIs */}
           <div className="flex-1 flex flex-col min-w-0 relative">
-            {!showStackSplash && userLocation && (!showFirstRunTour || skippedToMap) && (
-              <NearestAlertToast
-                items={nearestAlertToasts}
-                theme={theme}
-                onSelect={(prediction) => handleSelectZone(prediction, { expanded: false })}
-              />
+            <button
+              type="button"
+              onClick={() => setShowDesktopNavigate(true)}
+              className="absolute top-4 left-4 z-[1200] flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold shadow-lg"
+            >
+              <Navigation className="w-4 h-4" />
+              Navigate
+            </button>
+            {showDesktopNavigate && (
+              <div className="absolute inset-y-0 left-0 z-[1300] w-[min(22rem,100%)] shadow-2xl">
+                <NavigatePanel
+                  userLocation={userLocation}
+                  onRequestLocation={locateUser}
+                  threatZones={threatZones}
+                  theme={theme}
+                  onRoutesReady={handleNavigateRoutesReady}
+                  onClose={() => setShowDesktopNavigate(false)}
+                />
+              </div>
+            )}
+            {navigateRoutes && (
+              <div className="absolute left-4 right-4 bottom-4 z-[1260] max-w-md">
+                <NavigateRouteBar
+                  destination={navigateRoutes.destination}
+                  safer={navigateRoutes.safer}
+                  faster={navigateRoutes.faster}
+                  selected={selectedNavigateRoute}
+                  onSelect={setSelectedNavigateRoute}
+                  onClear={() => setNavigateRoutes(null)}
+                  theme={theme}
+                />
+              </div>
             )}
             {/* Dynamic KPIs */}
             {false && <MetricsGrid predictions={filteredPredictions} />}
@@ -1881,6 +1969,9 @@ export default function App() {
                   nearMeRadius={nearMeRadius}
                   setNearMeRadius={setNearMeRadius}
                   evacuationRoute={evacuationRoute}
+                  navigateSaferRoute={navigateRoutes?.safer?.geometry}
+                  navigateFasterRoute={navigateRoutes?.faster?.geometry}
+                  selectedNavigateRoute={selectedNavigateRoute}
                   suppressMapControls={showNotificationPreferences}
                   isMobile={false}
                 />

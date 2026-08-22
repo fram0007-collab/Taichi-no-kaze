@@ -22,6 +22,7 @@ import { getApiUrl } from '../utils/getApiUrl';
 import { ResolutionBadgeExpanded } from './ResolutionBadge';
 import { MlResolutionBadgeExpanded } from './MlResolutionBadge';
 import { COMMON_EMERGENCY_HOTLINES } from '../constants/emergencyHotlines';
+import { circleToBbox } from '../utils/tomtomRoute';
 
 // ── i18n-ready content block ────────────────────────────────────────────────
 
@@ -146,19 +147,6 @@ const CONTENT = {
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Convert a circle (center + radius_m) to a TomTom-compatible bounding box.
- * TomTom avoidAreas expects: { southWestCorner, northEastCorner } in lat/lon.
- */
-function circleToBbox(lat, lon, radiusM) {
-  const latDelta = radiusM / 111320;
-  const lonDelta = radiusM / (111320 * Math.cos((lat * Math.PI) / 180));
-  return {
-    southWestCorner: { latitude: lat - latDelta, longitude: lon - lonDelta },
-    northEastCorner: { latitude: lat + latDelta, longitude: lon + lonDelta },
-  };
-}
 
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;

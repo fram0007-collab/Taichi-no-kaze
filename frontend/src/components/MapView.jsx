@@ -383,13 +383,15 @@ function MapSizeInvalidator() {
  * whenever evacuationRoute changes. Works like a navigation app: as soon as
  * a route is calculated, the map adjusts to show the full path.
  */
-function RouteController({ evacuationRoute }) {
+function RouteController({ evacuationRoute, navigateSaferRoute, navigateFasterRoute }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!evacuationRoute) return;
-    const coords = evacuationRoute.geometry?.coordinates ?? [];
-    if (coords.length < 2) return;
+    const collections = [evacuationRoute, navigateSaferRoute, navigateFasterRoute]
+      .map((g) => g?.coordinates ?? g?.geometry?.coordinates ?? [])
+      .filter((coords) => coords.length >= 2);
+    if (collections.length === 0) return;
+    const coords = collections.flat();
 
     // Convert GeoJSON [lon, lat] to Leaflet [lat, lon] bounds
     const latLngs = coords.map(([lon, lat]) => [lat, lon]);
@@ -407,7 +409,7 @@ function RouteController({ evacuationRoute }) {
       animate: true,
       duration: 1.0,
     });
-  }, [evacuationRoute, map]);
+  }, [evacuationRoute, navigateSaferRoute, navigateFasterRoute, map]);
 
   return null;
 }
@@ -430,6 +432,9 @@ export default function MapView({
   nearMeRadius = 5,
   setNearMeRadius,
   evacuationRoute = null,
+  navigateSaferRoute = null,
+  navigateFasterRoute = null,
+  selectedNavigateRoute = 'safer',
   suppressMapControls = false,
   isMobile = false,
 }) {
@@ -1571,7 +1576,11 @@ export default function MapView({
  
  
         {/* Auto-fit map to evacuation route when route is ready */}
-        <RouteController evacuationRoute={evacuationRoute} />
+        <RouteController
+          evacuationRoute={evacuationRoute}
+          navigateSaferRoute={navigateSaferRoute}
+          navigateFasterRoute={navigateFasterRoute}
+        />
 
         {/* Fix Leaflet container size on mobile */}
         <MapSizeInvalidator />
@@ -1627,6 +1636,40 @@ export default function MapView({
                 weight: 5,
                 opacity: 0.9,
                 dashArray: '12, 7',
+                lineCap: 'round',
+              }}
+            />
+          );
+        })()}
+
+        {navigateFasterRoute && (() => {
+          const coords = navigateFasterRoute.coordinates ?? [];
+          if (coords.length < 2) return null;
+          const selected = selectedNavigateRoute === 'faster';
+          return (
+            <Polyline
+              positions={coords.map(([lon, lat]) => [lat, lon])}
+              pathOptions={{
+                color: '#f97316',
+                weight: selected ? 6 : 4,
+                opacity: selected ? 0.95 : 0.45,
+                lineCap: 'round',
+              }}
+            />
+          );
+        })()}
+        {navigateSaferRoute && (() => {
+          const coords = navigateSaferRoute.coordinates ?? [];
+          if (coords.length < 2) return null;
+          const selected = selectedNavigateRoute === 'safer';
+          return (
+            <Polyline
+              positions={coords.map(([lon, lat]) => [lat, lon])}
+              pathOptions={{
+                color: '#22c55e',
+                weight: selected ? 6 : 4,
+                opacity: selected ? 0.95 : 0.5,
+                dashArray: '10, 6',
                 lineCap: 'round',
               }}
             />
