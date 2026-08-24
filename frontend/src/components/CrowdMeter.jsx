@@ -24,10 +24,10 @@ export default function CrowdMeter({
   return (
     <div className={compact ? 'mt-1.5' : ''}>
       <div className="flex items-center justify-between mb-0.5">
-        <span className={`text-[9px] font-semibold ${mutedClass}`}>
+        <span className={`text-[11px] font-semibold ${mutedClass}`}>
           👥 Crowd{source === 'zone' ? ' (area)' : ''}
         </span>
-        <span className={`text-[9px] font-bold ${level.text}`}>
+        <span className={`text-[11px] font-bold ${level.text}`}>
           {level.label}
           <span className={`font-normal ml-1 ${mutedClass}`}>({rounded}/100)</span>
         </span>

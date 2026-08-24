@@ -219,4 +219,17 @@ P0 and P1 fixes were implemented in the frontend:
 
 Post-fix verification screenshots: `reports/screenshots-ui-readability/post-fix/`
 
-**Deferred (P2):** BUG-08 map yellow hex, BUG-12 font-size sweep, BUG-13/15 disabled opacity and tour backdrop, full theme consolidation (BUG-05).
+### P2 (24 August 2026)
+
+| BUG ID | Status | Change |
+|--------|--------|--------|
+| BUG-06 | Fixed | `BottomSheet.jsx` — explicit `isLight` branching for header, metadata cards, borders, Medium badge, and close button |
+| BUG-08 | Fixed | `MapView.jsx` — medium-risk fill `#E6A800`, stroke `#B8860B`, weight 3.5; legend swatch and headers updated |
+| BUG-12 | Fixed | Minimum secondary copy raised to 11–12px in `App.jsx`, `CrowdMeter.jsx`, `BottomSheet.jsx`, `ResolutionBadge.jsx`, `MlResolutionBadge.jsx` |
+| BUG-13 | Fixed | Disabled CTAs use background/text fade instead of whole-control opacity in `App.jsx`, `NavigatePanel.jsx`, `AdminDashboard.jsx` |
+| BUG-15 | Fixed | `FirstTimeTour.jsx` — light-mode replay backdrop `bg-slate-900/45` (was `/20`) |
+| BUG-22 | Fixed | `AdminDashboard.jsx` — table and form micro-text bumped to `text-xs` (12px) minimum |
+
+Build verified: `npm run build` (frontend, 24 Aug 2026).
+
+**Still deferred:** BUG-05 full CSS variable theme consolidation, BUG-17 geolocation error copy (usability).

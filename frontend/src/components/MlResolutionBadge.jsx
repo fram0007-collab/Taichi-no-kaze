@@ -54,7 +54,7 @@ export function MlResolutionBadgeCompact({ alertId, theme = 'light' }) {
   const mutedText = isLight ? 'text-slate-700' : 'text-slate-300';
 
   return (
-    <div className={`flex items-center gap-1.5 text-[10px] ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+    <div className={`flex items-center gap-1.5 text-xs ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
       <span>🧠</span>
       <span>
         <span className="font-medium">AI prediction:</span>{' '}
@@ -72,7 +72,7 @@ export function MlResolutionBadgeExpanded({ alertId, theme = 'light' }) {
   const muted = isLight ? 'text-slate-700' : 'text-slate-300';
 
   if (loading) {
-    return <p className={`text-[10px] italic ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Loading ML resolution estimate…</p>;
+    return <p className={`text-xs italic ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Loading ML resolution estimate…</p>;
   }
   if (unavailable || !prediction) return null;
 
@@ -86,7 +86,7 @@ export function MlResolutionBadgeExpanded({ alertId, theme = 'light' }) {
       <div className="flex items-center gap-2">
         <span className="text-base">🧠</span>
         <div>
-          <p className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>
+          <p className={`text-xs font-semibold uppercase tracking-wide ${muted}`}>
             AI-Powered Prediction
           </p>
           <p className={`font-bold text-sm ${text}`}>{time}</p>
@@ -99,7 +99,7 @@ export function MlResolutionBadgeExpanded({ alertId, theme = 'light' }) {
       </div>
 
       <div>
-        <div className="flex items-center justify-between text-[10px] mb-1">
+        <div className="flex items-center justify-between text-xs mb-1">
           <span className={muted}>Prediction reliability</span>
           <span className={`font-bold ${text}`}>{conf}%</span>
         </div>
@@ -108,7 +108,7 @@ export function MlResolutionBadgeExpanded({ alertId, theme = 'light' }) {
         </div>
       </div>
 
-      <p className={`text-[10px] leading-relaxed ${muted}`}>
+      <p className={`text-xs leading-relaxed ${muted}`}>
         Estimated time remaining: {prediction.hours_remaining_low}–{prediction.hours_remaining_high} hours.
         This prediction is based on patterns from past alerts in this area — it learns and improves over time as more real events are recorded.
       </p>

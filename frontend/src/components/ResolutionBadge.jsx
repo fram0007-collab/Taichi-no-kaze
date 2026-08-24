@@ -79,7 +79,7 @@ export function ResolutionBadgeCompact({ estimated_resolution_at, resolution_con
   const mutedText = isLight ? 'text-slate-700' : 'text-slate-300';
 
   return (
-    <div className={`flex items-center gap-1.5 text-[10px] font-medium ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+    <div className={`flex items-center gap-1.5 text-xs font-medium ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
       <span>🕐</span>
       <span>
         <span>Clears around</span>{' '}
@@ -119,7 +119,7 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
       <div className="flex items-center gap-2">
         <span className="text-base">🕐</span>
         <div>
-          <p className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>
+          <p className={`text-xs font-semibold uppercase tracking-wide ${muted}`}>
             Estimated Resolution
           </p>
           <p className={`font-bold text-sm ${text}`}>
@@ -134,7 +134,7 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
       </div>
 
       <div>
-        <div className="flex items-center justify-between text-[10px] mb-1">
+        <div className="flex items-center justify-between text-xs mb-1">
           <span className={muted}>Prediction reliability</span>
           <span className={`font-bold ${text}`}>{conf}%</span>
         </div>
@@ -145,13 +145,13 @@ export function ResolutionBadgeExpanded({ estimated_resolution_at, resolution_co
           />
         </div>
         {conf < 60 && (
-          <p className={`text-[9px] mt-1 italic ${muted}`}>
+          <p className={`text-[11px] mt-1 italic ${muted}`}>
             Prediction reliability is low — we have hidden the specific time to avoid giving a misleading estimate.
           </p>
         )}
       </div>
 
-      <p className={`text-[10px] leading-relaxed ${muted}`}>{disclaimer}</p>
+      <p className={`text-xs leading-relaxed ${muted}`}>{disclaimer}</p>
     </div>
   );
 }

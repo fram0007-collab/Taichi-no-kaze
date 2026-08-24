@@ -229,7 +229,7 @@ export default function FirstTimeTour({
           shows through slightly); in startup overlayMode the dim layer above
           lets the map show through */}
       {!isStartupSequence && (
-        <div className={`absolute inset-0 transition-opacity duration-300 pointer-events-auto ${isLight ? 'bg-slate-900/20' : 'bg-slate-950/40'}`}></div>
+        <div className={`absolute inset-0 transition-opacity duration-300 pointer-events-auto ${isLight ? 'bg-slate-900/45' : 'bg-slate-950/40'}`}></div>
       )}
 
       {/* Responsive Tour Card Box with Swipe Gesture Support */}

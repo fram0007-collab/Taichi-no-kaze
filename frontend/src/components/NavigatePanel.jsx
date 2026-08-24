@@ -205,11 +205,11 @@ export default function NavigatePanel({
               : 'Search a place (hospital, mall, station…)'
           }
           className={`w-full min-h-[44px] pl-9 pr-3 rounded-lg border text-sm ${
-            searchDisabled ? 'opacity-60 cursor-not-allowed' : ''
+            searchDisabled ? 'cursor-not-allowed' : ''
           } ${
             isLight
-              ? 'border-slate-300 bg-white text-slate-900'
-              : 'border-slate-700 bg-slate-950 text-slate-100'
+              ? `border-slate-300 bg-white text-slate-900 ${searchDisabled ? 'bg-slate-100 text-slate-500' : ''}`
+              : `border-slate-700 bg-slate-950 text-slate-100 ${searchDisabled ? 'bg-slate-900/60 text-slate-500' : ''}`
           }`}
         />
       </div>

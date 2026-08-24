@@ -83,9 +83,9 @@ function getStyleForRisk(risk) {
       };
     case 'Medium':
       return {
-        fillColor: '#FFD600',
-        color: '#FFD600',
-        weight: 3.0,
+        fillColor: '#E6A800',
+        color: '#B8860B',
+        weight: 3.5,
         opacity: 0.85,
         fillOpacity: 0.07,
         className: 'hover:fill-opacity-18 hover:opacity-40 transition-all duration-300'
@@ -738,7 +738,7 @@ export default function MapView({
             ) : (
               <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-3 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-100">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">
+                  <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">
                     Legend
                   </div>
                   <button
@@ -751,7 +751,7 @@ export default function MapView({
                   </button>
                 </div>
 
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
                   Risk Levels
                 </div>
 
@@ -767,7 +767,7 @@ export default function MapView({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-[#FFD600]"></span>
+                    <span className="h-3 w-3 rounded-full bg-[#E6A800]"></span>
                     <span className="text-[11px] text-slate-900 dark:text-slate-100">Medium (35-64)</span>
                   </div>
 
@@ -777,7 +777,7 @@ export default function MapView({
                   </div>
                 </div>
 
-                <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+                <div className="mt-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
                   Size Legend
                 </div>
 
@@ -793,7 +793,7 @@ export default function MapView({
                   </div>
                 </div>
 
-                <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+                <div className="mt-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
                   Disruption Intensity
                 </div>
 
@@ -857,7 +857,7 @@ export default function MapView({
             </div>
           ) : (
           <>
-          <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Threat Zones</div>
+          <div className="text-xs uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Threat Zones</div>
           <div className="flex flex-col space-y-1.5">
           {[
             { id: 'threat_traffic', label: 'Traffic 🚗', color: 'text-orange-400' },
@@ -878,7 +878,7 @@ export default function MapView({
           ))}
         </div>
  
-        <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Map Overlays</div>
+        <div className="text-xs uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Map Overlays</div>
         <div className="flex flex-col space-y-2 pb-2">
           {[
             { id: 'waterways', label: 'Waterways & Canals 🗺️', color: 'text-sky-400' },

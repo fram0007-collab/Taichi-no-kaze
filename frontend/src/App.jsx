@@ -1346,7 +1346,7 @@ export default function App() {
             }`}>
               DIS-RUPTURE
             </h1>
-            <p className="text-[10px] text-slate-400 font-medium tracking-widest uppercase">
+            <p className="text-[11px] text-slate-400 font-medium tracking-widest uppercase">
               Alerts near you
             </p>
           </div>
@@ -1480,7 +1480,7 @@ export default function App() {
               <button
                 onClick={locateUser}
                 title="Use My Location"
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500 transition-all text-xs font-semibold disabled:opacity-50"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500 transition-all text-xs font-semibold disabled:bg-indigo-600/50 disabled:cursor-not-allowed"
                 disabled={locating}
               >
                 <Locate className={`w-3.5 h-3.5 ${locating ? 'animate-spin' : ''}`} />
@@ -1650,7 +1650,7 @@ export default function App() {
                 type="button"
                 onClick={handleMyLocationClick}
                 disabled={locating}
-                className="absolute right-3 z-[1160] flex items-center gap-1.5 px-3 py-2.5 rounded-full bg-indigo-600 text-white text-xs font-bold shadow-lg disabled:opacity-50"
+                className="absolute right-3 z-[1160] flex items-center gap-1.5 px-3 py-2.5 rounded-full bg-indigo-600 text-white text-xs font-bold shadow-lg disabled:bg-indigo-600/50 disabled:cursor-not-allowed"
                 style={{
                   bottom: showEvacuation
                     ? '44vh'
@@ -2050,10 +2050,10 @@ export default function App() {
                 <button
                   onClick={() => { locateUser(); setMobileTab('map'); }}
                   disabled={locating}
-                  className={`w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg border text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 ${
+                  className={`w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg border text-xs font-bold transition-all active:scale-[0.98] disabled:cursor-not-allowed ${
                     theme === 'light'
-                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                      : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-100'
+                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800 disabled:bg-slate-200/80'
+                      : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-100 disabled:bg-slate-800/50'
                   }`}
                 >
                   <Locate className={`w-4 h-4 ${locating ? 'animate-spin' : ''}`} />
@@ -2107,7 +2107,7 @@ export default function App() {
               }`}
             >
               <Shield className="w-5 h-5" />
-              <span className="text-[10px] font-bold tracking-wider uppercase">Map</span>
+              <span className="text-[11px] font-bold tracking-wider uppercase">Map</span>
             </button>
             <button 
               onClick={() => setMobileTab('navigate')}
@@ -2116,7 +2116,7 @@ export default function App() {
               }`}
             >
               <Navigation className="w-5 h-5" />
-              <span className="text-[10px] font-bold tracking-wider uppercase">Go</span>
+              <span className="text-[11px] font-bold tracking-wider uppercase">Go</span>
             </button>
             <button 
               onClick={() => setMobileTab('feed')}
@@ -2125,7 +2125,7 @@ export default function App() {
               }`}
             >
               <Bell className="w-5 h-5" />
-              <span className="text-[10px] font-bold tracking-wider uppercase">Alerts</span>
+              <span className="text-[11px] font-bold tracking-wider uppercase">Alerts</span>
               {filteredPredictions.length > 0 && (
                 <span className="absolute top-1 right-[18%] w-2 h-2 bg-red-500 rounded-full animate-ping" />
               )}
@@ -2137,7 +2137,7 @@ export default function App() {
               }`}
             >
               <Settings className="w-5 h-5" />
-              <span className="text-[10px] font-bold tracking-wider uppercase">Settings</span>
+              <span className="text-[11px] font-bold tracking-wider uppercase">Settings</span>
             </button>
           </div>
         </main>
