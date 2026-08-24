@@ -24,6 +24,25 @@ function fmtRows(n) {
   return String(n);
 }
 
+function adminTheme(isLight) {
+  return {
+    pageBg: isLight ? 'bg-slate-100' : 'bg-brand-dark/40',
+    panel: isLight ? 'bg-white border border-slate-200 shadow-premium' : 'glass-panel shadow-premium',
+    title: isLight ? 'text-slate-900' : 'text-slate-100',
+    muted: isLight ? 'text-slate-600' : 'text-slate-400',
+    label: isLight ? 'text-slate-500' : 'text-slate-400',
+    input: isLight
+      ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-indigo-500'
+      : 'bg-slate-900/60 border-slate-800 text-slate-100 placeholder-slate-600 focus:border-indigo-500',
+    headerBorder: isLight ? 'border-slate-200' : 'border-slate-800',
+    countdownBg: isLight ? 'bg-white border-slate-200' : 'bg-slate-950/40 border-slate-900',
+    buttonSecondary: isLight
+      ? 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:border-slate-300'
+      : 'bg-slate-900 border-slate-800 text-slate-200 hover:text-slate-100 hover:border-slate-700',
+    shellBg: isLight ? 'bg-slate-50' : '',
+  };
+}
+
 // ------------------------------------------------------------------
 // Sub-components
 // ------------------------------------------------------------------
@@ -888,7 +907,9 @@ function SlaDashboardPanel({ data, loading, activeRange, onRangeChange }) {
 // ------------------------------------------------------------------
 // Main Component
 // ------------------------------------------------------------------
-export default function AdminDashboard({ onBack }) {
+export default function AdminDashboard({ onBack, theme = 'light' }) {
+  const isLight = theme === 'light';
+  const t = adminTheme(isLight);
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(() =>
     !!sessionStorage.getItem('adminToken')
@@ -1185,27 +1206,27 @@ export default function AdminDashboard({ onBack }) {
   // --- Login Gate ---
   if (!isAuthenticated) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6 bg-brand-dark/40 min-h-[500px]">
-        <div className="w-full max-w-md glass-panel rounded-2xl p-8 space-y-6 shadow-premium">
+      <div className={`flex-1 flex items-center justify-center p-6 min-h-[500px] ${t.pageBg}`}>
+        <div className={`w-full max-w-md rounded-2xl p-8 space-y-6 ${t.panel}`}>
           <div className="flex flex-col items-center text-center space-y-2">
             <div className="p-3 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
               <Lock className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-100">Portal Security Access</h2>
-            <p className="text-xs text-slate-400 max-w-xs">
+            <h2 className={`text-xl font-bold tracking-tight ${t.title}`}>Portal Security Access</h2>
+            <p className={`text-xs max-w-xs ${t.muted}`}>
               This monitoring hub is protected. Input the administration passcode to decrypt connection vectors.
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs uppercase font-bold text-slate-400 tracking-wider">Passcode</label>
+              <label className={`text-xs uppercase font-bold tracking-wider ${t.label}`}>Passcode</label>
               <input
                 type="password"
                 placeholder="••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-100 focus:outline-none focus:border-indigo-500 transition-all text-sm placeholder-slate-600"
+                className={`w-full px-4 py-3 rounded-xl border focus:outline-none transition-all text-sm ${t.input}`}
                 required
               />
             </div>
@@ -1232,24 +1253,24 @@ export default function AdminDashboard({ onBack }) {
   const progressPercent = (timeLeft / 180) * 100;
 
   return (
-    <div className="h-[calc(100vh-4rem)] w-full overflow-y-auto overflow-x-hidden">
+    <div className={`h-[calc(100vh-4rem)] w-full overflow-y-auto overflow-x-hidden ${t.shellBg}`}>
       <div className="p-6 flex flex-col space-y-6 w-full max-w-7xl mx-auto">
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-5 shrink-0">
+      <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b pb-5 shrink-0 ${t.headerBorder}`}>
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-100 tracking-tight flex items-center space-x-2.5">
+          <h1 className={`text-2xl font-extrabold tracking-tight flex items-center space-x-2.5 ${t.title}`}>
             <Cpu className="w-7 h-7 text-indigo-400 animate-pulse" />
             <span>Infrastructure Health Command</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className={`text-xs mt-1 ${t.muted}`}>
             Real-time Mutual TLS tunnel diagnostics, scheduler job states and DB metrics
           </p>
         </div>
 
         <div className="flex items-center space-x-4">
           {/* Countdown clock */}
-          <div className="flex items-center space-x-2.5 bg-slate-950/40 border border-slate-900 px-3 py-1.5 rounded-xl">
+          <div className={`flex items-center space-x-2.5 px-3 py-1.5 rounded-xl border ${t.countdownBg}`}>
             <div className="relative w-5 h-5 flex items-center justify-center">
               <svg className="absolute w-full h-full transform -rotate-90">
                 <circle cx="10" cy="10" r="8" stroke="rgba(255,255,255,0.05)" strokeWidth="2" fill="transparent" />
@@ -1257,15 +1278,15 @@ export default function AdminDashboard({ onBack }) {
                   strokeDasharray={50} strokeDashoffset={50 - (50 * progressPercent) / 100} />
               </svg>
             </div>
-            <span className="text-xs uppercase font-bold text-slate-400 tracking-widest">
-              Refresh: <span className="text-slate-100">{timeLeft}s</span>
+            <span className={`text-xs uppercase font-bold tracking-widest ${t.muted}`}>
+              Refresh: <span className={t.title}>{timeLeft}s</span>
             </span>
           </div>
 
           <button
             onClick={fetchStatusMetrics}
             disabled={loading}
-            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs font-semibold hover:text-slate-100 hover:border-slate-700 transition-all shrink-0 shadow-md"
+            className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl border text-xs font-semibold transition-all shrink-0 shadow-md ${t.buttonSecondary}`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Force Sweep</span>

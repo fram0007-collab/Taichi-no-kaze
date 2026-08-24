@@ -1536,7 +1536,7 @@ export default function App() {
         <AdminDashboard onBack={() => {
           window.history.pushState({}, '', '/');
           setView('map');
-        }} />
+        }} theme={theme} />
       ) : isMobile ? (
         // Mobile Layout: Pinned content container + fixed bottom nav bar
         <main className="flex-1 flex flex-col relative w-full min-h-0">
@@ -2173,7 +2173,7 @@ export default function App() {
               </div>
             )}
             {/* Dynamic KPIs */}
-            {false && <MetricsGrid predictions={filteredPredictions} />}
+            {false && <MetricsGrid predictions={filteredPredictions} theme={theme} />}
 
             {/* Fallback status is shown only under Settings → For developers */}
 

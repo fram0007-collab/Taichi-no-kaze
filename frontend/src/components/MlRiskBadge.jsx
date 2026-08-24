@@ -16,27 +16,50 @@ import { useMlPrediction } from '../hooks/useMlPrediction';
  * ───────────────────────────────────────────────────────────────────────────
  */
 
-const SEVERITY_STYLE = {
-  HIGH:   { text: 'text-red-600 dark:text-red-400',    bar: 'bg-red-400',    border: 'border-red-500/20',    bg: 'bg-red-500/5' },
-  MEDIUM: { text: 'text-amber-600 dark:text-amber-400',  bar: 'bg-amber-400',  border: 'border-amber-500/20',  bg: 'bg-amber-500/5' },
-  LOW:    { text: 'text-slate-500 dark:text-slate-400',  bar: 'bg-slate-500',  border: 'border-slate-300 dark:border-slate-700',     bg: 'bg-slate-100/80 dark:bg-slate-900/40' },
-  NONE:   { text: 'text-slate-600 dark:text-slate-400',  bar: 'bg-slate-600',  border: 'border-slate-800',     bg: 'bg-slate-100/80 dark:bg-slate-900/40' },
-};
+function severityStyle(severity, isLight) {
+  const map = {
+    HIGH: {
+      text: isLight ? 'text-red-600' : 'text-red-400',
+      bar: 'bg-red-400',
+      border: 'border-red-500/20',
+      bg: 'bg-red-500/5',
+    },
+    MEDIUM: {
+      text: isLight ? 'text-amber-600' : 'text-amber-400',
+      bar: 'bg-amber-400',
+      border: 'border-amber-500/20',
+      bg: 'bg-amber-500/5',
+    },
+    LOW: {
+      text: isLight ? 'text-slate-500' : 'text-slate-400',
+      bar: 'bg-slate-500',
+      border: isLight ? 'border-slate-300' : 'border-slate-700',
+      bg: isLight ? 'bg-slate-100/80' : 'bg-slate-900/40',
+    },
+    NONE: {
+      text: isLight ? 'text-slate-600' : 'text-slate-400',
+      bar: 'bg-slate-600',
+      border: isLight ? 'border-slate-300' : 'border-slate-800',
+      bg: isLight ? 'bg-slate-100/80' : 'bg-slate-900/40',
+    },
+  };
+  return map[severity] ?? map.NONE;
+}
 
-// Below this, don't bother showing the badge — not worth the visual noise.
 const MIN_PROBABILITY_TO_SHOW = 0.15;
 
-export function MlRiskBadgeCompact({ zoneId }) {
+export function MlRiskBadgeCompact({ zoneId, theme = 'light' }) {
+  const isLight = theme === 'light';
   const { prediction, loading, unavailable } = useMlPrediction(zoneId);
 
   if (loading || unavailable || !prediction) return null;
   if (prediction.probability_high < MIN_PROBABILITY_TO_SHOW) return null;
 
-  const style = SEVERITY_STYLE[prediction.predicted_severity] ?? SEVERITY_STYLE.NONE;
+  const style = severityStyle(prediction.predicted_severity, isLight);
   const pct = Math.round(prediction.probability_high * 100);
 
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-slate-800 dark:text-slate-200">
+    <div className={`flex items-center gap-1.5 text-[10px] ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
       <span>🤖</span>
       <span>
         <span className="font-semibold">Worsening risk:</span>{' '}
@@ -46,26 +69,25 @@ export function MlRiskBadgeCompact({ zoneId }) {
   );
 }
 
-/**
- * Expanded variant with a probability bar across all four classes — for
- * use in EvacuationPanel or a zone detail view.
- */
-export function MlRiskBadgeExpanded({ zoneId }) {
+export function MlRiskBadgeExpanded({ zoneId, theme = 'light' }) {
+  const isLight = theme === 'light';
+  const muted = isLight ? 'text-slate-600' : 'text-slate-400';
+  const trackBg = isLight ? 'bg-slate-200' : 'bg-slate-700';
   const { prediction, loading, unavailable } = useMlPrediction(zoneId);
 
   if (loading) {
-    return <p className="text-[10px] text-slate-600 dark:text-slate-400 italic">Loading risk outlook…</p>;
+    return <p className={`text-[10px] italic ${muted}`}>Loading risk outlook…</p>;
   }
   if (unavailable || !prediction) return null;
 
-  const style = SEVERITY_STYLE[prediction.predicted_severity] ?? SEVERITY_STYLE.NONE;
+  const style = severityStyle(prediction.predicted_severity, isLight);
 
   return (
     <div className={`rounded-lg border ${style.border} ${style.bg} p-3 space-y-2`}>
       <div className="flex items-center gap-2">
         <span className="text-base">🤖</span>
         <div>
-          <p className="text-[10px] text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wide">
+          <p className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>
             Risk Outlook — next {prediction.horizon_hours}h
           </p>
           <p className={`font-bold text-sm ${style.text}`}>
@@ -77,19 +99,19 @@ export function MlRiskBadgeExpanded({ zoneId }) {
       <div className="space-y-1">
         {Object.entries(prediction.probabilities).map(([label, p]) => (
           <div key={label} className="flex items-center gap-2 text-[10px]">
-            <span className="w-14 text-slate-600 dark:text-slate-400">{label}</span>
-            <div className="flex-1 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+            <span className={`w-14 ${muted}`}>{label}</span>
+            <div className={`flex-1 ${trackBg} h-1.5 rounded-full overflow-hidden`}>
               <div
-                className={`h-full rounded-full ${SEVERITY_STYLE[label]?.bar ?? 'bg-slate-500'} transition-all duration-700`}
+                className={`h-full rounded-full ${severityStyle(label, isLight).bar} transition-all duration-700`}
                 style={{ width: `${Math.round(p * 100)}%` }}
               />
             </div>
-            <span className="w-9 text-right text-slate-500 dark:text-slate-400">{Math.round(p * 100)}%</span>
+            <span className={`w-9 text-right ${muted}`}>{Math.round(p * 100)}%</span>
           </div>
         ))}
       </div>
 
-      <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed">
+      <p className={`text-[10px] leading-relaxed ${muted}`}>
         Based on current conditions and recent trends — this is a forward-looking estimate, not a confirmed alert.
       </p>
     </div>

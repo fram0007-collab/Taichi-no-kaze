@@ -470,7 +470,7 @@ export default function BottomSheet({
             <div className={`max-h-[calc(90vh-140px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 space-y-4 sm:space-y-5 text-sm leading-6 ${
               isDark ? 'dark text-slate-300' : 'text-slate-700'
             }`}>
-              <ForecastHelpContent />
+              <ForecastHelpContent theme={theme} />
             </div>
           </div>
         </div>

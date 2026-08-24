@@ -146,10 +146,6 @@ body,
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important;
 }
 
-.light-mode .glass-panel .text-white {
-  color: #0F172A !important;
-}
-
 .light-mode .glass-card {
   background: rgba(241, 245, 249, 0.7) !important;
   border-color: #E2E8F0 !important;

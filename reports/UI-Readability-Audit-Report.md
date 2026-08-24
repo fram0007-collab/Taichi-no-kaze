@@ -232,4 +232,13 @@ Post-fix verification screenshots: `reports/screenshots-ui-readability/post-fix/
 
 Build verified: `npm run build` (frontend, 24 Aug 2026).
 
-**Still deferred:** BUG-05 full CSS variable theme consolidation, BUG-17 geolocation error copy (usability).
+### BUG-05 incremental (24 August 2026)
+
+| Area | Status | Change |
+|------|--------|--------|
+| BUG-05 | Partial | Migrated theme-unaware components to explicit `theme` / `isLight` branches: `MetricsGrid.jsx`, `MlRiskBadge.jsx`, `ForecastHelpContent.jsx`, `AdminDashboard.jsx` (login + header shell) |
+| BUG-05 | Partial | Wired `theme` from `App.jsx` → `AdminDashboard`; `AlertCard` → `MlRiskBadge`; `BottomSheet` / `Sidebar` → `ForecastHelpContent` |
+| BUG-05 | Partial | Fixed override-dependent bare `text-slate-500` in `EvacuationPanel.jsx` |
+| BUG-05 | Partial | Removed `.light-mode .glass-panel .text-white` catch-all from `index.css` (MapView uses explicit classes) |
+
+**Still deferred:** Full admin table theming, Sidebar `dark:` → `isLight` unification, remaining `.light-mode` glass/slate overrides in `index.css`, BUG-17 geolocation error copy.

@@ -399,7 +399,7 @@ export default function EvacuationPanel({
               To calculate a safe evacuation route away from active threats,
               we need to know where you are right now.
             </p>
-            <p className="text-xs text-slate-500 mt-2">
+            <p className={`text-xs mt-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
               Your location is only used for routing and is never stored or shared.
             </p>
           </div>
@@ -661,7 +661,7 @@ export default function EvacuationPanel({
                       ? haversineKm(userLocation.lat, userLocation.lon, lat, lon).toFixed(1)
                       : null;
                     const crowdPct = poi.crowd_score ? Math.round(poi.crowd_score) : null;
-                    const crowdColor = !crowdPct ? 'text-slate-500' :
+                    const crowdColor = !crowdPct ? (isLight ? 'text-slate-500' : 'text-slate-400') :
                       crowdPct >= 65 ? 'text-red-500' :
                       crowdPct >= 35 ? 'text-amber-500' : 'text-emerald-500';
                     return (
@@ -670,8 +670,8 @@ export default function EvacuationPanel({
                         <div className="flex-1 min-w-0">
                           <p className={`font-semibold text-sm truncate ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{poi.name}</p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-slate-500 capitalize">{poi.category}</span>
-                            {distKm && <span className="text-[10px] text-slate-500">· {distKm} km</span>}
+                            <span className={`text-[10px] capitalize ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{poi.category}</span>
+                            {distKm && <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>· {distKm} km</span>}
                             {crowdPct != null && (
                               <span className={`text-[10px] font-semibold ${crowdColor}`}>
                                 · 👥 {crowdPct}%
@@ -738,11 +738,11 @@ export default function EvacuationPanel({
                   <ShieldCheck className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
                   <div className="min-w-0">
                     <p className="font-bold text-emerald-500 text-sm truncate">{routeInfo.destination.name}</p>
-                    <p className="text-xs text-slate-500 capitalize">{routeInfo.destination.category?.replace('_', ' ')}</p>
+                    <p className={`text-xs capitalize ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{routeInfo.destination.category?.replace('_', ' ')}</p>
                   </div>
                   <div className="ml-auto text-right shrink-0">
                     <p className={`font-bold text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>{routeInfo.distanceKm} km</p>
-                    <p className="text-xs text-slate-500">~{routeInfo.durationMin} min walk</p>
+                    <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>~{routeInfo.durationMin} min walk</p>
                   </div>
                 </div>
 
@@ -765,7 +765,7 @@ export default function EvacuationPanel({
                 {/* Turn-by-turn steps */}
                 {routeInfo.steps.length > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Turn-by-turn</p>
+                    <p className={`text-[10px] font-extrabold uppercase tracking-widest ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Turn-by-turn</p>
                     {routeInfo.steps.map((step, i) => (
                       <div key={i} className="flex items-start gap-2.5">
                         <span className="text-[10px] font-bold text-indigo-400 w-4 shrink-0 mt-0.5">{i + 1}</span>

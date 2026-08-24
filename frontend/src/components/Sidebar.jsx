@@ -1019,7 +1019,7 @@ export default function Sidebar({
             </div>
 
             <div className="max-h-[calc(90vh-170px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 space-y-5 text-sm leading-6 text-slate-700 dark:text-slate-300">
-              <ForecastHelpContent />
+              <ForecastHelpContent theme={theme} />
             </div>
           </div>
         </div>

@@ -123,7 +123,7 @@ export default function AlertCard({
             </p>
           )}
           {prediction.id && <MlResolutionBadgeCompact alertId={prediction.id} theme={theme} />}
-          <MlRiskBadgeCompact zoneId={prediction.zone?.zone_id ?? prediction.zone?.id} />
+          <MlRiskBadgeCompact zoneId={prediction.zone?.zone_id ?? prediction.zone?.id} theme={theme} />
         </div>
       )}
     </div>
