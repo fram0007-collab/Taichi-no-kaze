@@ -1,41 +1,41 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-const SESSION_KEY = 'disruptionNearestToastsPlayed';
 const ADVANCE_MS = 4000;
 
 export default function NearestAlertToast({
   items = [],
   theme = 'light',
   offsetBelowChip = false,
+  playKey = 0,
+  active = true,
+  visible = true,
   onSelect,
+  onFinished,
 }) {
   const isLight = theme === 'light';
   const [index, setIndex] = useState(0);
-  const [finished, setFinished] = useState(() => {
-    try {
-      return window.sessionStorage.getItem(SESSION_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
+  const finishedRef = useRef(false);
 
   useEffect(() => {
-    if (finished || items.length === 0) return;
+    setIndex(0);
+    finishedRef.current = false;
+  }, [playKey]);
+
+  useEffect(() => {
+    if (!active || !visible || items.length === 0) return undefined;
     if (index >= items.length) {
-      try {
-        window.sessionStorage.setItem(SESSION_KEY, '1');
-      } catch {
-        /* ignore */
+      if (!finishedRef.current) {
+        finishedRef.current = true;
+        onFinished?.();
       }
-      setFinished(true);
       return undefined;
     }
     const timer = setTimeout(() => setIndex((i) => i + 1), ADVANCE_MS);
     return () => clearTimeout(timer);
-  }, [index, items.length, finished]);
+  }, [active, visible, index, items.length, playKey, onFinished]);
 
-  if (finished || items.length === 0 || index >= items.length) return null;
+  if (!active || !visible || items.length === 0 || index >= items.length) return null;
 
   const item = items[index];
   const top = offsetBelowChip
@@ -48,12 +48,13 @@ export default function NearestAlertToast({
       style={{ top }}
     >
       <button
+        key={`${playKey}-${item.id}`}
         type="button"
         onClick={() => onSelect?.(item.prediction)}
-        className={`pointer-events-auto w-full flex items-start text-left rounded-2xl px-3.5 py-2.5 border shadow-lg backdrop-blur-md ${
+        className={`nearest-alert-toast-flash pointer-events-auto w-full flex items-start text-left rounded-2xl px-3.5 py-2.5 border shadow-lg backdrop-blur-md ${
           isLight
-            ? 'bg-white/95 border-slate-200 text-slate-900'
-            : 'bg-slate-900/95 border-slate-700 text-slate-100'
+            ? 'nearest-alert-toast-flash--light text-slate-900'
+            : 'nearest-alert-toast-flash--dark text-slate-100'
         }`}
       >
         <span className="min-w-0 text-sm font-medium leading-snug">

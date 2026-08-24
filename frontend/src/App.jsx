@@ -134,6 +134,9 @@ export default function App() {
   const [timelineData, setTimelineData] = useState(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [mobileTab, setMobileTab] = useState('map'); // 'map', 'navigate', 'feed', 'settings'
+  const [nearestToastPlayKey, setNearestToastPlayKey] = useState(0);
+  const [nearestToastConsumed, setNearestToastConsumed] = useState(false);
   const [mapHeight, setMapHeight] = useState(0);
   const [mapWidth, setMapWidth] = useState(0);
   const [mapKey, setMapKey] = useState('mobile-0');
@@ -321,7 +324,15 @@ export default function App() {
   const handlePollTelemetry = () => {
     refresh();
     fetchEarthquakes();
+    setNearestToastConsumed(false);
+    setNearestToastPlayKey((key) => key + 1);
   };
+
+  useEffect(() => {
+    if (isMobile && mobileTab !== 'map') {
+      setNearestToastConsumed(true);
+    }
+  }, [mobileTab, isMobile]);
 
   // Fetch all zone statuses — used by Sidebar LOW tier
   useEffect(() => {
@@ -524,7 +535,6 @@ export default function App() {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showEmergencyHelp, setShowEmergencyHelp] = useState(false);
-  const [mobileTab, setMobileTab] = useState('map'); // 'map', 'navigate', 'feed', 'settings'
   const [dismissedAutoEvacuationKeys, setDismissedAutoEvacuationKeys] = useState(() => new Set());
   const [activeAutoEvacuationKey, setActiveAutoEvacuationKey] = useState(null);
   const [evacuationTargetPrediction, setEvacuationTargetPrediction] = useState(null);
@@ -1165,12 +1175,16 @@ export default function App() {
 
   return (
     <div className={`flex flex-col h-screen h-[100dvh] w-screen overflow-hidden font-sans ${theme === 'light' ? 'light-mode' : 'bg-brand-dark text-slate-100'}`}>
-      {!showStackSplash && userLocation && (!showFirstRunTour || skippedToMap) && (!isMobile || mobileTab === 'map') && (
+      {!showStackSplash && userLocation && (!showFirstRunTour || skippedToMap) && (
         <NearestAlertToast
           items={nearestAlertToasts}
           theme={theme}
+          playKey={nearestToastPlayKey}
+          active={!nearestToastConsumed}
+          visible={!isMobile || mobileTab === 'map'}
           offsetBelowChip={isMobile && !!mobileMapStatus}
           onSelect={(prediction) => handleSelectZone(prediction, { expanded: false })}
+          onFinished={() => setNearestToastConsumed(true)}
         />
       )}
 

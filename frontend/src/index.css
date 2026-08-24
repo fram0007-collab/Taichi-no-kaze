@@ -229,3 +229,36 @@ body,
   background: #94A3B8;
 }
 
+@keyframes nearest-alert-toast-flash-dark {
+  0%, 100% {
+    background-color: rgb(15 23 42 / 0.88);
+    border-color: rgb(51 65 85 / 0.7);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+  }
+  50% {
+    background-color: rgb(51 65 85 / 0.96);
+    border-color: rgb(99 102 241 / 0.45);
+    box-shadow: 0 12px 22px -3px rgb(0 0 0 / 0.28);
+  }
+}
+
+@keyframes nearest-alert-toast-flash-light {
+  0%, 100% {
+    background-color: rgb(255 255 255 / 0.88);
+    border-color: rgb(203 213 225 / 0.9);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.08);
+  }
+  50% {
+    background-color: rgb(224 231 255 / 0.95);
+    border-color: rgb(99 102 241 / 0.35);
+    box-shadow: 0 12px 22px -3px rgb(79 70 229 / 0.12);
+  }
+}
+
+.nearest-alert-toast-flash--dark {
+  animation: nearest-alert-toast-flash-dark 2.6s ease-in-out infinite;
+}
+
+.nearest-alert-toast-flash--light {
+  animation: nearest-alert-toast-flash-light 2.6s ease-in-out infinite;
+}
