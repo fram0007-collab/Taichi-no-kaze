@@ -1608,6 +1608,7 @@ export default function App() {
                 userLocation={userLocation}
                 onRequestLocation={locateUser}
                 threatZones={threatZones}
+                allZones={allZones}
                 theme={theme}
                 onRoutesReady={handleNavigateRoutesReady}
               />
@@ -1944,6 +1945,7 @@ export default function App() {
                   userLocation={userLocation}
                   onRequestLocation={locateUser}
                   threatZones={threatZones}
+                  allZones={allZones}
                   theme={theme}
                   onRoutesReady={handleNavigateRoutesReady}
                   onClose={() => setShowDesktopNavigate(false)}

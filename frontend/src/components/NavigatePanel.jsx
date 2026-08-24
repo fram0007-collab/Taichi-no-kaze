@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Navigation, Search, Locate, Loader2, MapPin } from 'lucide-react';
+import CrowdMeter from './CrowdMeter';
+import { resolveCrowdScore } from '../utils/crowdLookup';
+import { getApiUrl } from '../utils/getApiUrl';
 import {
   circleToBbox,
   fetchTomtomRoute,
@@ -14,6 +17,7 @@ export default function NavigatePanel({
   userLocation,
   onRequestLocation,
   threatZones = [],
+  allZones = [],
   theme = 'light',
   onRoutesReady,
   onClose,
@@ -21,11 +25,19 @@ export default function NavigatePanel({
   const isLight = theme === 'light';
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [globalPois, setGlobalPois] = useState([]);
   const [searching, setSearching] = useState(false);
   const [routing, setRouting] = useState(false);
   const [error, setError] = useState('');
   const [searchedWithNoResults, setSearchedWithNoResults] = useState(false);
   const searchRequestId = useRef(0);
+
+  useEffect(() => {
+    fetch(`${getApiUrl()}/pois`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setGlobalPois(data))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const q = query.trim();
@@ -132,8 +144,18 @@ export default function NavigatePanel({
     }
 
     setRouting(false);
+    const crowd = resolveCrowdScore({
+      lat: place.lat,
+      lon: place.lon,
+      pois: globalPois,
+      allZones,
+    });
     onRoutesReady?.({
-      destination: place,
+      destination: {
+        ...place,
+        crowd_score: crowd.crowd_score,
+        crowd_source: crowd.crowd_source,
+      },
       safer,
       faster,
       saferError,
@@ -291,9 +313,17 @@ export function NavigateRouteBar({
   return (
     <div className={`rounded-xl border p-3 shadow-lg ${isLight ? 'bg-white/95 border-slate-200' : 'bg-slate-900/95 border-slate-700'}`}>
       <div className="flex items-start justify-between gap-2 mb-2">
-        <p className="text-xs font-semibold truncate">{destName}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold truncate">{destName}</p>
+          <CrowdMeter
+            score={destination?.crowd_score}
+            source={destination?.crowd_source}
+            theme={theme}
+            compact
+          />
+        </div>
         {onClear && (
-          <button type="button" onClick={onClear} className="text-[10px] font-bold text-slate-400">Clear</button>
+          <button type="button" onClick={onClear} className="text-[10px] font-bold text-slate-400 shrink-0">Clear</button>
         )}
       </div>
       <div className="flex gap-2">
