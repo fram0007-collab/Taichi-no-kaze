@@ -18,7 +18,7 @@ export default function CrowdMeter({
   const level = crowdLevel(score);
   const isLight = theme === 'light';
   const trackClass = isLight ? 'bg-slate-300' : 'bg-slate-800';
-  const mutedClass = isLight ? 'text-slate-500' : 'text-slate-500';
+  const mutedClass = isLight ? 'text-slate-500' : 'text-slate-400';
   const barHeight = compact ? 'h-1' : 'h-1.5';
 
   return (

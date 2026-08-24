@@ -1,0 +1,88 @@
+{
+  "log": [
+    {
+      "task": "desktopLightDark",
+      "status": "fail",
+      "error": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('header button[title=\"Notification preferences\"]')\n    - locator resolved to <button title=\"Notification preferences\" data-tour=\"notifications-trigger\" class=\"flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-slate-100 hover:border-slate-700 transition-all text-xs font-semibold\">…</button>\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div class=\"fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4\">…</div> intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div class=\"fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4\">…</div> intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    51 × waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <div class=\"fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4\">…</div> intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n"
+    },
+    {
+      "task": "mobileLightDark",
+      "status": "ok"
+    },
+    {
+      "task": "geolocationBanner",
+      "status": "ok"
+    },
+    {
+      "task": "firstRunTour",
+      "status": "ok"
+    },
+    {
+      "task": "personaPicker",
+      "status": "ok"
+    },
+    {
+      "task": "adminPage",
+      "status": "ok"
+    },
+    {
+      "task": "tourReplay",
+      "status": "ok"
+    },
+    {
+      "task": "evacuationStacking",
+      "status": "fail",
+      "error": "locator.click: Error: strict mode violation: getByRole('button', { name: 'MAP' }) resolved to 2 elements:\n    1) <button data-tour=\"layers-trigger\" class=\"px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-bold shadow-lg border border-indigo-400/30 hover:from-indigo-500 hover:to-purple-500 transition-all pointer-events-auto\">Map display</button> aka getByRole('button', { name: 'Map display' })\n    2) <button class=\"flex flex-col items-center justify-center space-y-1 py-1 w-1/4 transition-all text-indigo-400\">…</button> aka getByRole('button', { name: 'Map', exact: true })\n\nCall log:\n  - waiting for getByRole('button', { name: 'MAP' })\n"
+    },
+    {
+      "task": "mobileHelpModal",
+      "status": "ok"
+    },
+    {
+      "task": "tabletViewport",
+      "status": "ok"
+    },
+    {
+      "task": "focusVisibility",
+      "status": "ok"
+    }
+  ],
+  "contrasts": {
+    "bug01": {
+      "pair": "slate-100 on white",
+      "ratio": 1.0955171955711072,
+      "note": "Header gradient start"
+    },
+    "bug02": {
+      "pair": "white on glass white",
+      "ratio": 1,
+      "note": "text-white on light glass-panel"
+    },
+    "bug03": {
+      "pair": "slate-300 on brand-elevated",
+      "ratio": 11.312577826571864,
+      "note": "About modal dark tokens"
+    },
+    "bug03_light": {
+      "pair": "slate-300 on light override",
+      "ratio": 1.3552523135298078,
+      "note": "If light override applies"
+    },
+    "bug04": {
+      "pair": "slate-600 on glass dark",
+      "ratio": 2.216489071829473,
+      "note": "Inactive layer label"
+    },
+    "bug07": {
+      "pair": "yellow-500 on yellow-5%",
+      "ratio": 1.849355805951479,
+      "note": "Medium alert badge approx"
+    },
+    "bug09": {
+      "pair": "slate-500 on slate-800",
+      "ratio": 3.0740074281592458,
+      "note": "Crowd meter muted"
+    }
+  },
+  "capturedAt": "2026-08-24T14:49:16.365Z"
+}

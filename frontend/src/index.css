@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 html,
 body,
 #root {
@@ -135,6 +144,10 @@ body,
   background: rgba(255, 255, 255, 0.85) !important;
   border-color: #E2E8F0 !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important;
+}
+
+.light-mode .glass-panel .text-white {
+  color: #0F172A !important;
 }
 
 .light-mode .glass-card {

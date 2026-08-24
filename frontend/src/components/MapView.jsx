@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import { Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
+import { formatEarthquakeWhen } from '../utils/formatEarthquake';
 
 // Which disruption types each POI category can serve as shelter for.
 // Mirrors _DISRUPTION_SAFE_TIERS in backend/main.py — keep in sync if tiers change.
@@ -440,6 +441,7 @@ export default function MapView({
   layerPreset = null,
   routeFitPadding = [60, 60],
 }) {
+  const isLight = theme === 'light';
   const [globalPois, setGlobalPois] = useState([]);
   const hasActiveDisruptions = predictions.length > 0;
   const [waterways, setWaterways] = useState([]);
@@ -865,7 +867,7 @@ export default function MapView({
             { id: 'threat_earthquake', label: 'Earthquake 🌋', color: 'text-red-400' }
           ].map(layer => (
             <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
-              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-600 dark:text-slate-400'} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
+              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-500 dark:text-slate-400'} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
               <input
                 type="checkbox"
                 checked={activeLayers[layer.id]}
@@ -890,7 +892,7 @@ export default function MapView({
             { id: 'safe_zones', label: 'Safe Zones 🛡️', color: 'text-emerald-400' },
           ].map(layer => (
             <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
-              <span className={`text-[11px] font-semibold ${layer.color} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
+              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-500 dark:text-slate-400'} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
               <input
                 type="checkbox"
                 checked={activeLayers[layer.id]}
@@ -1118,7 +1120,7 @@ export default function MapView({
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                       pred.risk_level === 'Critical' ? 'bg-red-500/20 text-red-400' :
                       pred.risk_level === 'High' ? 'bg-orange-500/20 text-orange-400' :
-                      pred.risk_level === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                      pred.risk_level === 'Medium' ? (isLight ? 'bg-yellow-500/20 text-yellow-700' : 'bg-yellow-500/20 text-yellow-300') :
                       'bg-emerald-500/20 text-emerald-400'
                     }`}>
                       {pred.risk_level}
@@ -1333,7 +1335,7 @@ export default function MapView({
                     </div>
                     <div className="flex justify-between border-t border-slate-200 dark:border-slate-800 pt-1 mt-1 text-[10px] text-slate-400">
                       <span>Occurred:</span>
-                      <span>{new Date(eq.datetime).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}</span>
+                      <span>{formatEarthquakeWhen(eq.datetime)}</span>
                     </div>
                   </div>
                 </div>
@@ -1709,7 +1711,7 @@ export default function MapView({
                 <div>
                   <div className="font-bold text-emerald-400 text-sm">You&apos;re in the clear</div>
                   <div className="text-xs text-slate-300 mt-0.5 leading-relaxed">
-                    No active disruptions within <span className="font-semibold text-white">{nearMeRadius} km</span> of your location.
+                    No active disruptions within <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>{nearMeRadius} km</span> of your location.
                     Active disruptions exist elsewhere in Jabodetabek — stay informed.
                   </div>
                 </div>

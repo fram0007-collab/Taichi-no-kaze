@@ -4,6 +4,7 @@ import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { MlResolutionBadgeCompact } from './MlResolutionBadge';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
+import { formatEarthquakeWhen } from '../utils/formatEarthquake';
 import { useMlResolution } from '../hooks/useMlResolution';
 import { 
   ResponsiveContainer, 
@@ -1059,8 +1060,7 @@ export default function Sidebar({
                     </span>
                   </div>
                   <div className={`flex justify-between text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>
-                    <span>{new Date(eq.datetime).toLocaleDateString()}</span>
-                    <span>{new Date(eq.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>{formatEarthquakeWhen(eq.datetime)}</span>
                   </div>
                   {eq.potensi && (
                     <div className={`text-[9.5px] font-semibold italic border-t pt-1 mt-1 ${isLight ? 'text-indigo-600 border-slate-200' : 'text-indigo-400/90 border-slate-800/20'}`}>

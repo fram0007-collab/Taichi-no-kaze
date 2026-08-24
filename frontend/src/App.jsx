@@ -28,6 +28,7 @@ import {
 import { getPersona, savePersona } from './utils/personaPreferences';
 import { isOnboardingTourDone, markOnboardingTourDone } from './utils/onboardingPreferences';
 import { calculateDistanceKm } from './utils/haversine';
+import { normalizeEarthquake } from './utils/formatEarthquake';
 import {
   getExistingPushSubscription,
   registerServiceWorker,
@@ -331,7 +332,7 @@ export default function App() {
       const response = await fetch(`${API_URL}/earthquakes`);
       if (response.ok) {
         const data = await response.json();
-        setEarthquakes(data);
+        setEarthquakes(data.map(normalizeEarthquake));
       }
     } catch (err) {
       console.warn("[API] Could not retrieve earthquakes telemetry.", err);
@@ -1338,7 +1339,11 @@ export default function App() {
             <Shield className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-sm md:text-base font-extrabold tracking-wide uppercase bg-gradient-to-r from-slate-100 via-indigo-200 to-indigo-400 bg-clip-text text-transparent">
+            <h1 className={`text-sm md:text-base font-extrabold tracking-wide uppercase ${
+              theme === 'light'
+                ? 'text-slate-900'
+                : 'bg-gradient-to-r from-slate-100 via-indigo-200 to-indigo-400 bg-clip-text text-transparent'
+            }`}>
               DIS-RUPTURE
             </h1>
             <p className="text-[10px] text-slate-400 font-medium tracking-widest uppercase">
@@ -1754,7 +1759,7 @@ export default function App() {
               {/* Evacuation panel */}
               {showEvacuation && (
                 <div
-                  className={`absolute left-0 right-0 z-[1200] overflow-hidden rounded-t-2xl border-t shadow-2xl ${
+                  className={`absolute left-0 right-0 z-[1700] overflow-hidden rounded-t-2xl border-t shadow-2xl ${
                     theme === 'light'
                       ? 'border-slate-200 bg-white'
                       : 'border-slate-700 bg-brand-elevated'
@@ -2263,23 +2268,31 @@ export default function App() {
             onClick={() => setShowAboutModal(false)}
           >
             <div
-              className="w-full max-w-5xl max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-700 bg-brand-elevated shadow-2xl"
+              className={`w-full max-w-5xl max-h-[85vh] overflow-y-auto rounded-2xl border shadow-2xl ${
+                theme === 'light'
+                  ? 'border-slate-200 bg-white text-slate-900'
+                  : 'border-slate-700 bg-brand-elevated text-slate-100'
+              }`}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-                <h2 className="text-xl font-bold text-indigo-400">
+              <div className={`flex items-center justify-between px-6 py-4 border-b ${
+                theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+              }`}>
+                <h2 className="text-xl font-bold text-indigo-500">
                   What is DIS-RUPTURE?
                 </h2>
 
                 <button
                   onClick={() => setShowAboutModal(false)}
-                  className="p-2 rounded-lg hover:bg-slate-800"
+                  className={`p-2 rounded-lg ${
+                    theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-slate-800'
+                  }`}
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="p-8 space-y-8 text-slate-300">
+              <div className={`p-8 space-y-8 ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}>
 
                 <p>
                   DIS-RUPTURE is a real-time disruption intelligence platform
@@ -2288,21 +2301,21 @@ export default function App() {
                 </p>
 
                 <div>
-                  <h3 className="font-bold mb-2 text-slate-900 dark:text-indigo-400">
+                  <h3 className={`font-bold mb-2 ${theme === 'light' ? 'text-slate-900' : 'text-indigo-400'}`}>
                     Monitored Risk Sources
                   </h3>
 
                   <div className="flex flex-wrap gap-2">
-                    <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🚗 Traffic</span>
-                    <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌧️ Weather</span>
-                    <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌊 Flood</span>
-                    <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">👥 Crowd</span>
-                    <span className="px-2 py-1 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">🌋 Earthquake</span>
+                    <span className={`px-2 py-1 rounded ${theme === 'light' ? 'bg-slate-200 text-slate-800' : 'bg-slate-800 text-slate-200'}`}>🚗 Traffic</span>
+                    <span className={`px-2 py-1 rounded ${theme === 'light' ? 'bg-slate-200 text-slate-800' : 'bg-slate-800 text-slate-200'}`}>🌧️ Weather</span>
+                    <span className={`px-2 py-1 rounded ${theme === 'light' ? 'bg-slate-200 text-slate-800' : 'bg-slate-800 text-slate-200'}`}>🌊 Flood</span>
+                    <span className={`px-2 py-1 rounded ${theme === 'light' ? 'bg-slate-200 text-slate-800' : 'bg-slate-800 text-slate-200'}`}>👥 Crowd</span>
+                    <span className={`px-2 py-1 rounded ${theme === 'light' ? 'bg-slate-200 text-slate-800' : 'bg-slate-800 text-slate-200'}`}>🌋 Earthquake</span>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="font-bold mb-2 text-slate-900 dark:text-indigo-400">
+                  <h3 className={`font-bold mb-2 ${theme === 'light' ? 'text-slate-900' : 'text-indigo-400'}`}>
                     Risk Levels
                   </h3>
 
@@ -2328,14 +2341,14 @@ export default function App() {
                     </div>
                   </div>
 
-                  <p className="mt-3 text-xs text-slate-400">
+                  <p className={`mt-3 text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                     Risk levels are generated from a composite disruption score combining
                     environmental, traffic, hydrological, crowd, and seismic indicators.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="font-bold mb-2 text-slate-900 dark:text-indigo-400">
+                  <h3 className={`font-bold mb-2 ${theme === 'light' ? 'text-slate-900' : 'text-indigo-400'}`}>
                     How to Read the Map
                   </h3>
 

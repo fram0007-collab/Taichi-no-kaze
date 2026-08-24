@@ -24,7 +24,9 @@ function riskColor(risk, isLight) {
     case 'High':
       return 'text-orange-500 border-orange-500/20 bg-orange-500/5';
     case 'Medium':
-      return 'text-yellow-500 border-yellow-500/20 bg-yellow-500/5';
+      return isLight
+        ? 'text-yellow-700 border-yellow-600/30 bg-yellow-500/10'
+        : 'text-yellow-300 border-yellow-500/20 bg-yellow-500/5';
     default:
       return isLight
         ? 'text-emerald-600 border-emerald-500/20 bg-emerald-500/5'

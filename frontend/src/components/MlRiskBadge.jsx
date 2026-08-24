@@ -54,7 +54,7 @@ export function MlRiskBadgeExpanded({ zoneId }) {
   const { prediction, loading, unavailable } = useMlPrediction(zoneId);
 
   if (loading) {
-    return <p className="text-[10px] text-slate-600 italic">Loading risk outlook…</p>;
+    return <p className="text-[10px] text-slate-600 dark:text-slate-400 italic">Loading risk outlook…</p>;
   }
   if (unavailable || !prediction) return null;
 
