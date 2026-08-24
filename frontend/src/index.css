@@ -262,3 +262,21 @@ body,
 .nearest-alert-toast-flash--light {
   animation: nearest-alert-toast-flash-light 2.6s ease-in-out infinite;
 }
+
+html.persona-ojek.light-mode .mobile-map-status {
+  font-size: 0.875rem;
+}
+
+html.persona-ojek.light-mode .mobile-map-status .text-xs {
+  font-size: 0.8125rem;
+}
+
+html.persona-ojek:not(.light-mode) .mobile-map-status {
+  font-size: 0.875rem;
+  border-width: 2px;
+}
+
+html.persona-ojek .leaflet-control-layers,
+html.persona-ojek [data-tour="evacuation-trigger-mobile"] button {
+  font-weight: 600;
+}

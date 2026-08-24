@@ -41,6 +41,8 @@ export default function Sidebar({
   showEvacuationPanel = false,
   evacuationPanelNode = null,
   theme = 'light',
+  defaultSeverityFilter = 'all',
+  severityFilterRevision = 0,
 }) {
   const isLight = theme === 'light';
   const [poiFilter, setPoiFilter] = useState('all');
@@ -56,6 +58,12 @@ export default function Sidebar({
   useEffect(() => {
     setShowZoneDetails(false);
   }, [selectedPrediction?.id]);
+
+  useEffect(() => {
+    if (severityFilterRevision > 0) {
+      setSeverityFilter(defaultSeverityFilter);
+    }
+  }, [severityFilterRevision, defaultSeverityFilter]);
 
   // LOW tier: zones monitored with no OPEN alert
   const activeZoneIds = new Set(

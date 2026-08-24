@@ -437,6 +437,7 @@ export default function MapView({
   selectedNavigateRoute = 'safer',
   suppressMapControls = false,
   isMobile = false,
+  layerPreset = null,
 }) {
   const [globalPois, setGlobalPois] = useState([]);
   const hasActiveDisruptions = predictions.length > 0;
@@ -471,6 +472,11 @@ export default function MapView({
   useEffect(() => {
     if (suppressMapControls) setShowLayerPanel(false);
   }, [suppressMapControls]);
+
+  useEffect(() => {
+    if (!layerPreset) return;
+    setActiveLayers((prev) => ({ ...prev, ...layerPreset }));
+  }, [layerPreset]);
  
   const hasDisruptionInRadius = useMemo(() => {
     if (!userLocation || !predictions || predictions.length === 0) return false;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { usePredictions } from './hooks/usePredictions';
 import Sidebar from './components/Sidebar';
 import BottomSheet from './components/BottomSheet';
@@ -16,6 +16,17 @@ import EmergencyHelpModal from './components/EmergencyHelpModal';
 import AlertCard from './components/AlertCard';
 import AreaSearchInput from './components/AreaSearchInput';
 import NavigatePanel, { NavigateRouteBar } from './components/NavigatePanel';
+import PersonaPicker from './components/PersonaPicker';
+import PersonaApplyConfirmModal from './components/PersonaApplyConfirmModal';
+import {
+  buildLayerState,
+  buildNotificationTypesFromPreset,
+  getBootRestoreState,
+  getPersonaPreset,
+  personaToSidebarSeverity,
+} from './constants/personaPresets';
+import { getPersona, savePersona } from './utils/personaPreferences';
+import { isOnboardingTourDone, markOnboardingTourDone } from './utils/onboardingPreferences';
 import { calculateDistanceKm } from './utils/haversine';
 import {
   getExistingPushSubscription,
@@ -28,8 +39,8 @@ import { saveNotificationPreferences } from './utils/idbPreferences';
 
 const MapView = lazy(() => import('./components/MapView'));
 
-const FIRST_RUN_KEY = 'disruptionFirstRunDone';
 const AREA_SEARCH_KEY = 'disruptionAreaSearch';
+const OJEK_GO_HINT_KEY = 'disruptureOjekGoHintDismissed';
 const LOCATION_PROMPT_SKIPPED_KEY = 'disruptionLocationPromptSkipped';
 
 function isNearMeDefaultRelevant(pred) {
@@ -84,6 +95,18 @@ const DEFAULT_NOTIFICATION_PREFERENCES = {
     earthquake: true,
   },
 };
+
+function readPersistedRadiusKm(defaultKm = 5) {
+  try {
+    const raw = window.localStorage.getItem(NOTIFICATION_PREFERENCES_KEY);
+    if (!raw) return defaultKm;
+    const parsed = JSON.parse(raw);
+    const km = Number(parsed?.radiusKm);
+    return Number.isFinite(km) && km > 0 ? km : defaultKm;
+  } catch {
+    return defaultKm;
+  }
+}
 
 function getPredictionZoneCenter(prediction) {
   const zone = prediction?.zone ?? {};
@@ -196,7 +219,7 @@ export default function App() {
       .then(d => setSafePois(Array.isArray(d) ? d : (d.safe_zones ?? [])))
       .catch(() => setSafePois([]));
   }, [showEvacuation, predictions, selectedPrediction, API_URL]);
-  const [nearMeRadius, setNearMeRadius] = useState(5); // in km (default 5km)
+  const [nearMeRadius, setNearMeRadius] = useState(() => readPersistedRadiusKm());
 
   const nearbyPredictions = useMemo(() => {
     if (!nearMeFilterActive || !userLocation) return predictions;
@@ -383,13 +406,15 @@ export default function App() {
   const [skippedToMap, setSkippedToMap] = useState(false);
   const [minSplashElapsed, setMinSplashElapsed] = useState(false);
   const [zonesLoaded, setZonesLoaded] = useState(0);
-  const [showFirstRunTour, setShowFirstRunTour] = useState(() => {
-    try {
-      return window.localStorage.getItem(FIRST_RUN_KEY) !== '1';
-    } catch {
-      return true;
-    }
-  });
+  const [showFirstRunTour, setShowFirstRunTour] = useState(() => !isOnboardingTourDone());
+  const [persona, setPersona] = useState(null);
+  const [personaResolved, setPersonaResolved] = useState(false);
+  const [showPersonaChangePicker, setShowPersonaChangePicker] = useState(false);
+  const [personaApplyConfirm, setPersonaApplyConfirm] = useState(null);
+  const [mapLayerPreset, setMapLayerPreset] = useState(null);
+  const [sidebarDefaultSeverity, setSidebarDefaultSeverity] = useState('all');
+  const [sidebarSeverityRevision, setSidebarSeverityRevision] = useState(0);
+  const [showOjekGoHint, setShowOjekGoHint] = useState(false);
   const [dbStatus, setDbStatus] = useState("connecting");
 
   // Manual replay of the tour after the app has already loaded (via the
@@ -465,24 +490,133 @@ export default function App() {
     }
   }, [showStackSplash, minSplashElapsed, isAppReady, allowFallbackBypass]);
 
+  const applyPersonaPreset = useCallback((id) => {
+    const preset = getPersonaPreset(id);
+    setPersona(id);
+    setNearMeRadius(preset.radiusKm);
+    setNearMeFilterActive((prev) => prev || Boolean(userLocation));
+    setMobileSeverityFilter(preset.severityFilter);
+    setSidebarDefaultSeverity(personaToSidebarSeverity(id));
+    setSidebarSeverityRevision((n) => n + 1);
+    setMapLayerPreset(buildLayerState(preset));
+    setNotificationPreferences((prev) => {
+      const next = {
+        ...prev,
+        radiusKm: preset.radiusKm,
+        types: buildNotificationTypesFromPreset(preset),
+      };
+      try {
+        window.localStorage.setItem(NOTIFICATION_PREFERENCES_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    savePersona(id);
+    document.documentElement.classList.toggle('persona-ojek', id === 'ojek');
+    if (id === 'ojek') {
+      try {
+        if (window.localStorage.getItem(OJEK_GO_HINT_KEY) !== '1') {
+          setShowOjekGoHint(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    } else {
+      setShowOjekGoHint(false);
+    }
+  }, [userLocation]);
+
+  const handleNearMeRadiusChange = useCallback((km) => {
+    const value = Number(km);
+    if (!Number.isFinite(value)) return;
+    setNearMeRadius(value);
+    setNotificationPreferences((prev) => ({ ...prev, radiusKm: value }));
+  }, []);
+
+  const restorePersonaDefaultsOnBoot = useCallback((id) => {
+    const { layers, severityFilter, sidebarSeverity } = getBootRestoreState(id);
+    setMapLayerPreset(layers);
+    setMobileSeverityFilter(severityFilter);
+    setSidebarDefaultSeverity(sidebarSeverity);
+    setSidebarSeverityRevision((n) => n + 1);
+  }, []);
+
+  const handlePersonaSelect = useCallback((id, fromSettings = false) => {
+    if (fromSettings && persona && id !== persona) {
+      const label = getPersonaPreset(id).shortLabel;
+      setPersonaApplyConfirm({ id, label });
+      return;
+    }
+    applyPersonaPreset(id);
+    setShowPersonaChangePicker(false);
+  }, [applyPersonaPreset, persona]);
+
+  const handlePersonaApplyConfirm = useCallback((applySettings) => {
+    if (!personaApplyConfirm) return;
+    const { id } = personaApplyConfirm;
+    if (applySettings) {
+      applyPersonaPreset(id);
+    } else {
+      setPersona(id);
+      savePersona(id);
+      document.documentElement.classList.toggle('persona-ojek', id === 'ojek');
+    }
+    setPersonaApplyConfirm(null);
+    setShowPersonaChangePicker(false);
+  }, [personaApplyConfirm, applyPersonaPreset]);
+
+  const dismissPersonaApplyConfirm = useCallback(() => {
+    setPersonaApplyConfirm(null);
+  }, []);
+
+  const handlePersonaSkip = useCallback(() => {
+    applyPersonaPreset('kantor');
+  }, [applyPersonaPreset]);
+
+  const dismissOjekGoHint = useCallback(() => {
+    setShowOjekGoHint(false);
+    try {
+      window.localStorage.setItem(OJEK_GO_HINT_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPersona().then((id) => {
+      if (cancelled) return;
+      if (id) {
+        setPersona(id);
+        document.documentElement.classList.toggle('persona-ojek', id === 'ojek');
+        restorePersonaDefaultsOnBoot(id);
+      }
+      setPersonaResolved(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [restorePersonaDefaultsOnBoot]);
+
+  const showStartupPersonaPicker = personaResolved && !persona && !showStackSplash;
+
   const handleSkipSplash = () => {
+    markOnboardingTourDone();
+    setShowFirstRunTour(false);
     setShowStackSplash(false);
     setSkippedToMap(true);
   };
 
   const handleLaunchComplete = () => {
-    try {
-      window.localStorage.setItem(FIRST_RUN_KEY, '1');
-    } catch {
-      /* ignore */
-    }
+    markOnboardingTourDone();
     setShowFirstRunTour(false);
     locateUser();
   };
 
   useEffect(() => {
     try {
-      if (window.localStorage.getItem(FIRST_RUN_KEY) === '1') locateUser();
+      if (isOnboardingTourDone()) locateUser();
     } catch {
       /* ignore */
     }
@@ -1251,17 +1385,40 @@ export default function App() {
                   <span className="hidden sm:inline">More</span>
                 </button>
                 {showMoreMenu && (
-                  <div className="absolute right-0 mt-2 w-44 rounded-xl border border-slate-800 bg-slate-950 shadow-xl z-[2000] py-1">
+                  <div className={`absolute right-0 mt-2 w-44 rounded-xl border shadow-xl z-[2000] py-1 ${
+                    theme === 'light'
+                      ? 'border-slate-200 bg-white'
+                      : 'border-slate-800 bg-slate-950'
+                  }`}>
                     <button
                       type="button"
-                      className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                        theme === 'light'
+                          ? 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                          : 'text-slate-200 hover:bg-slate-800'
+                      }`}
+                      onClick={() => { setShowPersonaChangePicker(true); setShowMoreMenu(false); }}
+                    >
+                      How I use this app
+                    </button>
+                    <button
+                      type="button"
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                        theme === 'light'
+                          ? 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                          : 'text-slate-200 hover:bg-slate-800'
+                      }`}
                       onClick={() => { setShowTourReplay(true); setShowMoreMenu(false); }}
                     >
                       Guide
                     </button>
                     <button
                       type="button"
-                      className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                        theme === 'light'
+                          ? 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                          : 'text-slate-200 hover:bg-slate-800'
+                      }`}
                       onClick={() => { setShowAboutModal(true); setShowMoreMenu(false); }}
                     >
                       About
@@ -1269,7 +1426,11 @@ export default function App() {
                     <button
                       type="button"
                       data-tour="dashboard-trigger"
-                      className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                        theme === 'light'
+                          ? 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                          : 'text-slate-200 hover:bg-slate-800'
+                      }`}
                       onClick={() => { setShowDashboard(true); setShowMoreMenu(false); }}
                     >
                       Overview
@@ -1380,7 +1541,7 @@ export default function App() {
             <div className="relative flex flex-col w-full" style={{ height: mapHeight }}>
               {mobileMapStatus && (
                 <div className="absolute top-3 left-3 right-16 z-[1200] pointer-events-none">
-                  <div className={`inline-flex max-w-full rounded-xl px-3 py-2 border backdrop-blur-md shadow-lg ${
+                  <div className={`mobile-map-status inline-flex max-w-full rounded-xl px-3 py-2 border backdrop-blur-md shadow-lg ${
                     mobileMapStatus.tone === 'clear'
                       ? theme === 'light'
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
@@ -1399,6 +1560,25 @@ export default function App() {
                         {mobileMapStatus.detail}
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {showOjekGoHint && persona === 'ojek' && (
+                <div className="absolute top-[4.5rem] left-3 right-3 z-[1195] pointer-events-auto">
+                  <div className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs shadow-lg ${
+                    theme === 'light'
+                      ? 'bg-indigo-50 border-indigo-200 text-indigo-900'
+                      : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-100'
+                  }`}>
+                    <span>Use <strong>Go</strong> to plan a safer route.</span>
+                    <button
+                      type="button"
+                      onClick={dismissOjekGoHint}
+                      className={`shrink-0 font-bold ${theme === 'light' ? 'text-indigo-600' : 'text-indigo-300'}`}
+                    >
+                      OK
+                    </button>
                   </div>
                 </div>
               )}
@@ -1498,13 +1678,14 @@ export default function App() {
                     nearMeFilterActive={nearMeFilterActive}
                     setNearMeFilterActive={setNearMeFilterActive}
                     nearMeRadius={nearMeRadius}
-                    setNearMeRadius={setNearMeRadius}
+                    setNearMeRadius={handleNearMeRadiusChange}
                     evacuationRoute={evacuationRoute}
                     navigateSaferRoute={navigateRoutes?.safer?.geometry}
                     navigateFasterRoute={navigateRoutes?.faster?.geometry}
                     selectedNavigateRoute={selectedNavigateRoute}
                     suppressMapControls={showNotificationPreferences}
                     isMobile={isMobile}
+                    layerPreset={mapLayerPreset}
                   />
                 </MapViewGate>
               </div>
@@ -1789,6 +1970,24 @@ export default function App() {
                 </div>
               </div>
 
+              <div className={`rounded-xl p-4 space-y-3 border ${
+                theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900/40 border-slate-800/80'
+              }`}>
+                <h3 className={`text-xs uppercase font-extrabold tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                  How I use this app
+                </h3>
+                <p className={`text-sm ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                  {persona ? getPersonaPreset(persona).label : 'Not set yet'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowPersonaChangePicker(true)}
+                  className="w-full min-h-[44px] rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold"
+                >
+                  Change profile
+                </button>
+              </div>
+
               <NotificationPreferences
                 preferences={notificationPreferences}
                 onToggleEnabled={handleNotificationToggle}
@@ -1989,13 +2188,14 @@ export default function App() {
                   nearMeFilterActive={nearMeFilterActive}
                   setNearMeFilterActive={setNearMeFilterActive}
                   nearMeRadius={nearMeRadius}
-                  setNearMeRadius={setNearMeRadius}
+                  setNearMeRadius={handleNearMeRadiusChange}
                   evacuationRoute={evacuationRoute}
                   navigateSaferRoute={navigateRoutes?.safer?.geometry}
                   navigateFasterRoute={navigateRoutes?.faster?.geometry}
                   selectedNavigateRoute={selectedNavigateRoute}
                   suppressMapControls={showNotificationPreferences}
                   isMobile={false}
+                  layerPreset={mapLayerPreset}
                 />
               </MapViewGate>
             </div>
@@ -2018,6 +2218,8 @@ export default function App() {
               nearMeFilterActive={nearMeFilterActive}
               nearMeRadius={nearMeRadius}
               onClearNearMeFilter={() => setNearMeFilterActive(false)}
+              defaultSeverityFilter={sidebarDefaultSeverity}
+              severityFilterRevision={sidebarSeverityRevision}
               allZones={allZones}
               onGetEvacuation={() => openEvacuationPanel(selectedPrediction || null)}
               showEvacuationPanel={showEvacuation}
@@ -2163,8 +2365,36 @@ export default function App() {
         theme={theme}
       />
 
+      {showStartupPersonaPicker && (
+        <PersonaPicker
+          theme={theme}
+          isMobile={isMobile}
+          onSelect={(id) => handlePersonaSelect(id, false)}
+          onSkip={handlePersonaSkip}
+        />
+      )}
+
+      {showPersonaChangePicker && (
+        <PersonaPicker
+          theme={theme}
+          isMobile={isMobile}
+          changeMode
+          currentPersona={persona}
+          onSelect={(id) => handlePersonaSelect(id, true)}
+        />
+      )}
+
+      <PersonaApplyConfirmModal
+        isOpen={Boolean(personaApplyConfirm)}
+        personaLabel={personaApplyConfirm?.label ?? ''}
+        theme={theme}
+        onApply={() => handlePersonaApplyConfirm(true)}
+        onPersonaOnly={() => handlePersonaApplyConfirm(false)}
+        onClose={dismissPersonaApplyConfirm}
+      />
+
       {/* First-run tour after splash (skipped if user chose Skip and open map) */}
-      {!showStackSplash && showFirstRunTour && !skippedToMap && (
+      {!showStackSplash && showFirstRunTour && !skippedToMap && personaResolved && persona && (
         <FirstTimeTour
           isOpen={true}
           isStartupSequence={true}
