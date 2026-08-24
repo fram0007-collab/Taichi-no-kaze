@@ -1648,7 +1648,7 @@ export default function App() {
                 className="absolute right-3 z-[1160] flex items-center gap-1.5 px-3 py-2.5 rounded-full bg-indigo-600 text-white text-xs font-bold shadow-lg disabled:opacity-50"
                 style={{
                   bottom: showEvacuation
-                    ? '48vh'
+                    ? '44vh'
                     : filteredPredictions.length > 0
                       ? MOBILE_LOCATE_ABOVE_CTA
                       : MOBILE_NAV_BOTTOM,
@@ -1686,6 +1686,7 @@ export default function App() {
                     suppressMapControls={showNotificationPreferences}
                     isMobile={isMobile}
                     layerPreset={mapLayerPreset}
+                    routeFitPadding={showEvacuation ? [72, 220] : [60, 60]}
                   />
                 </MapViewGate>
               </div>
@@ -1753,31 +1754,33 @@ export default function App() {
               {/* Evacuation panel */}
               {showEvacuation && (
                 <div
-                  className="absolute left-0 right-0 z-[1200] overflow-hidden rounded-t-2xl border-t border-slate-700 bg-brand-elevated shadow-2xl"
-                  style={{ bottom: MOBILE_NAV_BOTTOM, maxHeight: '45vh' }}
+                  className={`absolute left-0 right-0 z-[1200] overflow-hidden rounded-t-2xl border-t shadow-2xl ${
+                    theme === 'light'
+                      ? 'border-slate-200 bg-white'
+                      : 'border-slate-700 bg-brand-elevated'
+                  }`}
+                  style={{ bottom: MOBILE_NAV_BOTTOM, maxHeight: '42vh' }}
                 >
-                  <div className="overflow-y-auto" style={{ maxHeight: '45vh' }}>
-                    <EvacuationPanel
-                      compact
-                      theme={theme}
-                      userLocation={userLocation}
-                      predictions={filteredPredictions}
-                      safePois={safePois}
-                      activeThreatZones={filteredPredictions.map(p => ({
-                        lat: p.zone?.latitude ?? p.zone?.geometry?.[0]?.[0],
-                        lon: p.zone?.longitude ?? p.zone?.geometry?.[0]?.[1],
-                        radius_m: p.zone?.radius_m ?? 1000,
-                        name: p.zone?.name ?? 'threat zone',
-                      }))}
-                      tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
-                      onRouteReady={handleRouteReady}
-                      onClose={closeEvacuationPanel}
-                      onRequestLocation={locateUser}
-                      activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
-                      zoneIsNearby={evacuationZoneIsNearby}
-                      allZones={allZones}
-                    />
-                  </div>
+                  <EvacuationPanel
+                    compact
+                    theme={theme}
+                    userLocation={userLocation}
+                    predictions={filteredPredictions}
+                    safePois={safePois}
+                    activeThreatZones={filteredPredictions.map(p => ({
+                      lat: p.zone?.latitude ?? p.zone?.geometry?.[0]?.[0],
+                      lon: p.zone?.longitude ?? p.zone?.geometry?.[0]?.[1],
+                      radius_m: p.zone?.radius_m ?? 1000,
+                      name: p.zone?.name ?? 'threat zone',
+                    }))}
+                    tomtomApiKey={import.meta.env.VITE_TOMTOM_API_KEY}
+                    onRouteReady={handleRouteReady}
+                    onClose={closeEvacuationPanel}
+                    onRequestLocation={locateUser}
+                    activePrediction={evacuationTargetPrediction ?? filteredPredictions[0] ?? null}
+                    zoneIsNearby={evacuationZoneIsNearby}
+                    allZones={allZones}
+                  />
                 </div>
               )}
             </div>

@@ -383,7 +383,7 @@ function MapSizeInvalidator() {
  * whenever evacuationRoute changes. Works like a navigation app: as soon as
  * a route is calculated, the map adjusts to show the full path.
  */
-function RouteController({ evacuationRoute, navigateSaferRoute, navigateFasterRoute }) {
+function RouteController({ evacuationRoute, navigateSaferRoute, navigateFasterRoute, fitPadding = [60, 60] }) {
   const map = useMap();
 
   useEffect(() => {
@@ -404,12 +404,12 @@ function RouteController({ evacuationRoute, navigateSaferRoute, navigateFasterRo
     );
 
     map.fitBounds(bounds, {
-      padding: [60, 60],
+      padding: fitPadding,
       maxZoom: 15,
       animate: true,
       duration: 1.0,
     });
-  }, [evacuationRoute, navigateSaferRoute, navigateFasterRoute, map]);
+  }, [evacuationRoute, navigateSaferRoute, navigateFasterRoute, map, fitPadding]);
 
   return null;
 }
@@ -438,6 +438,7 @@ export default function MapView({
   suppressMapControls = false,
   isMobile = false,
   layerPreset = null,
+  routeFitPadding = [60, 60],
 }) {
   const [globalPois, setGlobalPois] = useState([]);
   const hasActiveDisruptions = predictions.length > 0;
@@ -1586,6 +1587,7 @@ export default function MapView({
           evacuationRoute={evacuationRoute}
           navigateSaferRoute={navigateSaferRoute}
           navigateFasterRoute={navigateFasterRoute}
+          fitPadding={routeFitPadding}
         />
 
         {/* Fix Leaflet container size on mobile */}
