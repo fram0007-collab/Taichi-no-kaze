@@ -239,7 +239,7 @@ function formatReportTime(isoString) {
 }
 
 // ── Report Generation Helper ───────────────────────────────────────
-function generateReportHTML(summary, days, allZones = [], predictions = [], selectedZone = null, zoneAlerts = []) {
+function generateReportHTML(summary, days, allZones = [], predictions = [], selectedZone = null, zoneAlerts = [], mlPredictions = {}) {
   const timestamp = new Date();
   const formattedDate = timestamp.toLocaleString('id-ID', {
     timeZone: 'Asia/Jakarta',
@@ -359,39 +359,89 @@ function generateReportHTML(summary, days, allZones = [], predictions = [], sele
   const hasPredictions = Array.isArray(predictions) && predictions.length > 0;
   let aiPredictionSectionContent = '';
   if (hasPredictions) {
+    const now = new Date();
+    const stdHoursList = [];
+    const aiHoursList = [];
+    const confList = [];
+
     const predRows = predictions.map(p => {
+      const alertId = p.id || p.alert_id;
       const zName = p.zone?.name || p.zone_name || 'Monitored Zone';
       const threat = p.disruption_type ? p.disruption_type.charAt(0).toUpperCase() + p.disruption_type.slice(1) : 'General Disruption';
       const peakTime = formatReportTime(p.estimated_time_to_peak);
       const stdEst = formatReportTime(p.estimated_resolution_at);
-      const aiPredictionField = p.ai_estimated_resolution_at || p.ml_estimated_resolution_at;
-      const aiEst = formatReportTime(aiPredictionField);
-      const conf = p.resolution_confidence ? `${Math.round(p.resolution_confidence)}%` : '65%';
-      const worsening = p.probability_percentage ? `${Math.round(p.probability_percentage)}% score` : 'Moderate';
+
+      if (p.estimated_resolution_at) {
+        const d = new Date(p.estimated_resolution_at);
+        if (!isNaN(d.getTime())) {
+          const hrs = (d - now) / 3600000;
+          if (hrs > 0) stdHoursList.push(hrs);
+        }
+      }
+
+      const mlData = mlPredictions ? mlPredictions[alertId] : null;
+      const aiPredictionIso = mlData?.estimated_resolution_at;
+      const aiEst = formatReportTime(aiPredictionIso);
+      const aiDisplay = aiEst !== 'Not available' ? `<span class="badge badge-ai">${aiEst}</span>` : 'Not available';
+
+      if (aiPredictionIso) {
+        const d = new Date(aiPredictionIso);
+        if (!isNaN(d.getTime())) {
+          const hrs = (d - now) / 3600000;
+          if (hrs > 0) aiHoursList.push(hrs);
+        }
+      }
+
+      let conf = 'Not available';
+      if (mlData?.resolution_confidence != null) {
+        const cVal = Math.round(mlData.resolution_confidence);
+        conf = `${cVal}%`;
+        confList.push(cVal);
+      } else if (p.resolution_confidence != null) {
+        const cVal = Math.round(p.resolution_confidence);
+        conf = `${cVal}%`;
+        confList.push(cVal);
+      }
+
+      const worsening = p.probability_percentage != null ? `${Math.round(p.probability_percentage)}% score` : 'Moderate';
+
       return `
         <tr>
           <td><strong>${zName}</strong></td>
           <td>${threat}</td>
           <td>${peakTime}</td>
           <td>${stdEst}</td>
-          <td><span class="badge badge-ai">${aiEst}</span></td>
+          <td>${aiDisplay}</td>
           <td>${conf}</td>
           <td>${worsening}</td>
         </tr>
       `;
     }).join('');
 
+    const avgStd = stdHoursList.length > 0 ? (stdHoursList.reduce((a, b) => a + b, 0) / stdHoursList.length) : 0;
+    const avgAi = aiHoursList.length > 0 ? (aiHoursList.reduce((a, b) => a + b, 0) / aiHoursList.length) : 0;
+    const avgConf = confList.length > 0 ? Math.round(confList.reduce((a, b) => a + b, 0) / confList.length) : null;
+
+    const maxHrs = Math.max(avgStd, avgAi, 1);
+    const stdBarWidth = avgStd > 0 ? Math.min(320, Math.max(20, Math.round((avgStd / maxHrs) * 320))) : 0;
+    const aiBarWidth = avgAi > 0 ? Math.min(320, Math.max(20, Math.round((avgAi / maxHrs) * 320))) : 0;
+
+    const stdText = avgStd > 0 ? `${avgStd.toFixed(1)} hrs remaining` : 'Not available';
+    const aiText = avgAi > 0
+      ? `${avgAi.toFixed(1)} hrs remaining${avgConf != null ? ` (${avgConf}% confidence)` : ''}`
+      : 'Not available';
+
     const aiChartSVG = `
       <div style="margin: 15px 0; padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
         <div style="font-size: 11px; font-weight: bold; color: #475569; margin-bottom: 10px; text-transform: uppercase;">Standard Estimate vs AI Prediction (Time Remaining)</div>
         <svg width="100%" height="80" viewBox="0 0 600 80">
           <text x="10" y="25" font-size="11" font-weight="bold" fill="#334155">Standard Estimate</text>
-          <rect x="140" y="10" width="320" height="20" rx="4" fill="#cbd5e1" />
-          <text x="470" y="25" font-size="11" font-weight="bold" fill="#475569">2.5 hrs remaining</text>
+          <rect x="140" y="10" width="${stdBarWidth}" height="20" rx="4" fill="#cbd5e1" />
+          <text x="${145 + stdBarWidth}" y="25" font-size="11" font-weight="bold" fill="#475569">${stdText}</text>
           
           <text x="10" y="60" font-size="11" font-weight="bold" fill="#4f46e5">AI Prediction</text>
-          <rect x="140" y="45" width="260" height="20" rx="4" fill="#6366f1" />
-          <text x="410" y="60" font-size="11" font-weight="bold" fill="#4f46e5">2.0 hrs remaining (65% confidence)</text>
+          <rect x="140" y="45" width="${aiBarWidth}" height="20" rx="4" fill="#6366f1" />
+          <text x="${145 + aiBarWidth}" y="60" font-size="11" font-weight="bold" fill="#4f46e5">${aiText}</text>
         </svg>
       </div>
     `;
@@ -790,8 +840,8 @@ function generateReportHTML(summary, days, allZones = [], predictions = [], sele
 }
 
 // ── Export Report Handler ──────────────────────────────────────────
-function exportReport(summary, days, allZones = [], predictions = [], selectedZone = null, zoneAlerts = []) {
-  const html = generateReportHTML(summary, days, allZones, predictions, selectedZone, zoneAlerts);
+function exportReport(summary, days, allZones = [], predictions = [], selectedZone = null, zoneAlerts = [], mlPredictions = {}) {
+  const html = generateReportHTML(summary, days, allZones, predictions, selectedZone, zoneAlerts, mlPredictions);
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -1170,55 +1220,63 @@ export default function Dashboard({ isOpen, onClose, allZones = [], predictions 
   const [zoneAlerts, setZoneAlerts] = useState([]);
   const [zoneTimeline, setZoneTimeline] = useState(null);
   const [zoneLoading, setZoneLoading] = useState(false);
+  const [mlPredictions, setMlPredictions] = useState({});
 
-  // Reset to overall view when dashboard closes
+  // Fetch ML resolution predictions for active predictions when dashboard opens
   useEffect(() => {
-    if (!isOpen) setSelectedZone(null);
-  }, [isOpen]);
+    if (!isOpen || !Array.isArray(predictions) || predictions.length === 0) return;
 
-  // SINGLE source of truth for the overall summary — previously this was
-  // duplicated (once here for export, once again inside OverallView for
-  // display), with no request cancellation. If the initial 7-day fetch on
-  // mount resolved AFTER the user had already switched to 1-day, it would
-  // silently overwrite the correct data — export could end up using stale
-  // 7-day data even though the screen correctly showed 1-day. AbortController
-  // below ensures only the latest request for the current `days` ever applies.
-  useEffect(() => {
-    if (!isOpen) return;
-    const controller = new AbortController();
-    setSummaryLoading(true);
-    fetch(`${getApiUrl()}/dashboard/summary?days=${days}`, { signal: controller.signal })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { setSummary(data); setSummaryLoading(false); })
-      .catch(err => { if (err.name !== 'AbortError') setSummaryLoading(false); });
-    return () => controller.abort();
-  }, [isOpen, days]);
+    let cancelled = false;
+    const alertIds = predictions.map(p => p.id || p.alert_id).filter(Boolean);
 
-  // Zone-detail data — also respects the shared `days` filter (previously
-  // hardcoded to days=7 inside ZoneDetailView regardless of the dashboard's
-  // selected time range) and is cancellable for the same race-condition reason.
-  useEffect(() => {
-    if (!selectedZone) {
-      setZoneAlerts([]);
-      setZoneTimeline(null);
-      return;
-    }
-    const controller = new AbortController();
-    setZoneLoading(true);
-    Promise.all([
-      fetch(`${getApiUrl()}/alerts/history?days=${days}&zone_id=${selectedZone.zone_id}`, { signal: controller.signal }).then(r => r.ok ? r.json() : []),
-      fetch(`${getApiUrl()}/predictions/zone/${selectedZone.zone_id}?hours=24`, { signal: controller.signal }).then(r => r.ok ? r.json() : null),
-    ]).then(([alertData, timelineData]) => {
-      setZoneAlerts(alertData);
-      setZoneTimeline(timelineData);
-      setZoneLoading(false);
-    }).catch(err => { if (err.name !== 'AbortError') setZoneLoading(false); });
-    return () => controller.abort();
-  }, [selectedZone, days]);
+    Promise.all(
+      alertIds.map(id =>
+        fetch(`${getApiUrl()}/predict/resolution/${id}`)
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null)
+      )
+    ).then(results => {
+      if (cancelled) return;
+      const map = {};
+      results.forEach((res, idx) => {
+        const id = alertIds[idx];
+        if (res && res.estimated_resolution_at) {
+          map[id] = res;
+        }
+      });
+      setMlPredictions(map);
+    });
 
-  const handleExport = () => {
-    if (summary) {
-      exportReport(summary, days, allZones, predictions, selectedZone, zoneAlerts);
+    return () => { cancelled = true; };
+  }, [isOpen, predictions]);
+
+  const handleExport = async () => {
+    if (!summary) return;
+    try {
+      const alertIds = (predictions || []).map(p => p.id || p.alert_id).filter(Boolean);
+      const missingIds = alertIds.filter(id => !mlPredictions[id]);
+
+      let updatedMl = { ...mlPredictions };
+      if (missingIds.length > 0) {
+        const fetched = await Promise.all(
+          missingIds.map(id =>
+            fetch(`${getApiUrl()}/predict/resolution/${id}`)
+              .then(r => r.ok ? r.json() : null)
+              .catch(() => null)
+          )
+        );
+        missingIds.forEach((id, idx) => {
+          if (fetched[idx] && fetched[idx].estimated_resolution_at) {
+            updatedMl[id] = fetched[idx];
+          }
+        });
+        setMlPredictions(updatedMl);
+      }
+
+      exportReport(summary, days, allZones, predictions, selectedZone, zoneAlerts, updatedMl);
+    } catch (e) {
+      console.warn('Error fetching ML predictions for report:', e);
+      exportReport(summary, days, allZones, predictions, selectedZone, zoneAlerts, mlPredictions);
     }
   };
 
