@@ -23,10 +23,26 @@ const BLOCKS = [
   },
 ];
 
-export default function ForecastHelpContent() {
+function blockShellClass(tone, isLight) {
+  if (tone === 'note') {
+    return isLight
+      ? 'rounded-xl border border-indigo-200/80 bg-indigo-50/80 p-4'
+      : 'rounded-xl border border-indigo-900/50 bg-indigo-950/20 p-4';
+  }
+  return isLight
+    ? 'rounded-xl border border-slate-200/80 bg-slate-50/80 p-4'
+    : 'rounded-xl border border-slate-700 bg-slate-800/70 p-4';
+}
+
+export default function ForecastHelpContent({ theme = 'light' }) {
+  const isLight = theme === 'light';
+  const titleClass = isLight ? 'text-slate-900' : 'text-slate-100';
+  const bodyClass = isLight ? 'text-slate-600' : 'text-slate-300';
+  const introClass = isLight ? 'text-slate-700' : 'text-slate-300';
+
   return (
     <>
-      <p>
+      <p className={introClass}>
         These graphs help explain what may happen in this area over the next few hours.
         They support the warning card, but they are only estimates.
       </p>
@@ -34,14 +50,10 @@ export default function ForecastHelpContent() {
       {BLOCKS.map((block) => (
         <div
           key={block.title}
-          className={
-            block.tone === 'note'
-              ? 'rounded-xl border border-indigo-200/80 bg-indigo-50/80 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20'
-              : 'rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/70'
-          }
+          className={blockShellClass(block.tone, isLight)}
         >
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{block.title}</p>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{block.body}</p>
+          <p className={`text-sm font-semibold ${titleClass}`}>{block.title}</p>
+          <p className={`mt-2 text-sm ${bodyClass}`}>{block.body}</p>
         </div>
       ))}
     </>

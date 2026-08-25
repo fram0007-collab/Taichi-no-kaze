@@ -35,6 +35,7 @@ export default function BottomSheet({
   const [showForecastHelp, setShowForecastHelp] = useState(false);
 
   const isDark = theme === 'dark';
+  const isLight = theme === 'light';
 
   useEffect(() => {
     if (selectedPrediction?.id) {
@@ -80,7 +81,10 @@ export default function BottomSheet({
     switch (risk) {
       case 'Critical': return 'bg-red-500/20 text-red-400 border-red-500/30';
       case 'High': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-      case 'Medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'Medium':
+        return isLight
+          ? 'bg-yellow-500/20 text-yellow-700 border-yellow-600/30'
+          : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
       case 'Low':
       default: return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
     }
@@ -114,24 +118,30 @@ export default function BottomSheet({
     >
       {/* Drawer Drag Handle Bar */}
       <div 
-        className="w-full h-14 flex items-center justify-between px-4 border-b border-slate-800 cursor-pointer"
+        className={`w-full h-14 flex items-center justify-between px-4 border-b cursor-pointer ${
+          isLight ? 'border-slate-200' : 'border-slate-800'
+        }`}
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="flex items-center space-x-2">
           <MapPin className="w-5 h-5 text-indigo-400" />
-          <span className="font-bold text-sm text-slate-100">{selectedPrediction.zone.name}</span>
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getRiskColor(selectedPrediction.risk_level)}`}>
+          <span className={`font-bold text-sm ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>{selectedPrediction.zone.name}</span>
+          <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${getRiskColor(selectedPrediction.risk_level)}`}>
             {selectedPrediction.risk_level}
           </span>
         </div>
         <div className="flex items-center space-x-3">
-          {isOpen ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronUp className="w-5 h-5 text-slate-400" />}
+          {isOpen ? <ChevronDown className={`w-5 h-5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} /> : <ChevronUp className={`w-5 h-5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} />}
           <button 
             onClick={(e) => {
               e.stopPropagation();
               onClose();
             }}
-            className="p-1 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200"
+            className={`p-1 rounded-full border ${
+              isLight
+                ? 'bg-slate-100 border-slate-300 text-slate-500 hover:text-slate-800'
+                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -150,20 +160,26 @@ export default function BottomSheet({
         >
           {/* Metadata Cards */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-950/40 border border-slate-900 rounded-lg p-2.5 flex flex-col justify-center">
-              <span className="text-[10px] text-slate-400">Predicted Disruption</span>
-              <span className="font-semibold text-sm text-slate-200">{selectedPrediction.disruption_type}</span>
+            <div className={`border rounded-lg p-2.5 flex flex-col justify-center ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/40 border-slate-900'
+            }`}>
+              <span className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Predicted Disruption</span>
+              <span className={`font-semibold text-sm ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{selectedPrediction.disruption_type}</span>
             </div>
-            <div className="bg-slate-950/40 border border-slate-900 rounded-lg p-2.5 flex flex-col justify-center">
-              <span className="text-[10px] text-slate-400">Peak around</span>
+            <div className={`border rounded-lg p-2.5 flex flex-col justify-center ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/40 border-slate-900'
+            }`}>
+              <span className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Peak around</span>
               <span className="font-semibold text-sm text-indigo-400">{formatTime(selectedPrediction.estimated_time_to_peak)}</span>
             </div>
           </div>
 
           {/* Resolution estimate — shows "Estimate uncertain" if confidence < 60% (AC 6.1.3) */}
           {selectedPrediction.estimated_resolution_at && (
-            <div className="bg-slate-950/40 border border-slate-900 rounded-lg p-2.5">
-              <span className="text-[10px] text-slate-400 block mb-1">Resolution Estimate</span>
+            <div className={`border rounded-lg p-2.5 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/40 border-slate-900'
+            }`}>
+              <span className={`text-xs block mb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Resolution Estimate</span>
               <ResolutionBadgeCompact
                 estimated_resolution_at={selectedPrediction.estimated_resolution_at}
                 resolution_confidence={selectedPrediction.resolution_confidence}
@@ -176,7 +192,9 @@ export default function BottomSheet({
             <button
               type="button"
               onClick={() => setShowDetails(true)}
-              className="w-full py-2 rounded-lg border border-slate-700 text-xs font-semibold text-indigo-400"
+              className={`w-full py-2 rounded-lg border text-xs font-semibold text-indigo-400 ${
+                isLight ? 'border-slate-300' : 'border-slate-700'
+              }`}
             >
               More details
             </button>
@@ -184,7 +202,9 @@ export default function BottomSheet({
             <button
               type="button"
               onClick={() => setShowDetails(false)}
-              className="w-full py-2 rounded-lg border border-slate-700 text-xs font-semibold text-indigo-400"
+              className={`w-full py-2 rounded-lg border text-xs font-semibold text-indigo-400 ${
+                isLight ? 'border-slate-300' : 'border-slate-700'
+              }`}
             >
               Hide details
             </button>
@@ -234,15 +254,15 @@ export default function BottomSheet({
                         {getPoiIcon(poi.category)}
                         <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{poi.name}</span>
                       </div>
-                      <span className="text-[9px] uppercase font-bold tracking-widest text-slate-600 dark:text-slate-500 bg-slate-200 dark:bg-slate-950/60 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                      <span className="text-[11px] uppercase font-bold tracking-widest text-slate-600 dark:text-slate-500 bg-slate-200 dark:bg-slate-950/60 px-1.5 py-0.5 rounded shrink-0 ml-2">
                         {poi.category.replace('_', ' ')}
                       </span>
                     </div>
                     {poi.crowd_score != null ? (
                       <div>
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[9px] text-slate-600 dark:text-slate-500 font-semibold">👥 Crowd</span>
-                          <span className={`text-[9px] font-bold ${
+                          <span className="text-[11px] text-slate-600 dark:text-slate-500 font-semibold">👥 Crowd</span>
+                          <span className={`text-[11px] font-bold ${
                             poi.crowd_score >= 65 ? 'text-red-400' :
                             poi.crowd_score >= 35 ? 'text-amber-400' : 'text-emerald-400'
                           }`}>
@@ -261,12 +281,12 @@ export default function BottomSheet({
                         </div>
                       </div>
                     ) : (
-                      <span className="text-[9px] text-slate-500 dark:text-slate-600">No crowd data</span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-600">No crowd data</span>
                     )}
                   </div>
                 ))
               ) : (
-                <div className="text-center py-4 text-[10px] text-slate-500 border border-dashed border-slate-800 rounded-lg">
+                <div className="text-center py-4 text-xs text-slate-500 border border-dashed border-slate-800 rounded-lg">
                   No matching facilities found in this geofence.
                 </div>
               )}
@@ -299,7 +319,7 @@ export default function BottomSheet({
                     <button
                       key={h}
                       onClick={() => setSelectedHours(h)}
-                      className={`text-[8px] px-1.5 py-0.5 rounded font-semibold transition-all duration-200 ${
+                      className={`text-[11px] px-1.5 py-0.5 rounded font-semibold transition-all duration-200 ${
                         isActive
                           ? 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-bold'
                           : 'border border-transparent text-slate-400 hover:text-slate-200'
@@ -322,7 +342,7 @@ export default function BottomSheet({
                 <div className="space-y-4">
                   {/* Weather Chart */}
                   <div className="h-36 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-2.5 flex flex-col">
-                    <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Precipitation & Rain</span>
+                    <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Precipitation & Rain</span>
                     <div className="flex-1 min-h-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart 
@@ -360,7 +380,7 @@ export default function BottomSheet({
 
                   {/* Speed Line Chart */}
                   <div className="h-36 w-full bg-slate-950/40 border border-slate-900 rounded-xl p-2.5 flex flex-col">
-                    <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Traffic speed</span>
+                    <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-2">Traffic speed</span>
                     <div className="flex-1 min-h-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart 
@@ -450,7 +470,7 @@ export default function BottomSheet({
             <div className={`max-h-[calc(90vh-140px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 space-y-4 sm:space-y-5 text-sm leading-6 ${
               isDark ? 'dark text-slate-300' : 'text-slate-700'
             }`}>
-              <ForecastHelpContent />
+              <ForecastHelpContent theme={theme} />
             </div>
           </div>
         </div>

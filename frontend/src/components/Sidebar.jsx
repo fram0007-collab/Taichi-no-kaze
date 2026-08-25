@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import AlertCard from './AlertCard';
 import { ResolutionBadgeCompact } from './ResolutionBadge';
+import { MlResolutionBadgeCompact } from './MlResolutionBadge';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
+import BmkgEarthquakeList from './BmkgEarthquakeList';
 import { useMlResolution } from '../hooks/useMlResolution';
 import { 
   ResponsiveContainer, 
@@ -40,6 +42,8 @@ export default function Sidebar({
   showEvacuationPanel = false,
   evacuationPanelNode = null,
   theme = 'light',
+  defaultSeverityFilter = 'all',
+  severityFilterRevision = 0,
 }) {
   const isLight = theme === 'light';
   const [poiFilter, setPoiFilter] = useState('all');
@@ -51,6 +55,16 @@ export default function Sidebar({
   const [showZoneDetails, setShowZoneDetails] = useState(false);
   const [helpTab, setHelpTab] = useState('read');
   const { prediction: mlPrediction } = useMlResolution(selectedPrediction?.id);
+
+  useEffect(() => {
+    setShowZoneDetails(false);
+  }, [selectedPrediction?.id]);
+
+  useEffect(() => {
+    if (severityFilterRevision > 0) {
+      setSeverityFilter(defaultSeverityFilter);
+    }
+  }, [severityFilterRevision, defaultSeverityFilter]);
 
   // LOW tier: zones monitored with no OPEN alert
   const activeZoneIds = new Set(
@@ -104,7 +118,6 @@ export default function Sidebar({
 
 
   
-  // Format dates to human-readable strings (treating naive timestamps as UTC and using 24h format)
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
     let normalizedStr = timeStr;
@@ -113,6 +126,16 @@ export default function Sidebar({
     }
     const date = new Date(normalizedStr);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const getRiskColor = (risk) => {
+    switch (risk) {
+      case 'Critical': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'High': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+      case 'Medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'Low':
+      default: return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+    }
   };
 
   const getPoiIcon = (category) => {
@@ -258,27 +281,28 @@ export default function Sidebar({
               <MapPin className="w-4 h-4" />
               <span className="text-xs uppercase tracking-wider">Selected Zone Analysis</span>
             </div>
-            <h1 className="text-2xl font-bold text-slate-100">{selectedPrediction?.zone?.name ?? 'Unknown Zone'}</h1>
-            
-            <div className="grid grid-cols-1 gap-3 mt-4">
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2 text-center">
-                <div className="flex items-center justify-center space-x-1.5">
-                  <p className="text-[10px] text-slate-400">Baseline Speed</p>
-                  <button
-                    type="button"
-                    onClick={() => setShowBaselineHelp(true)}
-                    className="text-slate-400 hover:text-indigo-400 focus:outline-none transition-colors p-0.5 rounded-full"
-                    title="What is baseline speed?"
-                    aria-label="What is baseline speed?"
-                  >
-                    <Info className="w-3 h-3" />
-                  </button>
-                </div>
-                <p className="text-lg font-bold text-slate-200">{selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'} <span className="text-xs font-normal">km/h</span></p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold text-slate-100">{selectedPrediction?.zone?.name ?? 'Unknown Zone'}</h1>
+              {selectedPrediction?.risk_level && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getRiskColor(selectedPrediction.risk_level)}`}>
+                  {selectedPrediction.risk_level}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2.5 flex flex-col justify-center">
+                <span className="text-[10px] text-slate-400">Predicted Disruption</span>
+                <span className="font-semibold text-sm text-slate-200">{selectedPrediction.disruption_type}</span>
+              </div>
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2.5 flex flex-col justify-center">
+                <span className="text-[10px] text-slate-400">Peak around</span>
+                <span className="font-semibold text-sm text-indigo-400">{formatTime(selectedPrediction.estimated_time_to_peak)}</span>
               </div>
             </div>
             {selectedPrediction?.estimated_resolution_at && (
               <div className="mt-3 bg-slate-900/40 border border-slate-800/80 rounded-lg p-2.5">
+                <span className="text-[10px] text-slate-400 block mb-1">Resolution Estimate</span>
                 <ResolutionBadgeCompact
                   estimated_resolution_at={selectedPrediction.estimated_resolution_at}
                   resolution_confidence={selectedPrediction.resolution_confidence}
@@ -297,6 +321,27 @@ export default function Sidebar({
 
           {showZoneDetails && (
           <>
+          <MlResolutionBadgeCompact alertId={selectedPrediction.id} theme={theme} />
+
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2.5 text-center">
+            <div className="flex items-center justify-center space-x-1.5">
+              <p className="text-[10px] text-slate-400">Baseline Speed</p>
+              <button
+                type="button"
+                onClick={() => setShowBaselineHelp(true)}
+                className="text-slate-400 hover:text-indigo-400 focus:outline-none transition-colors p-0.5 rounded-full"
+                title="What is baseline speed?"
+                aria-label="What is baseline speed?"
+              >
+                <Info className="w-3 h-3" />
+              </button>
+            </div>
+            <p className="text-lg font-bold text-slate-200">
+              {selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'}{' '}
+              <span className="text-xs font-normal">km/h</span>
+            </p>
+          </div>
+
           {/* Dynamic Infrastructure POI Section */}
           <div className="space-y-3 pt-2 border-t border-slate-800/50">
             <h3 className="text-sm font-semibold text-slate-300 flex items-center space-x-2">
@@ -615,7 +660,7 @@ export default function Sidebar({
           })}
         </div>
         
-        <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
           {showingLowTier ? (
             lowZones.length === 0 ? (
               <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
@@ -886,37 +931,6 @@ export default function Sidebar({
         </div>
       )}
 
-      {showForecastHelp && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-3 sm:p-4"
-          onClick={() => setShowForecastHelp(false)}
-        >
-          <div
-            className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-2xl dark:border-slate-700 dark:bg-slate-900/95"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 py-4 dark:border-slate-700/70">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">What Do These Graphs Mean?</h3>
-                <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">These graphs help explain what may happen in this area during the next few hours.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowForecastHelp(false)}
-                className="rounded-full border border-slate-300/80 p-2 text-slate-600 transition hover:border-indigo-500/60 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-300"
-                aria-label="Close forecast help"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="max-h-[calc(90vh-170px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 space-y-5 text-sm leading-6 text-slate-700 dark:text-slate-300">
-              <ForecastHelpContent />
-            </div>
-          </div>
-        </div>
-      )}
-
       {showBaselineHelp && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
@@ -980,70 +994,44 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* BMKG Earthquake Live Telemetry Section */}
-      <div className="pt-4 border-t border-slate-800/80">
-        <div className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-bold text-lg mb-3">
-          <Layers className="w-5 h-5 text-red-500 animate-pulse" />
-          <h2>BMKG Live Earthquakes</h2>
-        </div>
-        <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
-          {earthquakes.length === 0 ? (
-            <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
-              <p className="text-xs text-slate-600 dark:text-slate-500 font-medium">No recent earthquakes recorded.</p>
+      {showForecastHelp && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-3 sm:p-4"
+          onClick={() => setShowForecastHelp(false)}
+        >
+          <div
+            className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-2xl dark:border-slate-700 dark:bg-slate-900/95"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 py-4 dark:border-slate-700/70">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">What Do These Graphs Mean?</h3>
+                <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">These graphs help explain what may happen in this area during the next few hours.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowForecastHelp(false)}
+                className="rounded-full border border-slate-300/80 p-2 text-slate-600 transition hover:border-indigo-500/60 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-300"
+                aria-label="Close forecast help"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-          ) : (
-            earthquakes.map((eq, idx) => {
-              const isMajor = eq.magnitude >= 6.0;
-              const isSelected = selectedEarthquake && selectedEarthquake.datetime === eq.datetime && selectedEarthquake.latitude === eq.latitude;
-              return (
-                <div 
-                  key={eq.id || idx} 
-                  className={`p-3 rounded-lg border text-xs space-y-1.5 transition-all duration-200 ${
-                    isSelected 
-                      ? 'border-red-500 bg-red-500/10 shadow-[0_0_12px_rgba(239,68,68,0.25)]' 
-                      : (isLight
-                        ? 'border-slate-200 bg-white hover:border-slate-300'
-                        : 'border-slate-800 bg-slate-900/30 hover:border-slate-700/80')
-                  }`}
-                >
-                  <div className="flex justify-between items-center gap-2">
-                    <span className={`font-semibold truncate ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{eq.wilayah}</span>
-                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                      isMajor ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse' : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                    }`}>
-                      M {eq.magnitude.toFixed(1)}
-                    </span>
-                  </div>
-                  <div className={`flex justify-between text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>
-                    <span>{new Date(eq.datetime).toLocaleDateString()}</span>
-                    <span>{new Date(eq.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                  {eq.potensi && (
-                    <div className={`text-[9.5px] font-semibold italic border-t pt-1 mt-1 ${isLight ? 'text-indigo-600 border-slate-200' : 'text-indigo-400/90 border-slate-800/20'}`}>
-                      {eq.potensi}
-                    </div>
-                  )}
-                  <div className={`flex justify-between items-center pt-1.5 border-t ${isLight ? 'border-slate-200' : 'border-slate-800/20'}`}>
-                    <span className={`text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>Depth: {eq.depth}</span>
-                    <button
-                      onClick={() => onSelectEarthquake && onSelectEarthquake(isSelected ? null : eq)}
-                      className={`text-[9px] px-2 py-0.5 rounded font-extrabold tracking-wider uppercase transition-all duration-200 ${
-                        isSelected 
-                          ? 'bg-red-600 text-white shadow-glow animate-pulse'
-                          : (isLight
-                            ? 'bg-slate-800 text-white hover:bg-slate-700'
-                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white')
-                      }`}
-                    >
-                      {isSelected ? 'Viewing' : 'View'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
+
+            <div className="max-h-[calc(90vh-170px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 space-y-5 text-sm leading-6 text-slate-700 dark:text-slate-300">
+              <ForecastHelpContent theme={theme} />
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      <BmkgEarthquakeList
+        earthquakes={earthquakes}
+        selectedEarthquake={selectedEarthquake}
+        onSelectEarthquake={onSelectEarthquake}
+        theme={theme}
+        maxHeightClass="max-h-60"
+      />
 
 
 

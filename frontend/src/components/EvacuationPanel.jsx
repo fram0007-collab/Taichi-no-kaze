@@ -22,6 +22,8 @@ import { getApiUrl } from '../utils/getApiUrl';
 import { ResolutionBadgeExpanded } from './ResolutionBadge';
 import { MlResolutionBadgeExpanded } from './MlResolutionBadge';
 import { COMMON_EMERGENCY_HOTLINES } from '../constants/emergencyHotlines';
+import { circleToBbox } from '../utils/tomtomRoute';
+import EmergencyCallConfirmModal, { dialPhoneNumber } from './EmergencyCallConfirmModal';
 
 // ── i18n-ready content block ────────────────────────────────────────────────
 
@@ -32,74 +34,66 @@ const CONTENT = {
       title: 'Traffic Disruption — What To Do',
       icon: '🚦',
       steps: [
-        'Stay calm. Do not attempt to drive through gridlocked areas.',
+        'Stay calm. Do not drive through gridlocked areas.',
         'Check live traffic on this map before moving.',
-        'If on foot, move to the nearest covered public space (mall or station) to wait.',
-        'Avoid main arterials — use Jalan Tol inner-city or TransJakarta bus corridors if available.',
-        'If you must drive, follow the evacuation route shown on the map.',
-        'Keep your fuel tank above half — fuel stations may be congested.',
+        'On foot, move to the nearest covered public space to wait.',
+        'Avoid main arterials — use toll roads or TransJakarta if available.',
+        'Follow the safe route shown on the map.',
       ],
     },
     weather: {
       title: 'Severe Weather — What To Do',
       icon: '⛈️',
       steps: [
-        'Move indoors immediately. Avoid open areas, trees, and metal structures.',
+        'Move indoors. Avoid open areas, trees, and metal structures.',
         'Stay away from windows and glass doors.',
-        'If driving, pull over safely and wait for the weather to pass.',
-        'Avoid underpasses and low-lying roads — flash flooding can occur rapidly.',
-        'Keep your phone charged and monitor BMKG alerts.',
-        'If conditions worsen, follow the evacuation route to the nearest hospital or covered shelter.',
+        'If driving, pull over safely and wait.',
+        'Avoid underpasses and low-lying roads.',
+        'Follow the safe route to shelter if conditions worsen.',
       ],
     },
     flood: {
       title: 'Flood — What To Do',
       icon: '🌊',
       steps: [
-        'Move to higher ground immediately. Do not wait for water to reach you.',
-        'Avoid walking or driving through floodwater — 15 cm of moving water can knock you off your feet.',
-        'Turn off electricity at the main breaker if water is entering your building.',
+        'Move to higher ground immediately.',
+        'Do not walk or drive through floodwater.',
+        'Turn off electricity if water enters your building.',
         'Do not use elevators in flooded buildings.',
-        'Take essential documents, medicine, and emergency supplies.',
-        'Follow the evacuation route to the nearest elevated shelter or hospital.',
+        'Follow the safe route to an elevated shelter or hospital.',
       ],
     },
     waterway: {
       title: 'Waterway Alert — What To Do',
       icon: '🌧️',
       steps: [
-        'A waterway in your area is approaching or has exceeded safe capacity.',
-        'Move away from riverbanks, canals, and low-lying areas near water.',
+        'A waterway near you may be at unsafe capacity.',
+        'Move away from riverbanks, canals, and low areas.',
         'Avoid crossing bridges over flooded waterways.',
-        'Monitor water levels — conditions can change quickly during heavy rainfall.',
-        'Prepare to evacuate if the alert level escalates to Siaga 1 or 2.',
-        'Follow the evacuation route shown on the map to a safe hospital or elevated shelter.',
+        'Monitor levels — conditions can change quickly.',
+        'Follow the safe route to higher ground if needed.',
       ],
     },
     earthquake: {
       title: 'Earthquake — What To Do',
       icon: '🌍',
       steps: [
-        'DROP to your hands and knees immediately.',
-        'Take COVER under a sturdy desk or table, or against an interior wall. Cover your head and neck.',
-        'HOLD ON until shaking stops. Do not run outside during shaking.',
+        'DROP, take COVER, and HOLD ON until shaking stops.',
+        'Do not run outside during shaking.',
         'Once shaking stops, check yourself and others for injuries.',
-        'Evacuate the building calmly using stairs — do not use elevators.',
-        'Move to an open area away from buildings, trees, and power lines.',
-        'Follow the evacuation route to the nearest hospital or police coordination point.',
-        'Expect aftershocks. Stay alert.',
+        'Evacuate using stairs — do not use elevators.',
+        'Move to an open area away from buildings and power lines.',
       ],
     },
     crowd: {
       title: 'Crowd Surge — What To Do',
       icon: '👥',
       steps: [
-        'Do not panic. Stay on your feet — falling in a crowd is dangerous.',
-        'Move diagonally toward the edge of the crowd, not against the flow.',
-        'Keep your arms up near your chest to protect your breathing space.',
-        'Avoid bottlenecks — doors, gates, and narrow corridors are the most dangerous.',
-        'If you fall, curl into a ball and protect your head until you can stand.',
-        'Once clear of the crowd, move to the nearest hospital or police station for safety.',
+        'Stay on your feet — do not panic.',
+        'Move diagonally toward the edge of the crowd.',
+        'Keep arms up to protect your breathing space.',
+        'Avoid bottlenecks — doors and narrow corridors.',
+        'Once clear, move to the nearest hospital or police station.',
       ],
     },
   },
@@ -147,19 +141,6 @@ const CONTENT = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Convert a circle (center + radius_m) to a TomTom-compatible bounding box.
- * TomTom avoidAreas expects: { southWestCorner, northEastCorner } in lat/lon.
- */
-function circleToBbox(lat, lon, radiusM) {
-  const latDelta = radiusM / 111320;
-  const lonDelta = radiusM / (111320 * Math.cos((lat * Math.PI) / 180));
-  return {
-    southWestCorner: { latitude: lat - latDelta, longitude: lon - lonDelta },
-    northEastCorner: { latitude: lat + latDelta, longitude: lon + lonDelta },
-  };
-}
-
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -198,6 +179,32 @@ export default function EvacuationPanel({
   const [globalPois, setGlobalPois] = useState([]);
   const [expandedHotlines, setExpandedHotlines] = useState(false);
   const [showMlDetails, setShowMlDetails] = useState(false);
+  const [pendingCall, setPendingCall] = useState(null);
+
+  const requestEmergencyCall = useCallback((contact) => {
+    if (!contact?.number) return;
+    setPendingCall({
+      name: contact.name || 'Emergency',
+      number: contact.number,
+    });
+  }, []);
+
+  const confirmEmergencyCall = useCallback(() => {
+    if (!pendingCall?.number) return;
+    dialPhoneNumber(pendingCall.number);
+    setPendingCall(null);
+  }, [pendingCall]);
+
+  const callConfirmModal = (
+    <EmergencyCallConfirmModal
+      isOpen={Boolean(pendingCall)}
+      contactName={pendingCall?.name ?? ''}
+      phoneNumber={pendingCall?.number ?? ''}
+      theme={theme}
+      onConfirm={confirmEmergencyCall}
+      onClose={() => setPendingCall(null)}
+    />
+  );
 
   // Derive the primary disruption type from the zone actually being viewed —
   // NOT predictions[0], which is an unrelated list that doesn't track what
@@ -392,7 +399,7 @@ export default function EvacuationPanel({
               To calculate a safe evacuation route away from active threats,
               we need to know where you are right now.
             </p>
-            <p className="text-xs text-slate-500 mt-2">
+            <p className={`text-xs mt-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
               Your location is only used for routing and is never stored or shared.
             </p>
           </div>
@@ -410,25 +417,76 @@ export default function EvacuationPanel({
           </p>
         )}
         {zoneGuidances.map((zg, i) => (
-          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={!compact && i === 0} theme={theme} />
+          <GuidanceAccordion
+            key={zg.disruption_type}
+            guide={zg.guide}
+            hotlines={zg.hotlines}
+            defaultGuideOpen={!compact && i === 0}
+            theme={theme}
+            onRequestCall={requestEmergencyCall}
+          />
         ))}
+        {callConfirmModal}
       </div>
     );
   }
 
-  // ── Main panel ─────────────────────────────────────────────────────────────
+  // ── Compact mobile checklist (map stays visible above) ─────────────────────
   if (compact && userLocation) {
-    const summaryText = `${guide.icon} ${zoneNameLabel ?? 'Active alert'}: ${guide.steps[0]}`;
-    const emergencyNumber = hotlines.find(h => h.number)?.number ?? '112';
+    const checklistSteps = guide.steps.slice(0, 5);
+    const primaryHotline = hotlines.find((h) => h.number) ?? { name: 'Emergency', number: '112' };
 
     return (
-      <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex flex-col h-full max-h-[42vh] overflow-hidden">
         <PanelHeader theme={theme} onClose={onClose} title="Safe route" subtitle={zoneNameLabel} />
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          <p className={`text-sm leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
-            {summaryText}
-          </p>
 
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{guide.icon}</span>
+            <p className={`text-sm font-semibold ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
+              {guide.title}
+            </p>
+          </div>
+
+          <ChecklistSteps steps={checklistSteps} theme={theme} />
+
+          {phase === 'routing' && (
+            <div className={`flex items-center gap-2 py-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+              <span className="text-xs">Calculating safe route…</span>
+            </div>
+          )}
+          {phase === 'error' && (
+            <p className="text-xs text-red-400">{errorMsg}</p>
+          )}
+          {phase === 'done' && routeInfo && (
+            <p className={`text-xs ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+              Route on map — {routeInfo.distanceKm} km, ~{routeInfo.durationMin} min to {routeInfo.destination.name}
+            </p>
+          )}
+
+          <details className={`rounded-xl border ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
+            <summary className={`min-h-[44px] cursor-pointer px-3 py-3 text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+              Full steps & contacts
+            </summary>
+            <div className="px-2 pb-2 space-y-1">
+              {zoneGuidances.map((zg) => (
+                <GuidanceAccordion
+                  key={zg.disruption_type}
+                  guide={zg.guide}
+                  hotlines={zg.hotlines}
+                  defaultGuideOpen={false}
+                  theme={theme}
+                  onRequestCall={requestEmergencyCall}
+                />
+              ))}
+            </div>
+          </details>
+        </div>
+
+        <div className={`shrink-0 border-t px-4 py-3 space-y-2 ${
+          isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-900/95'
+        }`}>
           {phase === 'idle' && (
             <button
               type="button"
@@ -439,54 +497,36 @@ export default function EvacuationPanel({
               Start route
             </button>
           )}
-          {phase === 'routing' && (
-            <div className={`flex items-center justify-center gap-3 py-3 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-              <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
-              <span className="text-sm">Calculating safe route…</span>
-            </div>
-          )}
           {phase === 'error' && (
-            <p className="text-xs text-red-400">{errorMsg}</p>
+            <button
+              type="button"
+              onClick={() => calculateRoute()}
+              className="w-full min-h-[44px] py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm flex items-center justify-center gap-2"
+            >
+              <Navigation className="w-4 h-4" />
+              Retry route
+            </button>
           )}
-          {phase === 'done' && routeInfo && (
-            <p className={`text-xs ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
-              Route ready — {routeInfo.distanceKm} km, ~{routeInfo.durationMin} min to {routeInfo.destination.name}
-            </p>
-          )}
-
-          <a
-            href={`tel:${String(emergencyNumber).replace(/[^0-9+]/g, '')}`}
-            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl border font-bold text-sm ${
+          <button
+            type="button"
+            onClick={() => requestEmergencyCall(primaryHotline)}
+            className={`w-full min-h-[44px] flex items-center justify-center gap-2 rounded-xl border font-bold text-sm ${
               isLight
-                ? 'border-red-300 bg-red-50 text-red-700'
-                : 'border-red-500/40 bg-red-500/10 text-red-400'
+                ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                : 'border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20'
             }`}
           >
             <Phone className="w-4 h-4" />
-            Call emergency ({emergencyNumber})
-          </a>
-
-          <details className={`rounded-xl border ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
-            <summary className={`min-h-[44px] cursor-pointer px-3 py-3 text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-              Full steps
-            </summary>
-            <div className="px-2 pb-2 space-y-1">
-              {zoneGuidances.map((zg) => (
-                <GuidanceAccordion
-                  key={zg.disruption_type}
-                  guide={zg.guide}
-                  hotlines={zg.hotlines}
-                  defaultGuideOpen={false}
-                  theme={theme}
-                />
-              ))}
-            </div>
-          </details>
+            Call emergency ({primaryHotline.number})
+          </button>
         </div>
+
+        {callConfirmModal}
       </div>
     );
   }
 
+  // ── Main panel (desktop) ───────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <PanelHeader theme={theme} onClose={onClose} title="Safe route" subtitle={zoneNameLabel} />
@@ -621,7 +661,7 @@ export default function EvacuationPanel({
                       ? haversineKm(userLocation.lat, userLocation.lon, lat, lon).toFixed(1)
                       : null;
                     const crowdPct = poi.crowd_score ? Math.round(poi.crowd_score) : null;
-                    const crowdColor = !crowdPct ? 'text-slate-500' :
+                    const crowdColor = !crowdPct ? (isLight ? 'text-slate-500' : 'text-slate-400') :
                       crowdPct >= 65 ? 'text-red-500' :
                       crowdPct >= 35 ? 'text-amber-500' : 'text-emerald-500';
                     return (
@@ -630,8 +670,8 @@ export default function EvacuationPanel({
                         <div className="flex-1 min-w-0">
                           <p className={`font-semibold text-sm truncate ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{poi.name}</p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-slate-500 capitalize">{poi.category}</span>
-                            {distKm && <span className="text-[10px] text-slate-500">· {distKm} km</span>}
+                            <span className={`text-[10px] capitalize ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{poi.category}</span>
+                            {distKm && <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>· {distKm} km</span>}
                             {crowdPct != null && (
                               <span className={`text-[10px] font-semibold ${crowdColor}`}>
                                 · 👥 {crowdPct}%
@@ -698,11 +738,11 @@ export default function EvacuationPanel({
                   <ShieldCheck className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
                   <div className="min-w-0">
                     <p className="font-bold text-emerald-500 text-sm truncate">{routeInfo.destination.name}</p>
-                    <p className="text-xs text-slate-500 capitalize">{routeInfo.destination.category?.replace('_', ' ')}</p>
+                    <p className={`text-xs capitalize ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{routeInfo.destination.category?.replace('_', ' ')}</p>
                   </div>
                   <div className="ml-auto text-right shrink-0">
                     <p className={`font-bold text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>{routeInfo.distanceKm} km</p>
-                    <p className="text-xs text-slate-500">~{routeInfo.durationMin} min walk</p>
+                    <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>~{routeInfo.durationMin} min walk</p>
                   </div>
                 </div>
 
@@ -725,7 +765,7 @@ export default function EvacuationPanel({
                 {/* Turn-by-turn steps */}
                 {routeInfo.steps.length > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Turn-by-turn</p>
+                    <p className={`text-[10px] font-extrabold uppercase tracking-widest ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Turn-by-turn</p>
                     {routeInfo.steps.map((step, i) => (
                       <div key={i} className="flex items-start gap-2.5">
                         <span className="text-[10px] font-bold text-indigo-400 w-4 shrink-0 mt-0.5">{i + 1}</span>
@@ -754,9 +794,17 @@ export default function EvacuationPanel({
           </p>
         )}
         {zoneGuidances.map((zg, i) => (
-          <GuidanceAccordion key={zg.disruption_type} guide={zg.guide} hotlines={zg.hotlines} defaultGuideOpen={!compact && i === 0} theme={theme} />
+          <GuidanceAccordion
+            key={zg.disruption_type}
+            guide={zg.guide}
+            hotlines={zg.hotlines}
+            defaultGuideOpen={!compact && i === 0}
+            theme={theme}
+            onRequestCall={requestEmergencyCall}
+          />
         ))}
       </div>
+      {callConfirmModal}
     </div>
   );
 }
@@ -855,7 +903,25 @@ function PanelHeader({ title, subtitle, onClose, theme = 'light' }) {
   );
 }
 
-function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false, theme = 'light' }) {
+function ChecklistSteps({ steps, theme = 'light', maxSteps = 5 }) {
+  const isLight = theme === 'light';
+  const visible = steps.slice(0, maxSteps);
+
+  return (
+    <ol className="space-y-2">
+      {visible.map((step, i) => (
+        <li key={i} className="flex items-start gap-2.5">
+          <span className="w-5 h-5 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 text-[10px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">
+            {i + 1}
+          </span>
+          <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>{step}</p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false, theme = 'light', onRequestCall }) {
   const [guideOpen, setGuideOpen] = useState(defaultGuideOpen);
   const [hotlinesOpen, setHotlinesOpen] = useState(false);
   const isLight = theme === 'light';
@@ -921,13 +987,14 @@ function GuidanceAccordion({ guide, hotlines, defaultGuideOpen = false, theme = 
                   <p className={`font-semibold text-xs truncate ${titleClass}`}>{h.name}</p>
                   <p className={`text-[10px] truncate ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>{h.role}</p>
                 </div>
-                <a
-                  href={`tel:${h.number.replace(/[^0-9+]/g, '')}`}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold transition-all"
+                <button
+                  type="button"
+                  onClick={() => onRequestCall?.(h)}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold transition-all min-h-[36px]"
                 >
                   <Phone className="w-3 h-3" />
                   {h.number}
-                </a>
+                </button>
               </div>
             ))}
           </div>

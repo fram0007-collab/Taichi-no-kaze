@@ -11,6 +11,37 @@ const TYPE_EMOJI = { traffic: '🚗', crowd: '👥', weather: '⛈️', waterway
 const SEV_COLOR = { HIGH: '#ef4444', MEDIUM: '#eab308' };
 const PIE_COLORS = ['#6366f1', '#94a3b8'];
 
+/** Readable in both light/dark app themes — avoids .light-mode inheriting dark text onto dark tooltip bg */
+function DashboardChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div
+      className="rounded-lg border border-slate-600 px-3 py-2 text-[11px] shadow-lg"
+      style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}
+    >
+      {label != null && label !== '' && (
+        <p className="mb-1 font-semibold" style={{ color: '#e2e8f0' }}>
+          {label}
+        </p>
+      )}
+      <ul className="space-y-0.5">
+        {payload.map((entry, index) => (
+          <li key={index} style={{ color: '#f8fafc' }}>
+            <span style={{ color: entry.color || '#f8fafc' }}>{entry.name}</span>
+            {': '}
+            <span className="font-semibold" style={{ color: '#f8fafc' }}>
+              {entry.value}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+const dashboardChartTooltip = <DashboardChartTooltip />;
+
 // ── Shared helpers ─────────────────────────────────────────────────
 function SummaryCard({ label, value, sub, color = 'text-slate-100' }) {
   return (
@@ -878,7 +909,7 @@ function OverallView({ onSelectZone, allZones = [], summary, loading, days, setD
               <LineChart data={daily_trend} margin={{ top: 4, right: 8, left: -28, bottom: 0 }}>
                 <XAxis dataKey="day" stroke="#475569" fontSize={9} tickFormatter={d => d.slice(5)} />
                 <YAxis stroke="#475569" fontSize={9} allowDecimals={false} />
-                <ChartTooltip contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '10px' }} />
+                <ChartTooltip content={dashboardChartTooltip} />
                 <Line type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: '#6366f1' }} name="Alerts" />
               </LineChart>
             </ResponsiveContainer>
@@ -894,7 +925,7 @@ function OverallView({ onSelectZone, allZones = [], summary, loading, days, setD
                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={3} dataKey="value">
                   {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
                 </Pie>
-                <ChartTooltip contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '10px' }} />
+                <ChartTooltip content={dashboardChartTooltip} />
               </PieChart>
             </ResponsiveContainer>
             <div className="flex gap-4 text-[10px]">
@@ -915,7 +946,7 @@ function OverallView({ onSelectZone, allZones = [], summary, loading, days, setD
               <BarChart data={severity_breakdown} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
                 <XAxis dataKey="type" stroke="#475569" fontSize={9} />
                 <YAxis stroke="#475569" fontSize={9} allowDecimals={false} />
-                <ChartTooltip contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '10px' }} />
+                <ChartTooltip content={dashboardChartTooltip} />
                 <Legend wrapperStyle={{ fontSize: '10px', color: '#94a3b8' }} />
                 <Bar dataKey="HIGH" name="High" fill="#ef4444" radius={[3,3,0,0]} stackId="a" />
                 <Bar dataKey="MEDIUM" name="Medium" fill="#eab308" radius={[3,3,0,0]} stackId="a" />
@@ -1121,7 +1152,7 @@ function ZoneDetailView({ zone, allZones, onBack, alerts = [], timeline, loading
                 />
                 <YAxis stroke="#475569" fontSize={9} domain={[0, 100]} />
                 <ChartTooltip
-                  contentStyle={{ backgroundColor: '#151d30', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '10px' }}
+                  content={dashboardChartTooltip}
                   labelFormatter={t => {
                     try {
                       const d = new Date(t.endsWith('Z') ? t : t + 'Z');

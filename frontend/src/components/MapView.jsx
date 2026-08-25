@@ -6,6 +6,11 @@ import 'leaflet/dist/leaflet.css';
 import { Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
+import {
+  formatEarthquakeWhen,
+  getEarthquakeImpactRadiusMeters,
+  getEarthquakeLatLng,
+} from '../utils/formatEarthquake';
 
 // Which disruption types each POI category can serve as shelter for.
 // Mirrors _DISRUPTION_SAFE_TIERS in backend/main.py — keep in sync if tiers change.
@@ -82,9 +87,9 @@ function getStyleForRisk(risk) {
       };
     case 'Medium':
       return {
-        fillColor: '#FFD600',
-        color: '#FFD600',
-        weight: 3.0,
+        fillColor: '#E6A800',
+        color: '#B8860B',
+        weight: 3.5,
         opacity: 0.85,
         fillOpacity: 0.07,
         className: 'hover:fill-opacity-18 hover:opacity-40 transition-all duration-300'
@@ -263,8 +268,37 @@ function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, act
   );
 }
  
+function fitMapToEarthquake(map, eq, { isMobile = false, fitPadding = [60, 60] } = {}) {
+  const latLng = getEarthquakeLatLng(eq);
+  if (!latLng) return;
+
+  const radiusM = getEarthquakeImpactRadiusMeters(eq);
+  const bounds = L.latLng(latLng).toBounds(radiusM * 2.2);
+
+  const options = {
+    maxZoom: 12,
+    animate: true,
+    duration: 1.0,
+  };
+
+  if (isMobile) {
+    options.paddingTopLeft = [72, 40];
+    options.paddingBottomRight = [128, 40];
+  } else {
+    options.padding = fitPadding;
+  }
+
+  map.fitBounds(bounds, options);
+}
+
 // Controller component to dynamically pan/zoom the map view to the selected zone or earthquake
-function MapController({ selectedZone, selectedEarthquake }) {
+function MapController({
+  selectedZone,
+  selectedEarthquake,
+  mapVisible = true,
+  isMobile = false,
+  earthquakeFitPadding = [60, 60],
+}) {
   const map = useMap();
   
   useEffect(() => {
@@ -281,10 +315,20 @@ function MapController({ selectedZone, selectedEarthquake }) {
         
         map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14, animate: true, duration: 1.2 });
       }
-    } else if (selectedEarthquake) {
-      map.setView([selectedEarthquake.latitude, selectedEarthquake.longitude], 12, { animate: true, duration: 1.2 });
+      return undefined;
     }
-  }, [selectedZone, selectedEarthquake, map]);
+
+    if (!selectedEarthquake || !mapVisible) return undefined;
+
+    const fit = () => fitMapToEarthquake(map, selectedEarthquake, { isMobile, fitPadding: earthquakeFitPadding });
+
+    fit();
+    map.invalidateSize({ pan: false });
+
+    // Re-fit after Leaflet remeasures the container (mobile tab switch / flex layout settle)
+    const timers = [50, 300, 700].map((ms) => setTimeout(fit, ms));
+    return () => timers.forEach(clearTimeout);
+  }, [selectedZone, selectedEarthquake, mapVisible, isMobile, earthquakeFitPadding, map]);
  
   return null;
 }
@@ -293,11 +337,11 @@ function MapController({ selectedZone, selectedEarthquake }) {
  * Zooms the map to the user's location and the Near Me radius (e.g. 5 km).
  * Re-runs when location is obtained/refreshed or when the radius slider changes.
  */
-function UserLocationController({ userLocation, nearMeRadius = 5, enabled = true }) {
+function UserLocationController({ userLocation, nearMeRadius = 5, enabled = true, selectedEarthquake = null }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!enabled || !userLocation?.lat || !userLocation?.lon) return;
+    if (!enabled || selectedEarthquake || !userLocation?.lat || !userLocation?.lon) return;
 
     const radiusKm = Math.max(1, Number(nearMeRadius) || 5);
     // LatLng.toBounds(sizeInMeters): each edge is size/2 meters from center → pass diameter
@@ -309,7 +353,7 @@ function UserLocationController({ userLocation, nearMeRadius = 5, enabled = true
       animate: true,
       duration: 0.9,
     });
-  }, [userLocation, nearMeRadius, enabled, map]);
+  }, [userLocation, nearMeRadius, enabled, selectedEarthquake, map]);
 
   return null;
 }
@@ -338,7 +382,7 @@ function MapClickListener({ onClearSelectedEarthquake }) {
  * real size, then call invalidateSize() to force Leaflet to remeasure.
  * Also call on multiple delays as a safety net.
  */
-function MapSizeInvalidator() {
+function MapSizeInvalidator({ selectedEarthquake = null, isMobile = false }) {
   const map = useMap();
 
   useEffect(() => {
@@ -353,6 +397,9 @@ function MapSizeInvalidator() {
         `| map.getSize(): ${size.x}x${size.y}`
       );
       map.invalidateSize({ pan: false });
+      if (selectedEarthquake) {
+        fitMapToEarthquake(map, selectedEarthquake, { isMobile });
+      }
     };
 
     const timers = [
@@ -373,7 +420,7 @@ function MapSizeInvalidator() {
       timers.forEach(clearTimeout);
       if (ro) ro.disconnect();
     };
-  }, [map]);
+  }, [map, selectedEarthquake, isMobile]);
 
   return null;
 }
@@ -383,13 +430,15 @@ function MapSizeInvalidator() {
  * whenever evacuationRoute changes. Works like a navigation app: as soon as
  * a route is calculated, the map adjusts to show the full path.
  */
-function RouteController({ evacuationRoute }) {
+function RouteController({ evacuationRoute, navigateSaferRoute, navigateFasterRoute, fitPadding = [60, 60] }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!evacuationRoute) return;
-    const coords = evacuationRoute.geometry?.coordinates ?? [];
-    if (coords.length < 2) return;
+    const collections = [evacuationRoute, navigateSaferRoute, navigateFasterRoute]
+      .map((g) => g?.coordinates ?? g?.geometry?.coordinates ?? [])
+      .filter((coords) => coords.length >= 2);
+    if (collections.length === 0) return;
+    const coords = collections.flat();
 
     // Convert GeoJSON [lon, lat] to Leaflet [lat, lon] bounds
     const latLngs = coords.map(([lon, lat]) => [lat, lon]);
@@ -402,12 +451,12 @@ function RouteController({ evacuationRoute }) {
     );
 
     map.fitBounds(bounds, {
-      padding: [60, 60],
+      padding: fitPadding,
       maxZoom: 15,
       animate: true,
       duration: 1.0,
     });
-  }, [evacuationRoute, map]);
+  }, [evacuationRoute, navigateSaferRoute, navigateFasterRoute, map, fitPadding]);
 
   return null;
 }
@@ -430,9 +479,16 @@ export default function MapView({
   nearMeRadius = 5,
   setNearMeRadius,
   evacuationRoute = null,
+  navigateSaferRoute = null,
+  navigateFasterRoute = null,
+  selectedNavigateRoute = 'safer',
   suppressMapControls = false,
   isMobile = false,
+  mapVisible = true,
+  layerPreset = null,
+  routeFitPadding = [60, 60],
 }) {
+  const isLight = theme === 'light';
   const [globalPois, setGlobalPois] = useState([]);
   const hasActiveDisruptions = predictions.length > 0;
   const [waterways, setWaterways] = useState([]);
@@ -466,6 +522,11 @@ export default function MapView({
   useEffect(() => {
     if (suppressMapControls) setShowLayerPanel(false);
   }, [suppressMapControls]);
+
+  useEffect(() => {
+    if (!layerPreset) return;
+    setActiveLayers((prev) => ({ ...prev, ...layerPreset }));
+  }, [layerPreset]);
  
   const hasDisruptionInRadius = useMemo(() => {
     if (!userLocation || !predictions || predictions.length === 0) return false;
@@ -724,7 +785,7 @@ export default function MapView({
             ) : (
               <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-3 text-slate-900 shadow-lg dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-100">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">
+                  <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">
                     Legend
                   </div>
                   <button
@@ -737,7 +798,7 @@ export default function MapView({
                   </button>
                 </div>
 
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
                   Risk Levels
                 </div>
 
@@ -753,7 +814,7 @@ export default function MapView({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-[#FFD600]"></span>
+                    <span className="h-3 w-3 rounded-full bg-[#E6A800]"></span>
                     <span className="text-[11px] text-slate-900 dark:text-slate-100">Medium (35-64)</span>
                   </div>
 
@@ -763,7 +824,7 @@ export default function MapView({
                   </div>
                 </div>
 
-                <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+                <div className="mt-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
                   Size Legend
                 </div>
 
@@ -779,7 +840,7 @@ export default function MapView({
                   </div>
                 </div>
 
-                <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
+                <div className="mt-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400 mb-2">
                   Disruption Intensity
                 </div>
 
@@ -843,7 +904,7 @@ export default function MapView({
             </div>
           ) : (
           <>
-          <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Threat Zones</div>
+          <div className="text-xs uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Threat Zones</div>
           <div className="flex flex-col space-y-1.5">
           {[
             { id: 'threat_traffic', label: 'Traffic 🚗', color: 'text-orange-400' },
@@ -853,7 +914,7 @@ export default function MapView({
             { id: 'threat_earthquake', label: 'Earthquake 🌋', color: 'text-red-400' }
           ].map(layer => (
             <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
-              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-600 dark:text-slate-400'} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
+              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-500 dark:text-slate-400'} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
               <input
                 type="checkbox"
                 checked={activeLayers[layer.id]}
@@ -864,7 +925,7 @@ export default function MapView({
           ))}
         </div>
  
-        <div className="text-[10px] uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Map Overlays</div>
+        <div className="text-xs uppercase font-bold text-slate-500 pt-1 pb-0.5 border-t border-slate-700/40">Map Overlays</div>
         <div className="flex flex-col space-y-2 pb-2">
           {[
             { id: 'waterways', label: 'Waterways & Canals 🗺️', color: 'text-sky-400' },
@@ -878,7 +939,7 @@ export default function MapView({
             { id: 'safe_zones', label: 'Safe Zones 🛡️', color: 'text-emerald-400' },
           ].map(layer => (
             <label key={layer.id} className="flex items-center justify-between cursor-pointer group py-1.5 px-1.5 hover:bg-slate-800/30 active:bg-slate-800/50 rounded-lg transition-all">
-              <span className={`text-[11px] font-semibold ${layer.color} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
+              <span className={`text-[11px] font-semibold ${activeLayers[layer.id] ? layer.color : 'text-slate-500 dark:text-slate-400'} group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors`}>{layer.label}</span>
               <input
                 type="checkbox"
                 checked={activeLayers[layer.id]}
@@ -1106,7 +1167,7 @@ export default function MapView({
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                       pred.risk_level === 'Critical' ? 'bg-red-500/20 text-red-400' :
                       pred.risk_level === 'High' ? 'bg-orange-500/20 text-orange-400' :
-                      pred.risk_level === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                      pred.risk_level === 'Medium' ? (isLight ? 'bg-yellow-500/20 text-yellow-700' : 'bg-yellow-500/20 text-yellow-300') :
                       'bg-emerald-500/20 text-emerald-400'
                     }`}>
                       {pred.risk_level}
@@ -1281,13 +1342,15 @@ export default function MapView({
  
         {/* Render Earthquakes if active */}
         {activeLayers.earthquakes && earthquakes.map((eq, idx) => {
+          const latLng = getEarthquakeLatLng(eq);
+          if (!latLng) return null;
           const isMajor = eq.magnitude >= 6.0;
           const threatColor = isMajor ? '#EF4444' : '#F97316';
           return (
             <Circle
-              key={`eq-${eq.id || idx}`}
-              center={[eq.latitude, eq.longitude]}
-              radius={eq.magnitude * 5000}
+              key={`eq-${eq.id || eq.event_id || idx}`}
+              center={latLng}
+              radius={getEarthquakeImpactRadiusMeters(eq)}
               pathOptions={{
                 color: threatColor,
                 fillColor: threatColor,
@@ -1321,7 +1384,7 @@ export default function MapView({
                     </div>
                     <div className="flex justify-between border-t border-slate-200 dark:border-slate-800 pt-1 mt-1 text-[10px] text-slate-400">
                       <span>Occurred:</span>
-                      <span>{new Date(eq.datetime).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}</span>
+                      <span>{formatEarthquakeWhen(eq.datetime)}</span>
                     </div>
                   </div>
                 </div>
@@ -1571,25 +1634,37 @@ export default function MapView({
  
  
         {/* Auto-fit map to evacuation route when route is ready */}
-        <RouteController evacuationRoute={evacuationRoute} />
+        <RouteController
+          evacuationRoute={evacuationRoute}
+          navigateSaferRoute={navigateSaferRoute}
+          navigateFasterRoute={navigateFasterRoute}
+          fitPadding={routeFitPadding}
+        />
 
         {/* Fix Leaflet container size on mobile */}
-        <MapSizeInvalidator />
+        <MapSizeInvalidator selectedEarthquake={selectedEarthquake} isMobile={isMobile} />
 
         {/* Listen for selected zone changes and reposition camera */}
-        <MapController selectedZone={selectedZone?.zone} selectedEarthquake={selectedEarthquake} />
+        <MapController
+          selectedZone={selectedZone?.zone}
+          selectedEarthquake={selectedEarthquake}
+          mapVisible={mapVisible}
+          isMobile={isMobile}
+          earthquakeFitPadding={routeFitPadding}
+        />
         <UserLocationController
           userLocation={userLocation}
           nearMeRadius={nearMeRadius}
-          enabled={!evacuationRoute}
+          enabled={!evacuationRoute && nearMeFilterActive}
+          selectedEarthquake={selectedEarthquake}
         />
  
         {/* Map click listener to dismiss selection */}
         <MapClickListener onClearSelectedEarthquake={onClearSelectedEarthquake} />
  
         {/* Focus Popup for inspected earthquake */}
-        {selectedEarthquake && (
-          <Popup position={[selectedEarthquake.latitude, selectedEarthquake.longitude]} autoClose={false} closeOnClick={false}>
+        {selectedEarthquake && getEarthquakeLatLng(selectedEarthquake) && (
+          <Popup position={getEarthquakeLatLng(selectedEarthquake)} autoClose={false} closeOnClick={false}>
             <div className="font-sans p-2.5 !text-slate-900 dark:!text-slate-100 min-w-[200px]">
               <div className="flex items-center justify-between mb-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
                 <span className="font-bold text-sm text-slate-900 dark:text-slate-100">🚨 Earthquake Focus</span>
@@ -1633,6 +1708,40 @@ export default function MapView({
           );
         })()}
 
+        {navigateFasterRoute && (() => {
+          const coords = navigateFasterRoute.coordinates ?? [];
+          if (coords.length < 2) return null;
+          const selected = selectedNavigateRoute === 'faster';
+          return (
+            <Polyline
+              positions={coords.map(([lon, lat]) => [lat, lon])}
+              pathOptions={{
+                color: '#f97316',
+                weight: selected ? 6 : 4,
+                opacity: selected ? 0.95 : 0.45,
+                lineCap: 'round',
+              }}
+            />
+          );
+        })()}
+        {navigateSaferRoute && (() => {
+          const coords = navigateSaferRoute.coordinates ?? [];
+          if (coords.length < 2) return null;
+          const selected = selectedNavigateRoute === 'safer';
+          return (
+            <Polyline
+              positions={coords.map(([lon, lat]) => [lat, lon])}
+              pathOptions={{
+                color: '#22c55e',
+                weight: selected ? 6 : 4,
+                opacity: selected ? 0.95 : 0.5,
+                dashArray: '10, 6',
+                lineCap: 'round',
+              }}
+            />
+          );
+        })()}
+
         {/* Global all-clear: no disruptions anywhere */}
         {predictions.length === 0 && allZones.length === 0 && (
           <div className="absolute bottom-6 left-6 z-[1000]">
@@ -1658,7 +1767,7 @@ export default function MapView({
                 <div>
                   <div className="font-bold text-emerald-400 text-sm">You&apos;re in the clear</div>
                   <div className="text-xs text-slate-300 mt-0.5 leading-relaxed">
-                    No active disruptions within <span className="font-semibold text-white">{nearMeRadius} km</span> of your location.
+                    No active disruptions within <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>{nearMeRadius} km</span> of your location.
                     Active disruptions exist elsewhere in Jabodetabek — stay informed.
                   </div>
                 </div>

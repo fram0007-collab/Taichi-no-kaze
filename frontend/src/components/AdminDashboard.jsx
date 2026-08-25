@@ -24,6 +24,25 @@ function fmtRows(n) {
   return String(n);
 }
 
+function adminTheme(isLight) {
+  return {
+    pageBg: isLight ? 'bg-slate-100' : 'bg-brand-dark/40',
+    panel: isLight ? 'bg-white border border-slate-200 shadow-premium' : 'glass-panel shadow-premium',
+    title: isLight ? 'text-slate-900' : 'text-slate-100',
+    muted: isLight ? 'text-slate-600' : 'text-slate-400',
+    label: isLight ? 'text-slate-500' : 'text-slate-400',
+    input: isLight
+      ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-indigo-500'
+      : 'bg-slate-900/60 border-slate-800 text-slate-100 placeholder-slate-600 focus:border-indigo-500',
+    headerBorder: isLight ? 'border-slate-200' : 'border-slate-800',
+    countdownBg: isLight ? 'bg-white border-slate-200' : 'bg-slate-950/40 border-slate-900',
+    buttonSecondary: isLight
+      ? 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:border-slate-300'
+      : 'bg-slate-900 border-slate-800 text-slate-200 hover:text-slate-100 hover:border-slate-700',
+    shellBg: isLight ? 'bg-slate-50' : '',
+  };
+}
+
 // ------------------------------------------------------------------
 // Sub-components
 // ------------------------------------------------------------------
@@ -86,13 +105,13 @@ function JobsTable({ jobs }) {
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-slate-800 bg-slate-900/50">
-            <th className="text-left px-5 py-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider">Job</th>
-            <th className="text-left px-4 py-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider">Description</th>
-            <th className="text-center px-4 py-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider">Interval</th>
-            <th className="text-center px-4 py-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider">Last Run</th>
-            <th className="text-center px-4 py-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider">Next Run</th>
-            <th className="text-center px-4 py-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider">Next Run In</th>
-            <th className="text-center px-4 py-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider">Status</th>
+            <th className="text-left px-5 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Job</th>
+            <th className="text-left px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Description</th>
+            <th className="text-center px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Interval</th>
+            <th className="text-center px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Last Run</th>
+            <th className="text-center px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Next Run</th>
+            <th className="text-center px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Next Run In</th>
+            <th className="text-center px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Status</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-800/60">
@@ -104,23 +123,23 @@ function JobsTable({ jobs }) {
                   <span className="text-base">{job.icon}</span>
                   <div>
                     <p className="font-semibold text-slate-200 leading-tight">{job.name}</p>
-                    <p className="text-[9px] text-slate-600 font-mono mt-0.5">{job.id}</p>
+                    <p className="text-xs text-slate-600 font-mono mt-0.5">{job.id}</p>
                   </div>
                 </div>
               </td>
               {/* Description */}
-              <td className="px-4 py-3.5 text-slate-500 text-[10px] max-w-[220px]">{job.description}</td>
+              <td className="px-4 py-3.5 text-slate-500 text-xs max-w-[220px]">{job.description}</td>
               {/* Interval */}
               <td className="px-4 py-3.5 text-center">
-                <span className="text-[11px] font-bold text-slate-300">Every {job.interval_minutes}<span className="text-slate-500 font-normal"> min</span></span>
+                <span className="text-xs font-bold text-slate-300">Every {job.interval_minutes}<span className="text-slate-500 font-normal"> min</span></span>
               </td>
               {/* Last Run */}
               <td className="px-4 py-3.5 text-center">
-                <span className="font-mono text-[11px] text-slate-400">{fmtDateTime(job.last_run)}</span>
+                <span className="font-mono text-xs text-slate-400">{fmtDateTime(job.last_run)}</span>
               </td>
               {/* Next Run */}
               <td className="px-4 py-3.5 text-center">
-                <span className="font-mono text-[11px] text-slate-400">{fmtDateTime(job.next_run)}</span>
+                <span className="font-mono text-xs text-slate-400">{fmtDateTime(job.next_run)}</span>
               </td>
               {/* Countdown */}
               <td className="px-4 py-3.5">
@@ -133,7 +152,7 @@ function JobsTable({ jobs }) {
               </td>
               {/* Status */}
               <td className="px-4 py-3.5 text-center">
-                <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                <span className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
                   <Activity className="w-2.5 h-2.5" />
                   <span>ACTIVE</span>
                 </span>
@@ -198,7 +217,7 @@ function DbStatsPanel({ stats }) {
       {/* Data table */}
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-800/60 bg-slate-900/30 text-slate-500 font-bold uppercase tracking-wider text-[11px] md:text-xs">
+          <tr className="border-b border-slate-800/60 bg-slate-900/30 text-slate-500 font-bold uppercase tracking-wider text-xs md:text-xs">
             <th className="text-left px-5 py-2.5">Table Name</th>
             <th className="text-right px-5 py-2.5">Row Count</th>
             <th className="text-right px-5 py-2.5">Size</th>
@@ -224,7 +243,7 @@ function DbStatsPanel({ stats }) {
                       {Number(t.row_count).toLocaleString()}
                     </span>
                     {t.row_count_live !== undefined && (
-                      <span className="text-[10px] md:text-xs font-sans text-slate-500 mt-0.5">
+                      <span className="text-xs md:text-xs font-sans text-slate-500 mt-0.5">
                         <span className="text-emerald-400 font-semibold">{t.row_count_live}</span> live · <span className="text-amber-400 font-semibold">{t.row_count_simulated}</span> sim
                       </span>
                     )}
@@ -265,14 +284,14 @@ function RuleRow({ rule, index }) {
         className="w-full flex items-center justify-between px-4 py-3 text-left"
       >
         <div className="flex items-center space-x-3">
-          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+          <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full border ${
             rule.fired ? 'text-amber-300 bg-amber-500/15 border-amber-500/30' : 'text-slate-500 bg-slate-800 border-slate-700'
           }`}>
             {rule.id.toUpperCase()}
           </span>
           <span className="text-xs font-semibold text-slate-200">{rule.name}</span>
           {rule.fired && (
-            <span className="flex items-center space-x-1 text-[10px] font-bold text-amber-300">
+            <span className="flex items-center space-x-1 text-xs font-bold text-amber-300">
               <Zap className="w-3 h-3" /><span>FIRED</span>
             </span>
           )}
@@ -282,17 +301,17 @@ function RuleRow({ rule, index }) {
 
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t border-slate-800">
-          <p className="text-[10px] text-slate-500 pt-3">{rule.description}</p>
+          <p className="text-xs text-slate-500 pt-3">{rule.description}</p>
 
           {/* Inputs table */}
           {rule.inputs && (
             <div>
-              <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1.5">Inputs</p>
+              <p className="text-xs uppercase font-bold text-slate-500 tracking-wider mb-1.5">Inputs</p>
               <div className="grid grid-cols-2 gap-1">
                 {Object.entries(rule.inputs).map(([k, v]) => (
                   <div key={k} className="flex justify-between items-center bg-slate-950/60 rounded-lg px-2.5 py-1.5">
-                    <span className="text-[10px] text-slate-500 font-mono">{k}</span>
-                    <span className="text-[10px] text-slate-300 font-semibold font-mono ml-2">
+                    <span className="text-xs text-slate-500 font-mono">{k}</span>
+                    <span className="text-xs text-slate-300 font-semibold font-mono ml-2">
                       {Array.isArray(v) ? v.join(', ') : String(v ?? '—')}
                     </span>
                   </div>
@@ -302,7 +321,7 @@ function RuleRow({ rule, index }) {
           )}
 
           {/* Verdict */}
-          <div className={`rounded-lg px-3 py-2 text-[11px] border ${
+          <div className={`rounded-lg px-3 py-2 text-xs border ${
             rule.fired
               ? 'bg-amber-500/10 border-amber-500/20 text-amber-200'
               : 'bg-slate-900/60 border-slate-800 text-slate-400'
@@ -314,9 +333,9 @@ function RuleRow({ rule, index }) {
           {/* Rule 3 applications */}
           {isRule3 && rule.applications && rule.applications.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Scaling Applications</p>
+              <p className="text-xs uppercase font-bold text-slate-500 tracking-wider">Scaling Applications</p>
               {rule.applications.map((app, i) => (
-                <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 border text-[10px] ${
+                <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 border text-xs ${
                   app.applied
                     ? 'bg-amber-500/10 border-amber-500/20 text-amber-200'
                     : 'bg-slate-900/50 border-slate-800 text-slate-500'
@@ -328,7 +347,7 @@ function RuleRow({ rule, index }) {
                       : `${app.original_prob_pct}% (no change)`
                     }
                   </span>
-                  <span className="text-[9px] max-w-[180px] truncate text-right">{app.reason}</span>
+                  <span className="text-xs max-w-[180px] truncate text-right">{app.reason}</span>
                 </div>
               ))}
             </div>
@@ -337,12 +356,12 @@ function RuleRow({ rule, index }) {
           {/* Output */}
           {rule.output && (
             <div>
-              <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1.5">Generated Prediction</p>
+              <p className="text-xs uppercase font-bold text-slate-500 tracking-wider mb-1.5">Generated Prediction</p>
               <div className="grid grid-cols-2 gap-1">
                 {Object.entries(rule.output).map(([k, v]) => (
                   <div key={k} className="flex justify-between items-center bg-slate-950/60 rounded-lg px-2.5 py-1.5">
-                    <span className="text-[10px] text-slate-500 font-mono">{k}</span>
-                    <span className={`text-[10px] font-semibold font-mono ml-2 ${
+                    <span className="text-xs text-slate-500 font-mono">{k}</span>
+                    <span className={`text-xs font-semibold font-mono ml-2 ${
                       k === 'risk_level' ? (RISK_COLORS[v] || 'text-slate-300').split(' ')[0] : 'text-emerald-300'
                     }`}>
                       {String(v)}
@@ -380,24 +399,24 @@ function ZoneDebugCard({ trace }) {
             : <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />}
           <div>
             <h4 className="text-sm font-bold text-slate-100">{trace.zone_name}</h4>
-            <p className="text-[10px] text-slate-500">
+            <p className="text-xs text-slate-500">
               Vuln: {(trace.vulnerability * 100).toFixed(1)}% · Baseline: {trace.speed_baseline_kmh} km/h · Cap: {trace.max_capacity.toLocaleString()}
             </p>
           </div>
         </div>
         <div className="flex items-center space-x-2 shrink-0">
           {firedCount > 0 && (
-            <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
               {firedCount} rule{firedCount > 1 ? 's' : ''} fired
             </span>
           )}
           {topRisk && (
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${RISK_COLORS[topRisk]}`}>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${RISK_COLORS[topRisk]}`}>
               {topRisk}
             </span>
           )}
           {!hasPredictions && (
-            <span className="text-[10px] font-bold text-slate-500 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold text-slate-500 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full">
               No Prediction
             </span>
           )}
@@ -412,7 +431,7 @@ function ZoneDebugCard({ trace }) {
 
           {hasPredictions && (
             <div className="mt-3 pt-3 border-t border-slate-800">
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider mb-2 flex items-center space-x-1">
+              <p className="text-xs uppercase font-bold text-slate-400 tracking-wider mb-2 flex items-center space-x-1">
                 <BarChart3 className="w-3 h-3" /><span>Final Composite Score(s)</span>
               </p>
               <div className="space-y-1.5">
@@ -422,7 +441,7 @@ function ZoneDebugCard({ trace }) {
                   }`}>
                     <span className="text-xs font-bold">{pred.disruption_type}</span>
                     <span className="text-xl font-extrabold tabular-nums">{pred.probability_pct}%</span>
-                    <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                    <span className={`text-xs font-extrabold uppercase tracking-wider ${
                       (RISK_COLORS[pred.risk_level] || '').split(' ')[0]
                     }`}>{pred.risk_level}</span>
                   </div>
@@ -447,7 +466,7 @@ function ScoringDebugPanel({ data, loading, onFetch }) {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-100">Predictive Scoring — Debug Trace</h3>
-            <p className="text-[10px] text-slate-500">
+            <p className="text-xs text-slate-500">
               Dry-run · read-only · no DB writes
               {data && (
                 <span className="ml-2 text-slate-600">
@@ -460,7 +479,7 @@ function ScoringDebugPanel({ data, loading, onFetch }) {
         <button
           onClick={onFetch}
           disabled={loading}
-          className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-slate-100 text-xs font-bold transition-all shadow-md disabled:opacity-50"
+          className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-slate-100 text-xs font-bold transition-all shadow-md disabled:bg-violet-600/50 disabled:cursor-not-allowed"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>{loading ? 'Running…' : 'Run Debug Trace'}</span>
@@ -471,7 +490,7 @@ function ScoringDebugPanel({ data, loading, onFetch }) {
         <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
           <FlaskConical className="w-8 h-8 text-slate-700" />
           <p className="text-sm text-slate-500">Click <span className="font-bold text-violet-400">Run Debug Trace</span> to execute a dry-run of the scoring engine</p>
-          <p className="text-[10px] text-slate-600 max-w-sm">
+          <p className="text-xs text-slate-600 max-w-sm">
             Reads live data from Oracle DB (traffic, weather, telemetry) and walks through
             each of the 3 scoring rules — no predictions are written.
           </p>
@@ -562,7 +581,7 @@ function WorkerStatusPanel({ worker, jobs }) {
         </div>
         <div>
           <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Ingestion &amp; Analytics Worker Status</h4>
-          <p className="text-[9px] text-slate-500 mt-0.5">Real-time health monitoring of background scraping and predictive analytics loops</p>
+          <p className="text-xs text-slate-500 mt-0.5">Real-time health monitoring of background scraping and predictive analytics loops</p>
         </div>
       </div>
 
@@ -573,10 +592,10 @@ function WorkerStatusPanel({ worker, jobs }) {
             <Activity className={`w-8 h-8 ${statusConfig.iconColor} ${status === 'normal' ? 'animate-pulse' : ''}`} />
           </div>
           <div>
-            <span className={`inline-block text-[10px] font-extrabold px-3 py-1 rounded-full border tracking-wide ${statusConfig.color}`}>
+            <span className={`inline-block text-xs font-extrabold px-3 py-1 rounded-full border tracking-wide ${statusConfig.color}`}>
               {statusConfig.label}
             </span>
-            <p className="text-[11px] text-slate-400 mt-2 max-w-[240px] leading-relaxed">
+            <p className="text-xs text-slate-400 mt-2 max-w-[240px] leading-relaxed">
               {statusConfig.desc}
             </p>
           </div>
@@ -586,16 +605,16 @@ function WorkerStatusPanel({ worker, jobs }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:col-span-2">
           {/* Card 1: Last Active Run */}
           <div className="bg-slate-950/30 p-5 rounded-2xl border border-slate-800/60 flex flex-col justify-between">
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Last Sync Event</span>
+            <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">Last Sync Event</span>
             <div className="mt-2">
               <h3 className="text-xl font-bold text-slate-100 font-mono">
                 {last_run !== 'Never' ? new Date(last_run).toLocaleTimeString('id-ID') : 'Never'}
               </h3>
-              <p className="text-[10px] text-indigo-400 mt-0.5 font-bold">
+              <p className="text-xs text-indigo-400 mt-0.5 font-bold">
                 {minutes_since_last_run !== null ? `⏱️ ${minutes_since_last_run} minutes ago` : 'Never polled'}
               </p>
             </div>
-            <div className="text-[9px] text-slate-500 border-t border-slate-800/80 pt-2 mt-3 flex justify-between">
+            <div className="text-xs text-slate-500 border-t border-slate-800/80 pt-2 mt-3 flex justify-between">
               <span>Sync Interval</span>
               <span className="font-semibold text-slate-400">15 minutes</span>
             </div>
@@ -603,16 +622,16 @@ function WorkerStatusPanel({ worker, jobs }) {
 
           {/* Card 2: Uptime SLA */}
           <div className="bg-slate-950/30 p-5 rounded-2xl border border-slate-800/60 flex flex-col justify-between">
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Worker Ingestion SLA</span>
+            <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">Worker Ingestion SLA</span>
             <div className="mt-2">
               <h3 className="text-3xl font-extrabold text-slate-100 tabular-nums">
                 {uptime_sla_percentage.toFixed(2)}%
               </h3>
-              <p className="text-[10px] text-emerald-400 mt-0.5 font-bold">
+              <p className="text-xs text-emerald-400 mt-0.5 font-bold">
                 ✓ Meets 99.5% Target SLA
               </p>
             </div>
-            <div className="text-[9px] text-slate-500 border-t border-slate-800/80 pt-2 mt-3 flex justify-between">
+            <div className="text-xs text-slate-500 border-t border-slate-800/80 pt-2 mt-3 flex justify-between">
               <span>Total Snapshots</span>
               <span className="font-semibold text-slate-400 font-mono">{total_ingested_snapshots.toLocaleString()}</span>
             </div>
@@ -620,7 +639,7 @@ function WorkerStatusPanel({ worker, jobs }) {
 
           {/* SLA Breakdown Row across cols */}
           <div className="sm:col-span-2 bg-slate-950/20 p-4 rounded-2xl border border-slate-800/55">
-            <h5 className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2.5">API Request Success Rate SLA</h5>
+            <h5 className="text-xs uppercase font-bold text-slate-400 tracking-wider mb-2.5">API Request Success Rate SLA</h5>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {Object.entries(api_sla || {}).map(([key, val]) => (
                 <div key={key} className="bg-slate-950/50 p-2.5 rounded-xl border border-slate-900/80 flex items-center justify-between text-xs">
@@ -637,8 +656,8 @@ function WorkerStatusPanel({ worker, jobs }) {
       {jobs && jobs.length > 0 && (
         <div className="bg-slate-950/20 p-5 rounded-2xl border border-slate-800/50 space-y-4">
           <div className="flex items-center justify-between">
-            <h5 className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Dynamic Ingestion &amp; Analytics Workers ({jobs.length})</h5>
-            <span className="text-[9px] text-slate-500 font-mono">Auto-discovered via Scheduler Registry</span>
+            <h5 className="text-xs uppercase font-bold text-slate-400 tracking-wider">Dynamic Ingestion &amp; Analytics Workers ({jobs.length})</h5>
+            <span className="text-xs text-slate-500 font-mono">Auto-discovered via Scheduler Registry</span>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -649,19 +668,19 @@ function WorkerStatusPanel({ worker, jobs }) {
                     <span className="text-lg">{job.icon}</span>
                     <div>
                       <h6 className="text-xs font-bold text-slate-200 leading-tight">{job.name}</h6>
-                      <span className="text-[9px] text-slate-500 font-medium">ID: {job.id}</span>
+                      <span className="text-xs text-slate-500 font-medium">ID: {job.id}</span>
                     </div>
                   </div>
-                  <span className="inline-flex items-center text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                  <span className="inline-flex items-center text-xs font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
                     ● ACTIVE
                   </span>
                 </div>
                 
-                <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed min-h-[30px]">
+                <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed min-h-[30px]">
                   {job.description}
                 </p>
                 
-                <div className="text-[9px] text-slate-500 border-t border-slate-800/60 pt-2 flex flex-col space-y-1 font-mono">
+                <div className="text-xs text-slate-500 border-t border-slate-800/60 pt-2 flex flex-col space-y-1 font-mono">
                   <div className="flex justify-between">
                     <span>Interval:</span>
                     <span className="text-slate-300 font-bold">{job.interval_minutes}m</span>
@@ -718,7 +737,7 @@ function SlaDashboardPanel({ data, loading, activeRange, onRangeChange }) {
             <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
             <span>External API SLA &amp; Performance Telemetry</span>
           </h3>
-          <p className="text-[10px] text-slate-500 mt-0.5">Real-time health index, network latencies, and total query counts</p>
+          <p className="text-xs text-slate-500 mt-0.5">Real-time health index, network latencies, and total query counts</p>
         </div>
         
         {/* Buttons Range Picker */}
@@ -752,8 +771,8 @@ function SlaDashboardPanel({ data, loading, activeRange, onRangeChange }) {
           return (
             <div key={key} className="glass-panel rounded-2xl p-5 border border-slate-800 shadow-lg flex flex-col justify-between h-44 relative overflow-hidden transition-all hover:border-slate-700">
               <div className="flex justify-between items-start">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider max-w-[170px] truncate">{service.name}</span>
-                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${statusColors}`}>
+                <span className="text-xs uppercase font-bold text-slate-400 tracking-wider max-w-[170px] truncate">{service.name}</span>
+                <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full border ${statusColors}`}>
                   {slaVal.toFixed(1)}% SLA
                 </span>
               </div>
@@ -763,7 +782,7 @@ function SlaDashboardPanel({ data, loading, activeRange, onRangeChange }) {
                   <span className="text-3xl font-extrabold text-slate-100 tabular-nums">
                     {service.total_count.toLocaleString()}
                   </span>
-                  <span className="text-[9px] uppercase font-semibold text-slate-500">API Calls</span>
+                  <span className="text-xs uppercase font-semibold text-slate-500">API Calls</span>
                 </div>
                 {/* Visual success bar */}
                 <div className="w-full bg-slate-950 h-1.5 rounded-full mt-2 overflow-hidden border border-slate-900/60">
@@ -778,7 +797,7 @@ function SlaDashboardPanel({ data, loading, activeRange, onRangeChange }) {
                 </div>
               </div>
 
-              <div className="flex justify-between items-center text-[10px] text-slate-500 mt-1 border-t border-slate-900 pt-2 font-mono">
+              <div className="flex justify-between items-center text-xs text-slate-500 mt-1 border-t border-slate-900 pt-2 font-mono">
                 <div className="flex items-center space-x-1">
                   <span className="text-emerald-400">●</span>
                   <span className="text-slate-400 font-bold">{service.success_count}</span>
@@ -811,10 +830,10 @@ function SlaDashboardPanel({ data, loading, activeRange, onRangeChange }) {
             </div>
             <div>
               <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Detailed External API Request Logs</h4>
-              <p className="text-[9px] text-slate-500 mt-0.5">Displaying the most recent 200 requests for audit inspection</p>
+              <p className="text-xs text-slate-500 mt-0.5">Displaying the most recent 200 requests for audit inspection</p>
             </div>
           </div>
-          <div className="flex items-center space-x-3 text-[10px]">
+          <div className="flex items-center space-x-3 text-xs">
             <div className="flex items-center space-x-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-900 font-mono">
               <span className="text-slate-500">Overall SLA:</span>
               <span className={`font-extrabold ${overallSla >= 99 ? 'text-emerald-400' : 'text-yellow-400'}`}>{overallSla}%</span>
@@ -830,7 +849,7 @@ function SlaDashboardPanel({ data, loading, activeRange, onRangeChange }) {
         <div className="overflow-x-auto w-full select-text">
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10 bg-slate-950 border-b border-slate-800 shadow-md">
-              <tr className="text-slate-500 font-bold uppercase tracking-wider text-[9px]">
+              <tr className="text-slate-500 font-bold uppercase tracking-wider text-xs">
                 <th className="text-left px-5 py-2.5">Request ID</th>
                 <th className="text-left px-4 py-2.5">Timestamp</th>
                 <th className="text-left px-4 py-2.5">External Service</th>
@@ -853,23 +872,23 @@ function SlaDashboardPanel({ data, loading, activeRange, onRangeChange }) {
 
                 return (
                   <tr key={req.id} className="hover:bg-slate-800/20 transition-colors">
-                    <td className="px-5 py-2 font-mono text-[10px] font-bold text-slate-400">{req.id}</td>
-                    <td className="px-4 py-2 font-mono text-[9px] text-slate-500">
+                    <td className="px-5 py-2 font-mono text-xs font-bold text-slate-400">{req.id}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-slate-500">
                       {new Date(req.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </td>
                     <td className="px-4 py-2 font-semibold text-slate-300">{req.service}</td>
-                    <td className="px-4 py-2 font-mono text-[9px] text-slate-500">{req.endpoint}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-slate-500">{req.endpoint}</td>
                     <td className="px-4 py-2 text-center">
-                      <span className={`inline-flex items-center text-[9px] font-bold px-2 py-0.5 rounded border ${statusPill}`}>
+                      <span className={`inline-flex items-center text-xs font-bold px-2 py-0.5 rounded border ${statusPill}`}>
                         {req.status_code}
                       </span>
                     </td>
-                    <td className={`px-4 py-2 text-right font-mono text-[10px] font-bold ${
+                    <td className={`px-4 py-2 text-right font-mono text-xs font-bold ${
                       req.latency_ms > 200 ? 'text-yellow-400' : 'text-slate-300'
                     }`}>
-                      {req.latency_ms} <span className="text-[9px] text-slate-600 font-normal">ms</span>
+                      {req.latency_ms} <span className="text-xs text-slate-600 font-normal">ms</span>
                     </td>
-                    <td className={`px-5 py-2 text-[10px] font-medium max-w-[200px] truncate ${
+                    <td className={`px-5 py-2 text-xs font-medium max-w-[200px] truncate ${
                       is200 ? 'text-slate-500' : is429 ? 'text-amber-300' : 'text-red-400 font-mono'
                     }`}>
                       {req.message}
@@ -888,7 +907,9 @@ function SlaDashboardPanel({ data, loading, activeRange, onRangeChange }) {
 // ------------------------------------------------------------------
 // Main Component
 // ------------------------------------------------------------------
-export default function AdminDashboard({ onBack }) {
+export default function AdminDashboard({ onBack, theme = 'light' }) {
+  const isLight = theme === 'light';
+  const t = adminTheme(isLight);
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(() =>
     !!sessionStorage.getItem('adminToken')
@@ -1185,27 +1206,27 @@ export default function AdminDashboard({ onBack }) {
   // --- Login Gate ---
   if (!isAuthenticated) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6 bg-brand-dark/40 min-h-[500px]">
-        <div className="w-full max-w-md glass-panel rounded-2xl p-8 space-y-6 shadow-premium">
+      <div className={`flex-1 flex items-center justify-center p-6 min-h-[500px] ${t.pageBg}`}>
+        <div className={`w-full max-w-md rounded-2xl p-8 space-y-6 ${t.panel}`}>
           <div className="flex flex-col items-center text-center space-y-2">
             <div className="p-3 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
               <Lock className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-100">Portal Security Access</h2>
-            <p className="text-xs text-slate-400 max-w-xs">
+            <h2 className={`text-xl font-bold tracking-tight ${t.title}`}>Portal Security Access</h2>
+            <p className={`text-xs max-w-xs ${t.muted}`}>
               This monitoring hub is protected. Input the administration passcode to decrypt connection vectors.
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Passcode</label>
+              <label className={`text-xs uppercase font-bold tracking-wider ${t.label}`}>Passcode</label>
               <input
                 type="password"
                 placeholder="••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-100 focus:outline-none focus:border-indigo-500 transition-all text-sm placeholder-slate-600"
+                className={`w-full px-4 py-3 rounded-xl border focus:outline-none transition-all text-sm ${t.input}`}
                 required
               />
             </div>
@@ -1232,24 +1253,24 @@ export default function AdminDashboard({ onBack }) {
   const progressPercent = (timeLeft / 180) * 100;
 
   return (
-    <div className="h-[calc(100vh-4rem)] w-full overflow-y-auto overflow-x-hidden">
+    <div className={`h-[calc(100vh-4rem)] w-full overflow-y-auto overflow-x-hidden ${t.shellBg}`}>
       <div className="p-6 flex flex-col space-y-6 w-full max-w-7xl mx-auto">
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-5 shrink-0">
+      <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b pb-5 shrink-0 ${t.headerBorder}`}>
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-100 tracking-tight flex items-center space-x-2.5">
+          <h1 className={`text-2xl font-extrabold tracking-tight flex items-center space-x-2.5 ${t.title}`}>
             <Cpu className="w-7 h-7 text-indigo-400 animate-pulse" />
             <span>Infrastructure Health Command</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className={`text-xs mt-1 ${t.muted}`}>
             Real-time Mutual TLS tunnel diagnostics, scheduler job states and DB metrics
           </p>
         </div>
 
         <div className="flex items-center space-x-4">
           {/* Countdown clock */}
-          <div className="flex items-center space-x-2.5 bg-slate-950/40 border border-slate-900 px-3 py-1.5 rounded-xl">
+          <div className={`flex items-center space-x-2.5 px-3 py-1.5 rounded-xl border ${t.countdownBg}`}>
             <div className="relative w-5 h-5 flex items-center justify-center">
               <svg className="absolute w-full h-full transform -rotate-90">
                 <circle cx="10" cy="10" r="8" stroke="rgba(255,255,255,0.05)" strokeWidth="2" fill="transparent" />
@@ -1257,15 +1278,15 @@ export default function AdminDashboard({ onBack }) {
                   strokeDasharray={50} strokeDashoffset={50 - (50 * progressPercent) / 100} />
               </svg>
             </div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">
-              Refresh: <span className="text-slate-100">{timeLeft}s</span>
+            <span className={`text-xs uppercase font-bold tracking-widest ${t.muted}`}>
+              Refresh: <span className={t.title}>{timeLeft}s</span>
             </span>
           </div>
 
           <button
             onClick={fetchStatusMetrics}
             disabled={loading}
-            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs font-semibold hover:text-slate-100 hover:border-slate-700 transition-all shrink-0 shadow-md"
+            className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl border text-xs font-semibold transition-all shrink-0 shadow-md ${t.buttonSecondary}`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Force Sweep</span>
@@ -1297,20 +1318,20 @@ export default function AdminDashboard({ onBack }) {
               <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 <Database className="w-5 h-5" />
               </div>
-              <span className="flex items-center space-x-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+              <span className="flex items-center space-x-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                 <CheckCircle className="w-3 h-3" />
                 <span>ONLINE</span>
               </span>
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Oracle Database</p>
+              <p className="text-xs uppercase font-bold tracking-wider text-slate-400">Oracle Database</p>
               <h2 className="text-3xl font-extrabold tracking-tight mt-1 text-slate-100">
                 {statusData.database.latency_ms} <span className="text-xs font-semibold text-slate-400">ms</span>
               </h2>
               
               {/* SQL Operations Rolling Windows */}
               {statusData.sql_operations && (
-                <div className="mt-2 pt-2 border-t border-slate-800/80 grid grid-cols-4 gap-1 text-center text-[10px] font-mono">
+                <div className="mt-2 pt-2 border-t border-slate-800/80 grid grid-cols-4 gap-1 text-center text-xs font-mono">
                   <div>
                     <p className="text-slate-500 font-sans text-[8px]">30s</p>
                     <p className="font-bold text-emerald-400">{statusData.sql_operations['30s']}</p>
@@ -1330,7 +1351,7 @@ export default function AdminDashboard({ onBack }) {
                 </div>
               )}
 
-              <div className="text-[10px] text-slate-500 mt-2.5 flex justify-between border-t border-slate-800/40 pt-1.5">
+              <div className="text-xs text-slate-500 mt-2.5 flex justify-between border-t border-slate-800/40 pt-1.5">
                 <span>{statusData.database.driver}</span>
                 <span className="font-semibold text-slate-400">Pool Connected</span>
               </div>
@@ -1343,17 +1364,17 @@ export default function AdminDashboard({ onBack }) {
               <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <Network className="w-5 h-5" />
               </div>
-              <span className="flex items-center space-x-1 text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+              <span className="flex items-center space-x-1 text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
                 <CheckCircle className="w-3 h-3" />
                 <span>ONLINE</span>
               </span>
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">{statusData.apis.tomtom.name}</p>
+              <p className="text-xs uppercase font-bold tracking-wider text-slate-400">{statusData.apis.tomtom.name}</p>
               <h2 className="text-3xl font-extrabold tracking-tight mt-1 text-slate-100">
                 {statusData.apis.tomtom.latency_ms} <span className="text-xs font-semibold text-slate-400">ms</span>
               </h2>
-              <div className="text-[10px] text-slate-500 mt-2 flex justify-between">
+              <div className="text-xs text-slate-500 mt-2 flex justify-between">
                 <span>Endpoint /absolute</span>
                 <span className="font-semibold text-slate-400">Traffic Ingress</span>
               </div>
@@ -1366,17 +1387,17 @@ export default function AdminDashboard({ onBack }) {
               <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <Network className="w-5 h-5" />
               </div>
-              <span className="flex items-center space-x-1 text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+              <span className="flex items-center space-x-1 text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
                 <CheckCircle className="w-3 h-3" />
                 <span>ONLINE</span>
               </span>
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">{statusData.apis.openmeteo.name}</p>
+              <p className="text-xs uppercase font-bold tracking-wider text-slate-400">{statusData.apis.openmeteo.name}</p>
               <h2 className="text-3xl font-extrabold tracking-tight mt-1 text-slate-100">
                 {statusData.apis.openmeteo.latency_ms} <span className="text-xs font-semibold text-slate-400">ms</span>
               </h2>
-              <div className="text-[10px] text-slate-500 mt-2 flex justify-between">
+              <div className="text-xs text-slate-500 mt-2 flex justify-between">
                 <span>Endpoint /forecast</span>
                 <span className="font-semibold text-slate-400">Weather Ingress</span>
               </div>
@@ -1389,17 +1410,17 @@ export default function AdminDashboard({ onBack }) {
               <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <Network className="w-5 h-5" />
               </div>
-              <span className="flex items-center space-x-1 text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+              <span className="flex items-center space-x-1 text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
                 <CheckCircle className="w-3 h-3" />
                 <span>ONLINE</span>
               </span>
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">{statusData.apis.telemetry.name}</p>
+              <p className="text-xs uppercase font-bold tracking-wider text-slate-400">{statusData.apis.telemetry.name}</p>
               <h2 className="text-3xl font-extrabold tracking-tight mt-1 text-slate-100">
                 {statusData.apis.telemetry.latency_ms} <span className="text-xs font-semibold text-slate-400">ms</span>
               </h2>
-              <div className="text-[10px] text-slate-500 mt-2 flex justify-between">
+              <div className="text-xs text-slate-500 mt-2 flex justify-between">
                 <span>PetaBencana/BPBD DKI</span>
                 <span className="font-semibold text-slate-400">Telemetry Ingress</span>
               </div>
@@ -1412,17 +1433,17 @@ export default function AdminDashboard({ onBack }) {
               <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <Network className="w-5 h-5" />
               </div>
-              <span className="flex items-center space-x-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+              <span className="flex items-center space-x-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                 <CheckCircle className="w-3 h-3" />
                 <span>ONLINE</span>
               </span>
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">{statusData.apis.bmkg?.name || 'BMKG Earthquake API'}</p>
+              <p className="text-xs uppercase font-bold tracking-wider text-slate-400">{statusData.apis.bmkg?.name || 'BMKG Earthquake API'}</p>
               <h2 className="text-3xl font-extrabold tracking-tight mt-1 text-slate-100">
                 {statusData.apis.bmkg?.latency_ms || '95.4'} <span className="text-xs font-semibold text-slate-400">ms</span>
               </h2>
-              <div className="text-[10px] text-slate-500 mt-2 flex justify-between">
+              <div className="text-xs text-slate-500 mt-2 flex justify-between">
                 <span>Endpoint /gempaterkini</span>
                 <span className="font-semibold text-slate-400">Earthquake Ingress</span>
               </div>
@@ -1451,7 +1472,7 @@ export default function AdminDashboard({ onBack }) {
         <div className="flex items-center space-x-2">
           <Clock className="w-4 h-4 text-indigo-400" />
           <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Scheduler Jobs &amp; DB Metrics</h2>
-          <span className="text-[10px] text-slate-500 ml-1">· APScheduler · Interval-based</span>
+          <span className="text-xs text-slate-500 ml-1">· APScheduler · Interval-based</span>
         </div>
         <JobsTable jobs={statusData?.jobs} />
         <DbStatsPanel stats={dbStats} />
@@ -1470,7 +1491,7 @@ export default function AdminDashboard({ onBack }) {
           <CheckCircle className="w-4 h-4 text-emerald-400" />
           <span>System Operation &amp; Wallet Audit Logs</span>
         </h3>
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1 font-mono text-[11px] text-slate-400 select-text">
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1 font-mono text-xs text-slate-400 select-text">
           {[
             ['INFO', 'Handshake Mutual TLS verified with oracle+oracledb thin client.'],
             ['INFO', 'Wallet directory successfully resolved at `/app/wallet` inside Docker container volume.'],
