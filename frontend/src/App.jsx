@@ -14,6 +14,7 @@ import Dashboard from './components/Dashboard';
 import NotificationPreferences from './components/NotificationPreferences';
 import EmergencyHelpModal from './components/EmergencyHelpModal';
 import AlertCard from './components/AlertCard';
+import BmkgEarthquakeList from './components/BmkgEarthquakeList';
 import AreaSearchInput from './components/AreaSearchInput';
 import NavigatePanel, { NavigateRouteBar } from './components/NavigatePanel';
 import PersonaPicker from './components/PersonaPicker';
@@ -1690,6 +1691,7 @@ export default function App() {
                     selectedNavigateRoute={selectedNavigateRoute}
                     suppressMapControls={showNotificationPreferences}
                     isMobile={isMobile}
+                    mapVisible={mobileTab === 'map'}
                     layerPreset={mapLayerPreset}
                     routeFitPadding={showEvacuation ? [72, 220] : [60, 60]}
                   />
@@ -1805,11 +1807,21 @@ export default function App() {
           )}
 
           {mobileTab === 'feed' && (
-            <div data-tour="sidebar-filters" className="overflow-y-auto p-4 space-y-4 bg-brand-dark text-slate-100 scrollbar-thin" style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div
+              data-tour="sidebar-filters"
+              className={`overflow-y-auto p-4 space-y-4 scrollbar-thin ${
+                theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-brand-dark text-slate-100'
+              }`}
+              style={{ height: 'calc(100dvh - 8rem)', paddingBottom: '1.5rem' }}
+            >
+              <div className={`flex items-center justify-between pb-2 border-b ${
+                theme === 'light' ? 'border-slate-200' : 'border-slate-800'
+              }`}>
                 <div className="flex items-center space-x-2">
                   <Bell className="w-5 h-5 text-indigo-400" />
-                  <h2 className="text-base font-bold text-slate-200">Nearby alerts</h2>
+                  <h2 className={`text-base font-bold ${theme === 'light' ? 'text-slate-900' : 'text-slate-200'}`}>
+                    Nearby alerts
+                  </h2>
                 </div>
                 <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                   {filteredPredictions.length} alerts
@@ -1844,7 +1856,9 @@ export default function App() {
               })()}
               
               {/* Severity Filter Tabs — 3 large toggles */}
-              <div className="grid grid-cols-3 gap-2 pb-2 border-b border-slate-800/40">
+              <div className={`grid grid-cols-3 gap-2 pb-2 border-b ${
+                theme === 'light' ? 'border-slate-200/80' : 'border-slate-800/40'
+              }`}>
                 {[
                   { id: 'all', label: 'All' },
                   { id: 'high_plus', label: 'High+' },
@@ -1858,7 +1872,9 @@ export default function App() {
                       className={`min-h-[44px] text-xs px-2 py-2 rounded-lg font-semibold border transition-all duration-200 ${
                         isActive
                           ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400 font-bold'
-                          : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
+                          : theme === 'light'
+                            ? 'border-slate-300 bg-slate-100 text-slate-600 hover:text-slate-900'
+                            : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       {tab.label}
@@ -1923,11 +1939,27 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setNearMeFilterActive(false)}
-                  className="w-full min-h-[44px] py-2.5 mt-2 rounded-xl border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800/50"
+                  className={`w-full min-h-[44px] py-2.5 mt-2 rounded-xl border text-xs font-semibold ${
+                    theme === 'light'
+                      ? 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                      : 'border-slate-700 text-slate-300 hover:bg-slate-800/50'
+                  }`}
                 >
                   See all of Jabodetabek
                 </button>
               )}
+
+              <BmkgEarthquakeList
+                earthquakes={earthquakes}
+                selectedEarthquake={selectedEarthquake}
+                onSelectEarthquake={setSelectedEarthquake}
+                theme={theme}
+                touchFriendly
+                onViewOnMap={(eq) => {
+                  setSelectedEarthquake(eq);
+                  setMobileTab('map');
+                }}
+              />
             </div>
           )}
 
@@ -2210,7 +2242,7 @@ export default function App() {
           </div>
 
           {/* Right panel: Timeline feeds, historical charts & trend lines */}
-          <div data-tour="sidebar-filters" className="flex w-[30%] min-w-[360px] h-full shrink-0">
+          <div data-tour="sidebar-filters" className="flex w-[32%] min-w-[400px] h-full shrink-0">
             <Sidebar 
               theme={theme}
               predictions={filteredPredictions}

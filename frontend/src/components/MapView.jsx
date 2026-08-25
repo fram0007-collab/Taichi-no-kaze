@@ -6,7 +6,11 @@ import 'leaflet/dist/leaflet.css';
 import { Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
-import { formatEarthquakeWhen } from '../utils/formatEarthquake';
+import {
+  formatEarthquakeWhen,
+  getEarthquakeImpactRadiusMeters,
+  getEarthquakeLatLng,
+} from '../utils/formatEarthquake';
 
 // Which disruption types each POI category can serve as shelter for.
 // Mirrors _DISRUPTION_SAFE_TIERS in backend/main.py — keep in sync if tiers change.
@@ -264,8 +268,37 @@ function WaterwayBufferLayer({ waterways, waterwayThreshold, waterwayBuffer, act
   );
 }
  
+function fitMapToEarthquake(map, eq, { isMobile = false, fitPadding = [60, 60] } = {}) {
+  const latLng = getEarthquakeLatLng(eq);
+  if (!latLng) return;
+
+  const radiusM = getEarthquakeImpactRadiusMeters(eq);
+  const bounds = L.latLng(latLng).toBounds(radiusM * 2.2);
+
+  const options = {
+    maxZoom: 12,
+    animate: true,
+    duration: 1.0,
+  };
+
+  if (isMobile) {
+    options.paddingTopLeft = [72, 40];
+    options.paddingBottomRight = [128, 40];
+  } else {
+    options.padding = fitPadding;
+  }
+
+  map.fitBounds(bounds, options);
+}
+
 // Controller component to dynamically pan/zoom the map view to the selected zone or earthquake
-function MapController({ selectedZone, selectedEarthquake }) {
+function MapController({
+  selectedZone,
+  selectedEarthquake,
+  mapVisible = true,
+  isMobile = false,
+  earthquakeFitPadding = [60, 60],
+}) {
   const map = useMap();
   
   useEffect(() => {
@@ -282,10 +315,20 @@ function MapController({ selectedZone, selectedEarthquake }) {
         
         map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14, animate: true, duration: 1.2 });
       }
-    } else if (selectedEarthquake) {
-      map.setView([selectedEarthquake.latitude, selectedEarthquake.longitude], 12, { animate: true, duration: 1.2 });
+      return undefined;
     }
-  }, [selectedZone, selectedEarthquake, map]);
+
+    if (!selectedEarthquake || !mapVisible) return undefined;
+
+    const fit = () => fitMapToEarthquake(map, selectedEarthquake, { isMobile, fitPadding: earthquakeFitPadding });
+
+    fit();
+    map.invalidateSize({ pan: false });
+
+    // Re-fit after Leaflet remeasures the container (mobile tab switch / flex layout settle)
+    const timers = [50, 300, 700].map((ms) => setTimeout(fit, ms));
+    return () => timers.forEach(clearTimeout);
+  }, [selectedZone, selectedEarthquake, mapVisible, isMobile, earthquakeFitPadding, map]);
  
   return null;
 }
@@ -294,11 +337,11 @@ function MapController({ selectedZone, selectedEarthquake }) {
  * Zooms the map to the user's location and the Near Me radius (e.g. 5 km).
  * Re-runs when location is obtained/refreshed or when the radius slider changes.
  */
-function UserLocationController({ userLocation, nearMeRadius = 5, enabled = true }) {
+function UserLocationController({ userLocation, nearMeRadius = 5, enabled = true, selectedEarthquake = null }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!enabled || !userLocation?.lat || !userLocation?.lon) return;
+    if (!enabled || selectedEarthquake || !userLocation?.lat || !userLocation?.lon) return;
 
     const radiusKm = Math.max(1, Number(nearMeRadius) || 5);
     // LatLng.toBounds(sizeInMeters): each edge is size/2 meters from center → pass diameter
@@ -310,7 +353,7 @@ function UserLocationController({ userLocation, nearMeRadius = 5, enabled = true
       animate: true,
       duration: 0.9,
     });
-  }, [userLocation, nearMeRadius, enabled, map]);
+  }, [userLocation, nearMeRadius, enabled, selectedEarthquake, map]);
 
   return null;
 }
@@ -339,7 +382,7 @@ function MapClickListener({ onClearSelectedEarthquake }) {
  * real size, then call invalidateSize() to force Leaflet to remeasure.
  * Also call on multiple delays as a safety net.
  */
-function MapSizeInvalidator() {
+function MapSizeInvalidator({ selectedEarthquake = null, isMobile = false }) {
   const map = useMap();
 
   useEffect(() => {
@@ -354,6 +397,9 @@ function MapSizeInvalidator() {
         `| map.getSize(): ${size.x}x${size.y}`
       );
       map.invalidateSize({ pan: false });
+      if (selectedEarthquake) {
+        fitMapToEarthquake(map, selectedEarthquake, { isMobile });
+      }
     };
 
     const timers = [
@@ -374,7 +420,7 @@ function MapSizeInvalidator() {
       timers.forEach(clearTimeout);
       if (ro) ro.disconnect();
     };
-  }, [map]);
+  }, [map, selectedEarthquake, isMobile]);
 
   return null;
 }
@@ -438,6 +484,7 @@ export default function MapView({
   selectedNavigateRoute = 'safer',
   suppressMapControls = false,
   isMobile = false,
+  mapVisible = true,
   layerPreset = null,
   routeFitPadding = [60, 60],
 }) {
@@ -1295,13 +1342,15 @@ export default function MapView({
  
         {/* Render Earthquakes if active */}
         {activeLayers.earthquakes && earthquakes.map((eq, idx) => {
+          const latLng = getEarthquakeLatLng(eq);
+          if (!latLng) return null;
           const isMajor = eq.magnitude >= 6.0;
           const threatColor = isMajor ? '#EF4444' : '#F97316';
           return (
             <Circle
-              key={`eq-${eq.id || idx}`}
-              center={[eq.latitude, eq.longitude]}
-              radius={eq.magnitude * 5000}
+              key={`eq-${eq.id || eq.event_id || idx}`}
+              center={latLng}
+              radius={getEarthquakeImpactRadiusMeters(eq)}
               pathOptions={{
                 color: threatColor,
                 fillColor: threatColor,
@@ -1593,22 +1642,29 @@ export default function MapView({
         />
 
         {/* Fix Leaflet container size on mobile */}
-        <MapSizeInvalidator />
+        <MapSizeInvalidator selectedEarthquake={selectedEarthquake} isMobile={isMobile} />
 
         {/* Listen for selected zone changes and reposition camera */}
-        <MapController selectedZone={selectedZone?.zone} selectedEarthquake={selectedEarthquake} />
+        <MapController
+          selectedZone={selectedZone?.zone}
+          selectedEarthquake={selectedEarthquake}
+          mapVisible={mapVisible}
+          isMobile={isMobile}
+          earthquakeFitPadding={routeFitPadding}
+        />
         <UserLocationController
           userLocation={userLocation}
           nearMeRadius={nearMeRadius}
-          enabled={!evacuationRoute}
+          enabled={!evacuationRoute && nearMeFilterActive}
+          selectedEarthquake={selectedEarthquake}
         />
  
         {/* Map click listener to dismiss selection */}
         <MapClickListener onClearSelectedEarthquake={onClearSelectedEarthquake} />
  
         {/* Focus Popup for inspected earthquake */}
-        {selectedEarthquake && (
-          <Popup position={[selectedEarthquake.latitude, selectedEarthquake.longitude]} autoClose={false} closeOnClick={false}>
+        {selectedEarthquake && getEarthquakeLatLng(selectedEarthquake) && (
+          <Popup position={getEarthquakeLatLng(selectedEarthquake)} autoClose={false} closeOnClick={false}>
             <div className="font-sans p-2.5 !text-slate-900 dark:!text-slate-100 min-w-[200px]">
               <div className="flex items-center justify-between mb-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
                 <span className="font-bold text-sm text-slate-900 dark:text-slate-100">🚨 Earthquake Focus</span>

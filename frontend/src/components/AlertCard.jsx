@@ -62,21 +62,21 @@ export default function AlertCard({
             : 'border-slate-800 bg-slate-900/50 hover:bg-slate-900'
       }`}
     >
-      <div className="flex justify-between items-start gap-2">
-        <span className={`font-semibold text-sm ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
-          {zoneName}
-        </span>
+      <p className={`font-semibold text-sm leading-snug ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
+        {zoneName}
+      </p>
+
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <p className={`text-xs min-w-0 truncate ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+          {typeLabel(prediction.disruption_type)}
+        </p>
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${riskColor(risk, isLight)}`}>
           {risk}
         </span>
       </div>
 
-      <p className={`mt-1.5 text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-        {typeLabel(prediction.disruption_type)}
-      </p>
-
       {prediction.estimated_resolution_at && (
-        <div className="mt-2">
+        <div className={`mt-1.5 line-clamp-2 ${showDetails ? 'line-clamp-none' : ''}`}>
           <ResolutionBadgeCompact
             estimated_resolution_at={prediction.estimated_resolution_at}
             resolution_confidence={prediction.resolution_confidence}
@@ -85,14 +85,14 @@ export default function AlertCard({
         </div>
       )}
 
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-2 flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             setShowDetails((v) => !v);
           }}
-          className={`text-[11px] font-semibold ${isLight ? 'text-indigo-600' : 'text-indigo-400'}`}
+          className={`text-[11px] font-semibold shrink-0 ${isLight ? 'text-indigo-600' : 'text-indigo-400'}`}
         >
           {showDetails ? 'Hide details' : 'More details'}
         </button>
@@ -103,7 +103,7 @@ export default function AlertCard({
               e.stopPropagation();
               onSafeRoute(prediction);
             }}
-            className="text-[11px] font-bold px-2 py-1 rounded-lg bg-red-600 text-white"
+            className="text-[11px] font-bold px-2 py-1 rounded-lg bg-red-600 text-white shrink-0"
           >
             Safe route
           </button>

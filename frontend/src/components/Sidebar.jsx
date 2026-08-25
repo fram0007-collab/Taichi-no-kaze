@@ -4,7 +4,7 @@ import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { MlResolutionBadgeCompact } from './MlResolutionBadge';
 import { getApiUrl } from '../utils/getApiUrl';
 import { calculateDistanceKm } from '../utils/haversine';
-import { formatEarthquakeWhen } from '../utils/formatEarthquake';
+import BmkgEarthquakeList from './BmkgEarthquakeList';
 import { useMlResolution } from '../hooks/useMlResolution';
 import { 
   ResponsiveContainer, 
@@ -660,7 +660,7 @@ export default function Sidebar({
           })}
         </div>
         
-        <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
           {showingLowTier ? (
             lowZones.length === 0 ? (
               <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
@@ -1025,69 +1025,13 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* BMKG Earthquake Live Telemetry Section */}
-      <div className="pt-4 border-t border-slate-800/80">
-        <div className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-bold text-lg mb-3">
-          <Layers className="w-5 h-5 text-red-500 animate-pulse" />
-          <h2>BMKG Live Earthquakes</h2>
-        </div>
-        <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
-          {earthquakes.length === 0 ? (
-            <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl">
-              <p className="text-xs text-slate-600 dark:text-slate-500 font-medium">No recent earthquakes recorded.</p>
-            </div>
-          ) : (
-            earthquakes.map((eq, idx) => {
-              const isMajor = eq.magnitude >= 6.0;
-              const isSelected = selectedEarthquake && selectedEarthquake.datetime === eq.datetime && selectedEarthquake.latitude === eq.latitude;
-              return (
-                <div 
-                  key={eq.id || idx} 
-                  className={`p-3 rounded-lg border text-xs space-y-1.5 transition-all duration-200 ${
-                    isSelected 
-                      ? 'border-red-500 bg-red-500/10 shadow-[0_0_12px_rgba(239,68,68,0.25)]' 
-                      : (isLight
-                        ? 'border-slate-200 bg-white hover:border-slate-300'
-                        : 'border-slate-800 bg-slate-900/30 hover:border-slate-700/80')
-                  }`}
-                >
-                  <div className="flex justify-between items-center gap-2">
-                    <span className={`font-semibold truncate ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{eq.wilayah}</span>
-                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                      isMajor ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse' : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                    }`}>
-                      M {eq.magnitude.toFixed(1)}
-                    </span>
-                  </div>
-                  <div className={`flex justify-between text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>
-                    <span>{formatEarthquakeWhen(eq.datetime)}</span>
-                  </div>
-                  {eq.potensi && (
-                    <div className={`text-[9.5px] font-semibold italic border-t pt-1 mt-1 ${isLight ? 'text-indigo-600 border-slate-200' : 'text-indigo-400/90 border-slate-800/20'}`}>
-                      {eq.potensi}
-                    </div>
-                  )}
-                  <div className={`flex justify-between items-center pt-1.5 border-t ${isLight ? 'border-slate-200' : 'border-slate-800/20'}`}>
-                    <span className={`text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>Depth: {eq.depth}</span>
-                    <button
-                      onClick={() => onSelectEarthquake && onSelectEarthquake(isSelected ? null : eq)}
-                      className={`text-[9px] px-2 py-0.5 rounded font-extrabold tracking-wider uppercase transition-all duration-200 ${
-                        isSelected 
-                          ? 'bg-red-600 text-white shadow-glow animate-pulse'
-                          : (isLight
-                            ? 'bg-slate-800 text-white hover:bg-slate-700'
-                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white')
-                      }`}
-                    >
-                      {isSelected ? 'Viewing' : 'View'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+      <BmkgEarthquakeList
+        earthquakes={earthquakes}
+        selectedEarthquake={selectedEarthquake}
+        onSelectEarthquake={onSelectEarthquake}
+        theme={theme}
+        maxHeightClass="max-h-60"
+      />
 
 
 
