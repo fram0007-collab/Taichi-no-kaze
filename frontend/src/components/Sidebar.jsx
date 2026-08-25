@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import AlertCard from './AlertCard';
 import { ResolutionBadgeCompact } from './ResolutionBadge';
 import { MlResolutionBadgeCompact } from './MlResolutionBadge';
@@ -54,11 +54,31 @@ export default function Sidebar({
   const [showBaselineHelp, setShowBaselineHelp] = useState(false);
   const [showZoneDetails, setShowZoneDetails] = useState(false);
   const [helpTab, setHelpTab] = useState('read');
+  const baselineHelpRef = useRef(null);
   const { prediction: mlPrediction } = useMlResolution(selectedPrediction?.id);
 
   useEffect(() => {
     setShowZoneDetails(false);
+    setShowBaselineHelp(false);
   }, [selectedPrediction?.id]);
+
+  useEffect(() => {
+    if (!showBaselineHelp) return undefined;
+    const onDocClick = (e) => {
+      if (baselineHelpRef.current && !baselineHelpRef.current.contains(e.target)) {
+        setShowBaselineHelp(false);
+      }
+    };
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setShowBaselineHelp(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showBaselineHelp]);
 
   useEffect(() => {
     if (severityFilterRevision > 0) {
@@ -324,17 +344,62 @@ export default function Sidebar({
           <MlResolutionBadgeCompact alertId={selectedPrediction.id} theme={theme} />
 
           <div className="bg-slate-900/40 border border-slate-800/80 rounded-lg p-2.5 text-center">
-            <div className="flex items-center justify-center space-x-1.5">
+            <div ref={baselineHelpRef} className="relative flex items-center justify-center space-x-1.5">
               <p className="text-[10px] text-slate-400">Baseline Speed</p>
               <button
                 type="button"
-                onClick={() => setShowBaselineHelp(true)}
+                onClick={() => setShowBaselineHelp((v) => !v)}
+                aria-expanded={showBaselineHelp}
                 className="text-slate-400 hover:text-indigo-400 focus:outline-none transition-colors p-0.5 rounded-full"
                 title="What is baseline speed?"
                 aria-label="What is baseline speed?"
               >
                 <Info className="w-3 h-3" />
               </button>
+              {showBaselineHelp && (
+                <div
+                  role="dialog"
+                  aria-labelledby="baseline-speed-help-title"
+                  className={`absolute z-[2000] top-full right-0 mt-1.5 w-72 rounded-xl border border-t-2 border-t-indigo-500 p-3 text-left shadow-xl ${
+                    isLight
+                      ? 'bg-white border-slate-200 text-slate-900'
+                      : 'bg-slate-900 border-slate-700 text-slate-100'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center space-x-1.5 min-w-0">
+                      <Info className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <h3
+                        id="baseline-speed-help-title"
+                        className={`text-xs font-bold ${
+                          isLight ? 'text-slate-900' : 'text-slate-100'
+                        }`}
+                      >
+                        What is Baseline Speed?
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowBaselineHelp(false)}
+                      className={`shrink-0 rounded-full border p-1 transition ${
+                        isLight
+                          ? 'border-slate-300/80 text-slate-600 hover:border-indigo-500/60 hover:text-indigo-600'
+                          : 'border-slate-700 text-slate-300 hover:border-indigo-500/60 hover:text-indigo-400'
+                      }`}
+                      aria-label="Close baseline speed explanation"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <p
+                    className={`mt-2 text-xs leading-relaxed ${
+                      isLight ? 'text-slate-700' : 'text-slate-300'
+                    }`}
+                  >
+                    Baseline speed is how fast traffic usually moves in this area on a normal day. If traffic is much slower than that now, congestion may be building.
+                  </p>
+                </div>
+              )}
             </div>
             <p className="text-lg font-bold text-slate-200">
               {selectedPrediction?.zone?.traffic_speed_baseline ?? 'N/A'}{' '}
@@ -926,69 +991,6 @@ export default function Sidebar({
                   </section>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showBaselineHelp && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-          onClick={() => setShowBaselineHelp(false)}
-        >
-          <div
-            className={`w-full max-w-md rounded-2xl border p-5 shadow-2xl transition-all ${
-              isLight
-                ? 'bg-white border-slate-200/90 text-slate-900'
-                : 'bg-slate-900 border-slate-700/80 text-slate-100 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100'
-            }`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div
-              className={`flex items-start justify-between gap-3 border-b pb-3 ${
-                isLight ? 'border-slate-200/80' : 'border-slate-700/70 dark:border-slate-700/70'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <Info className="w-5 h-5 text-indigo-500 shrink-0" />
-                <h3
-                  className={`text-base font-bold ${
-                    isLight ? 'text-slate-900' : 'text-slate-100 dark:text-slate-100'
-                  }`}
-                >
-                  What is Baseline Speed?
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowBaselineHelp(false)}
-                className={`rounded-full border p-1.5 transition ${
-                  isLight
-                    ? 'border-slate-300/80 text-slate-600 hover:border-indigo-500/60 hover:text-indigo-600'
-                    : 'border-slate-700 text-slate-300 hover:border-indigo-500/60 hover:text-indigo-400 dark:border-slate-700 dark:text-slate-300'
-                }`}
-                aria-label="Close explanation modal"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div
-              className={`mt-4 text-sm leading-relaxed ${
-                isLight ? 'text-slate-700' : 'text-slate-300 dark:text-slate-300'
-              }`}
-            >
-              Baseline speed is the normal or expected traffic speed for this zone when there is no major disruption. DIS-RUPTURE compares live traffic speed with this baseline to estimate congestion and traffic risk. If current speed is much lower than the baseline, traffic risk may increase.
-            </div>
-
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowBaselineHelp(false)}
-                className="w-full sm:w-auto px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shadow-sm"
-              >
-                Got it
-              </button>
             </div>
           </div>
         </div>
