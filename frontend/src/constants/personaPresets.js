@@ -22,14 +22,14 @@ export const PERSONA_PRESETS = {
     id: 'kantor',
     label: 'Office commute',
     shortLabel: 'Office',
-    description: 'Traffic, flood, and weather within ~8 km',
+    description: 'Traffic, crowd, flood, and weather within ~8 km',
     radiusKm: 8,
     severityFilter: 'medium_plus',
     notificationTypes: {
       traffic: true,
       weather: true,
       flood: true,
-      crowd: false,
+      crowd: true,
       earthquake: false,
     },
     layers: {
@@ -37,6 +37,7 @@ export const PERSONA_PRESETS = {
       threat_traffic: true,
       threat_weather: true,
       threat_waterway: true,
+      threat_crowd: true,
     },
   },
   ojek: {
