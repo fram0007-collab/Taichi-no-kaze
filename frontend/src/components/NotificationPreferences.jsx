@@ -207,7 +207,7 @@ export default function NotificationPreferences({
             </p>
             <p className={`mt-2 text-xs ${previewMetaClasses}`}>
               {previewPayload?.safe_area
-                ? `This preview shows the same format used by push notifications. The severity, disruption type, area name, and risk score will change based on the detected alert. Recommended safe area: ${previewPayload.safe_area}.`
+                ? `This preview shows the same format used by push notifications. The severity, disruption type, area name, and risk score will change based on the detected alert. Recommended safe area: ${previewPayload.safe_area.name ?? 'a nearby safe area'}${previewPayload.safe_area.distance_km != null ? ` (${previewPayload.safe_area.distance_km} km)` : ''}.`
                 : 'Follow official emergency guidance and avoid the affected zone.'}
             </p>
           </div>
