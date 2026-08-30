@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 import { usePredictions } from './hooks/usePredictions';
+import { useLiveLocation } from './hooks/useLiveLocation';
+import { useNavigationSession } from './hooks/useNavigationSession';
 import Sidebar from './components/Sidebar';
 import BottomSheet from './components/BottomSheet';
 import EvacuationPanel from './components/EvacuationPanel';
@@ -18,6 +20,8 @@ import BmkgEarthquakeList from './components/BmkgEarthquakeList';
 import AreaSearchInput from './components/AreaSearchInput';
 import LocationOffChip from './components/LocationOffChip';
 import NavigatePanel, { NavigateRouteBar } from './components/NavigatePanel';
+import NavigationHeader from './components/NavigationHeader';
+import NavigationFooter from './components/NavigationFooter';
 import DestinationRadiusSlider from './components/DestinationRadiusSlider';
 import PersonaPicker from './components/PersonaPicker';
 import PersonaApplyConfirmModal from './components/PersonaApplyConfirmModal';
@@ -42,8 +46,10 @@ import {
 import { saveUserLocation } from './utils/idbLocation';
 import { saveNotificationPreferences } from './utils/idbPreferences';
 import { getGeolocationErrorMessage } from './utils/geolocationMessage';
+import { createGpsSimulator } from './utils/gpsSimulator.js';
 
 const MapView = lazy(() => import('./components/MapView'));
+const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY || '';
 
 const AREA_SEARCH_KEY = 'disruptionAreaSearch';
 const OJEK_GO_HINT_KEY = 'disruptureOjekGoHintDismissed';
@@ -137,7 +143,11 @@ function getPredictionKey(prediction) {
 }
 
 export default function App() {
-  const { predictions, loading, error, isFallback, refresh } = usePredictions();
+  const [mobileTab, setMobileTab] = useState('map'); // 'map', 'navigate', 'feed', 'settings'
+  const [driving, setDriving] = useState(false);
+  const { predictions, loading, error, isFallback, refresh } = usePredictions({
+    intervalMs: driving ? 20000 : 30000,
+  });
 
   const handleRouteReady = (geoJSON, destination) => {
     setEvacuationRoute(geoJSON);
@@ -148,7 +158,6 @@ export default function App() {
   const [timelineData, setTimelineData] = useState(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileTab, setMobileTab] = useState('map'); // 'map', 'navigate', 'feed', 'settings'
   const [nearestToastPlayKey, setNearestToastPlayKey] = useState(0);
   const [nearestToastConsumed, setNearestToastConsumed] = useState(false);
   const [nearestToastReady, setNearestToastReady] = useState(false);
@@ -332,6 +341,163 @@ export default function App() {
     setShowDesktopNavigate(false);
   };
 
+  const navSimEnabled = import.meta.env.DEV
+    && typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('navsim') === '1';
+
+  const { location: liveLocation, ingestFix } = useLiveLocation({
+    enabled: driving,
+    navigating: driving,
+    watch: driving && !navSimEnabled,
+  });
+
+  const navFix = useMemo(() => {
+    if (liveLocation) return liveLocation;
+    if (driving && userLocation) {
+      return {
+        lat: userLocation.lat,
+        lon: userLocation.lon,
+        accuracy: userLocation.accuracy,
+        heading: null,
+        speedKmh: 0,
+        timestamp: 0,
+      };
+    }
+    return null;
+  }, [liveLocation, driving, userLocation]);
+
+  const { session, switchVariant } = useNavigationSession({
+    enabled: driving && Boolean(navigateRoutes),
+    destination: navigateRoutes?.destination ?? null,
+    routes: navigateRoutes
+      ? { safer: navigateRoutes.safer, faster: navigateRoutes.faster }
+      : null,
+    activeKey: selectedNavigateRoute,
+    location: navFix,
+    predictions,
+    threatZones,
+    apiKey: TOMTOM_KEY,
+  });
+
+  const [navFollow, setNavFollow] = useState(true);
+  const [switchingKey, setSwitchingKey] = useState(null);
+  const [promptedZoneIds, setPromptedZoneIds] = useState(() => new Set());
+  const hapticRef = useRef({ man300: false, man50: false, zone: null });
+  const drivingRef = useRef(driving);
+  drivingRef.current = driving;
+
+  const startDriving = (routeKey) => {
+    if (!navigateRoutes) return;
+    if (routeKey === 'safer' || routeKey === 'faster') {
+      setSelectedNavigateRoute(navigateRoutes[routeKey] ? routeKey : (navigateRoutes.safer ? 'safer' : 'faster'));
+    }
+    if (!userLocation) {
+      locateUser();
+    }
+    setDriving(true);
+    setNavFollow(true);
+    setPromptedZoneIds(new Set());
+    setMobileTab('map');
+    setShowDesktopNavigate(false);
+    setSelectedPrediction(null);
+    setShowEvacuation(false);
+  };
+
+  const exitDriving = () => {
+    setDriving(false);
+    setSwitchingKey(null);
+  };
+
+  const handleSwitchVariant = async (key, promptZoneId) => {
+    if (promptZoneId != null) {
+      setPromptedZoneIds((prev) => new Set(prev).add(promptZoneId));
+    }
+    setSwitchingKey(key);
+    try {
+      await switchVariant(key);
+      setSelectedNavigateRoute(key);
+    } finally {
+      setSwitchingKey(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!driving || !liveLocation) return;
+    setUserLocation({
+      lat: liveLocation.lat,
+      lon: liveLocation.lon,
+      accuracy: liveLocation.accuracy,
+    });
+  }, [driving, liveLocation]);
+
+  useEffect(() => {
+    if (!driving || !session?.route || !session.activeKey) return;
+    setSelectedNavigateRoute(session.activeKey);
+    setNavigateRoutes((prev) => {
+      if (!prev) return prev;
+      const key = session.activeKey;
+      if (prev[key] === session.route) return prev;
+      return { ...prev, [key]: session.route };
+    });
+  }, [driving, session?.route, session?.activeKey]);
+
+  useEffect(() => {
+    if (!driving || !navSimEnabled || !ingestFix) return undefined;
+    const geom = navigateRoutes?.[selectedNavigateRoute]?.geometry
+      ?? navigateRoutes?.safer?.geometry
+      ?? navigateRoutes?.faster?.geometry;
+    const coords = geom?.coordinates;
+    if (!coords || coords.length < 2) return undefined;
+    const sim = createGpsSimulator({
+      coordinates: coords,
+      speedKmh: 45,
+      intervalMs: 400,
+      onFix: ingestFix,
+    });
+    sim.start();
+    return () => sim.stop();
+  }, [driving, navSimEnabled, ingestFix]);
+
+  useEffect(() => {
+    if (!driving || typeof navigator === 'undefined' || !navigator.wakeLock?.request) return undefined;
+    let released = false;
+    let sentinel;
+    navigator.wakeLock.request('screen').then((lock) => {
+      if (released) {
+        lock.release();
+        return;
+      }
+      sentinel = lock;
+    }).catch(() => {});
+    return () => {
+      released = true;
+      sentinel?.release();
+    };
+  }, [driving]);
+
+  useEffect(() => {
+    if (!driving || !session || typeof navigator === 'undefined' || !navigator.vibrate) return;
+    const d = session.distanceToManeuverM;
+    if (d < 50 && !hapticRef.current.man50) {
+      navigator.vibrate(40);
+      hapticRef.current.man50 = true;
+    } else if (d < 300 && d >= 50 && !hapticRef.current.man300) {
+      navigator.vibrate(20);
+      hapticRef.current.man300 = true;
+    }
+    if (d > 350) {
+      hapticRef.current.man300 = false;
+      hapticRef.current.man50 = false;
+    }
+    const nearby = session.nearbyDisruption;
+    const risk = nearby?.prediction?.risk_level;
+    const id = nearby?.prediction?.id;
+    if (nearby && (risk === 'High' || risk === 'Critical') && nearby.aheadM < 1000 && hapticRef.current.zone !== id) {
+      navigator.vibrate([30, 40, 30]);
+      hapticRef.current.zone = id;
+    }
+  }, [driving, session?.distanceToManeuverM, session?.nearbyDisruption]);
+
   // Earthquake states
   const [earthquakes, setEarthquakes] = useState([]);
   const [selectedEarthquake, setSelectedEarthquake] = useState(null);
@@ -442,12 +608,12 @@ export default function App() {
       && !userLocation && !locating && (!locationPromptSkipped || showLocationPrompt);
     const showLocationOffChip = onMapTab && mapUiReady
       && !userLocation && !locating && locationPromptSkipped && !showLocationPrompt;
-    const showNearMeStatusChip = onMapTab && mobileMapStatus && !showLargeLocationPrompt;
-    const showOjekHintNow = onMapTab && showOjekGoHint && persona === 'ojek'
+    const showNearMeStatusChip = onMapTab && !driving && mobileMapStatus && !showLargeLocationPrompt;
+    const showOjekHintNow = onMapTab && !driving && showOjekGoHint && persona === 'ojek'
       && userLocation && !showLargeLocationPrompt;
-    const showMapBottomEvacuationCta = onMapTab
+    const showMapBottomEvacuationCta = onMapTab && !driving
       && filteredPredictions.length > 0 && !showEvacuation;
-    const showLocateFab = onMapTab && !showMapBottomEvacuationCta;
+    const showLocateFab = onMapTab && !driving && !showMapBottomEvacuationCta;
 
     return {
       showLargeLocationPrompt,
@@ -470,6 +636,7 @@ export default function App() {
     persona,
     filteredPredictions.length,
     showEvacuation,
+    driving,
   ]);
 
   useEffect(() => {
@@ -1231,17 +1398,14 @@ export default function App() {
 
   // 1. Detect screen size dynamically for responsive switching
   useEffect(() => {
-    const NAV_HEIGHT = 64; // 4rem bottom nav
     const updateDimensions = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
       if (mobile) {
         const w = window.innerWidth;
-        const h = window.innerHeight - NAV_HEIGHT;
+        const h = window.innerHeight - (drivingRef.current ? 0 : 64);
         setMapWidth(w);
         setMapHeight(h);
-        // Force new MapContainer instance on resize/orientation so Leaflet
-        // measures fresh dimensions — prevents stale offset cache
         setMapKey(`mobile-${w}x${h}`);
       }
     };
@@ -1254,6 +1418,11 @@ export default function App() {
       window.removeEventListener('orientationchange', onOrient);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    setMapHeight(window.innerHeight - (driving ? 0 : 64));
+  }, [driving, isMobile]);
 
   // 2. Clear selected prediction if it was an active warning and is no longer in the updated active list
   useEffect(() => {
@@ -1797,10 +1966,18 @@ export default function App() {
                     mapVisible={mobileTab === 'map'}
                     layerPreset={mapLayerPreset}
                     routeFitPadding={routeFitPadding}
+                    navigationActive={driving}
+                    navigationSnap={session?.snapped}
+                    navigationHeading={session?.heading}
+                    navigationSpeedKmh={session?.speedKmh}
+                    navigationDistanceAlongM={session?.distanceAlongM}
+                    navigationDistanceToManeuverM={session?.distanceToManeuverM}
+                    navigationNearbyDisruption={session?.nearbyDisruption}
+                    onNavigationFollowChange={setNavFollow}
                   />
                 </MapViewGate>
               </div>
-              {navigateRoutes && mobileTab === 'map' && (
+              {navigateRoutes && mobileTab === 'map' && !driving && (
                 <div className="absolute left-3 right-3 z-[1260]" style={{ bottom: MOBILE_NAV_BOTTOM }}>
                   <NavigateRouteBar
                     destination={navigateRoutes.destination}
@@ -1814,11 +1991,38 @@ export default function App() {
                     radiusKm={destinationRadiusKm}
                     selectedPrediction={selectedPrediction}
                     onSelectPrediction={(pred) => handleSelectZone(pred, { expanded: false })}
+                    onStartNavigation={startDriving}
+                    zonesDefaultExpanded={false}
+                  />
+                </div>
+              )}
+
+              {driving && session && (
+                <div className="absolute inset-0 z-[1400] flex flex-col pointer-events-none">
+                  <NavigationHeader
+                    session={session}
+                    theme={theme}
+                    isMobile
+                    onExit={exitDriving}
+                    onSelectNearby={(pred) => handleSelectZone(pred, { expanded: false })}
+                  />
+                  <div className="flex-1" />
+                  <NavigationFooter
+                    session={session}
+                    predictions={predictions}
+                    theme={theme}
+                    isMobile
+                    follow={navFollow}
+                    onRecenter={() => setNavFollow(true)}
+                    onSwitchVariant={handleSwitchVariant}
+                    switchingKey={switchingKey}
+                    promptedZoneIds={promptedZoneIds}
                   />
                 </div>
               )}
 
               {/* Swipeable Drawer */}
+              {!driving && (
               <BottomSheet 
                 selectedPrediction={selectedPrediction}
                 onClose={() => setSelectedPrediction(null)}
@@ -1829,6 +2033,7 @@ export default function App() {
                 theme={theme}
                 defaultExpanded={bottomSheetExpanded}
               />
+              )}
 
               {/* Evacuation guidance trigger */}
               {mapOverlay.showMapBottomEvacuationCta && (
@@ -2244,6 +2449,7 @@ export default function App() {
           )}
 
           {/* Fixed Mobile Bottom Navigation Bar */}
+          {!driving && (
           <div 
             className="fixed bottom-0 left-0 right-0 w-full border-t border-slate-800/80 bg-brand-elevated/95 backdrop-blur-md flex items-center justify-around select-none shadow-[0_-4px_16px_rgba(0,0,0,0.4)]"
             style={{ 
@@ -2292,6 +2498,7 @@ export default function App() {
               <span className="text-[11px] font-bold tracking-wider uppercase">Settings</span>
             </button>
           </div>
+          )}
         </main>
       ) : (
         // Desktop Layout: Split view layout
@@ -2313,7 +2520,7 @@ export default function App() {
                 />
               </div>
             )}
-            {navigateRoutes && (
+            {navigateRoutes && !driving && (
               <div className="absolute left-4 right-4 bottom-4 z-[1260] max-w-md">
                 <NavigateRouteBar
                   destination={navigateRoutes.destination}
@@ -2327,7 +2534,33 @@ export default function App() {
                   radiusKm={destinationRadiusKm}
                   selectedPrediction={selectedPrediction}
                   onSelectPrediction={(pred) => handleSelectZone(pred, { expanded: false })}
+                  onStartNavigation={startDriving}
                 />
+              </div>
+            )}
+            {driving && session && (
+              <div className="absolute inset-0 z-[1400] flex flex-col pointer-events-none">
+                <NavigationHeader
+                  session={session}
+                  theme={theme}
+                  isMobile={false}
+                  onExit={exitDriving}
+                  onSelectNearby={(pred) => handleSelectZone(pred, { expanded: false })}
+                />
+                <div className="flex-1" />
+                <div className="max-w-md">
+                  <NavigationFooter
+                    session={session}
+                    predictions={predictions}
+                    theme={theme}
+                    isMobile={false}
+                    follow={navFollow}
+                    onRecenter={() => setNavFollow(true)}
+                    onSwitchVariant={handleSwitchVariant}
+                    switchingKey={switchingKey}
+                    promptedZoneIds={promptedZoneIds}
+                  />
+                </div>
               </div>
             )}
             {/* Dynamic KPIs */}
@@ -2365,6 +2598,14 @@ export default function App() {
                   isMobile={false}
                   layerPreset={mapLayerPreset}
                   routeFitPadding={routeFitPadding}
+                  navigationActive={driving}
+                  navigationSnap={session?.snapped}
+                  navigationHeading={session?.heading}
+                  navigationSpeedKmh={session?.speedKmh}
+                  navigationDistanceAlongM={session?.distanceAlongM}
+                  navigationDistanceToManeuverM={session?.distanceToManeuverM}
+                  navigationNearbyDisruption={session?.nearbyDisruption}
+                  onNavigationFollowChange={setNavFollow}
                 />
               </MapViewGate>
             </div>

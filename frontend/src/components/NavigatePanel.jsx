@@ -383,13 +383,15 @@ export function NavigateRouteBar({
   radiusKm,
   selectedPrediction,
   onSelectPrediction,
+  onStartNavigation,
+  zonesDefaultExpanded = true,
 }) {
   const isLight = theme === 'light';
-  const [zonesExpanded, setZonesExpanded] = useState(nearbyPredictions.length > 0);
+  const [zonesExpanded, setZonesExpanded] = useState(zonesDefaultExpanded && nearbyPredictions.length > 0);
 
   useEffect(() => {
-    setZonesExpanded(nearbyPredictions.length > 0);
-  }, [destination, nearbyPredictions.length]);
+    setZonesExpanded(zonesDefaultExpanded && nearbyPredictions.length > 0);
+  }, [destination, nearbyPredictions.length, zonesDefaultExpanded]);
 
   if (!safer && !faster) return null;
   const destName = destination?.name || 'Destination';
@@ -524,6 +526,16 @@ export function NavigateRouteBar({
             </div>
           )}
         </div>
+      )}
+
+      {onStartNavigation && (
+        <button
+          type="button"
+          onClick={() => onStartNavigation(selected)}
+          className="mt-3 w-full min-h-[48px] rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold tracking-wide"
+        >
+          Start Driving
+        </button>
       )}
     </div>
   );
