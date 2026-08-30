@@ -11,6 +11,7 @@ export default function NavigationHeader({
   session,
   theme = 'light',
   isMobile = true,
+  belowAppHeader = false,
   onExit,
   onSelectNearby,
 }) {
@@ -87,7 +88,11 @@ export default function NavigationHeader({
   return (
     <header
       className={`pointer-events-auto rounded-b-2xl border-b shadow-lg ${panel}`}
-      style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0px))' }}
+      style={
+        belowAppHeader
+          ? undefined
+          : { paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0px))' }
+      }
     >
       <div className="flex items-start gap-2 px-3 pb-2 pt-1">
         <div className="min-w-0 flex-1">{body}</div>

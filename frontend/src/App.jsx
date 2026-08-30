@@ -69,6 +69,7 @@ function getMobileMapStatus({ nearMeFilterActive, userLocation, nearbyPrediction
   return { tone: 'alert', title: `${n} alert${n === 1 ? '' : 's'} nearby`, detail: `Within ${nearMeRadius} km of you` };
 }
 
+const APP_HEADER_HEIGHT = '4rem'; // matches h-16 brand header
 const MOBILE_NAV_BOTTOM = 'calc(4rem + env(safe-area-inset-bottom, 0px))';
 const MOBILE_LOCATE_ABOVE_CTA = 'calc(4rem + 3.75rem + env(safe-area-inset-bottom, 0px))';
 
@@ -1800,7 +1801,10 @@ export default function App() {
           
           {/* Active View Selector */}
           {mobileTab === 'map' && (
-            <div className="relative flex flex-col w-full" style={{ height: mapHeight }}>
+            <div
+              className="relative flex flex-col w-full overflow-visible"
+              style={{ height: mapHeight }}
+            >
               {mapOverlay.showNearMeStatusChip && (
                 <div className="absolute top-3 left-3 right-16 z-[1200] pointer-events-none">
                   <div className={`mobile-map-status inline-flex max-w-full rounded-xl px-3 py-2 border backdrop-blur-md shadow-lg ${
@@ -1973,6 +1977,7 @@ export default function App() {
                     navigationDistanceAlongM={session?.distanceAlongM}
                     navigationDistanceToManeuverM={session?.distanceToManeuverM}
                     navigationNearbyDisruption={session?.nearbyDisruption}
+                    navigationFollow={navFollow}
                     onNavigationFollowChange={setNavFollow}
                   />
                 </MapViewGate>
@@ -1998,26 +2003,33 @@ export default function App() {
               )}
 
               {driving && session && (
-                <div className="absolute inset-0 z-[1400] flex flex-col pointer-events-none">
-                  <NavigationHeader
-                    session={session}
-                    theme={theme}
-                    isMobile
-                    onExit={exitDriving}
-                    onSelectNearby={(pred) => handleSelectZone(pred, { expanded: false })}
-                  />
-                  <div className="flex-1" />
-                  <NavigationFooter
-                    session={session}
-                    predictions={predictions}
-                    theme={theme}
-                    isMobile
-                    follow={navFollow}
-                    onRecenter={() => setNavFollow(true)}
-                    onSwitchVariant={handleSwitchVariant}
-                    switchingKey={switchingKey}
-                    promptedZoneIds={promptedZoneIds}
-                  />
+                <div
+                  className="fixed left-0 right-0 bottom-0 z-[1700] pointer-events-none"
+                  style={{ top: APP_HEADER_HEIGHT }}
+                >
+                  <div className="absolute top-0 left-0 right-0 pointer-events-auto">
+                    <NavigationHeader
+                      session={session}
+                      theme={theme}
+                      isMobile
+                      belowAppHeader
+                      onExit={exitDriving}
+                      onSelectNearby={(pred) => handleSelectZone(pred, { expanded: false })}
+                    />
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 pointer-events-auto">
+                    <NavigationFooter
+                      session={session}
+                      predictions={predictions}
+                      theme={theme}
+                      isMobile
+                      follow={navFollow}
+                      onRecenter={() => setNavFollow(true)}
+                      onSwitchVariant={handleSwitchVariant}
+                      switchingKey={switchingKey}
+                      promptedZoneIds={promptedZoneIds}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -2539,16 +2551,17 @@ export default function App() {
               </div>
             )}
             {driving && session && (
-              <div className="absolute inset-0 z-[1400] flex flex-col pointer-events-none">
-                <NavigationHeader
-                  session={session}
-                  theme={theme}
-                  isMobile={false}
-                  onExit={exitDriving}
-                  onSelectNearby={(pred) => handleSelectZone(pred, { expanded: false })}
-                />
-                <div className="flex-1" />
-                <div className="max-w-md">
+              <div className="absolute inset-0 z-[1400] pointer-events-none">
+                <div className="absolute top-0 left-0 right-0">
+                  <NavigationHeader
+                    session={session}
+                    theme={theme}
+                    isMobile={false}
+                    onExit={exitDriving}
+                    onSelectNearby={(pred) => handleSelectZone(pred, { expanded: false })}
+                  />
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 max-w-md">
                   <NavigationFooter
                     session={session}
                     predictions={predictions}
@@ -2605,6 +2618,7 @@ export default function App() {
                   navigationDistanceAlongM={session?.distanceAlongM}
                   navigationDistanceToManeuverM={session?.distanceToManeuverM}
                   navigationNearbyDisruption={session?.nearbyDisruption}
+                  navigationFollow={navFollow}
                   onNavigationFollowChange={setNavFollow}
                 />
               </MapViewGate>

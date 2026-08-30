@@ -567,6 +567,12 @@ function NavigationCameraController({
   }, [active, map, onFollowChange]);
 
   useEffect(() => {
+    if (!follow) {
+      lastAppliedRef.current = null;
+    }
+  }, [follow]);
+
+  useEffect(() => {
     if (!active || !follow || !Number.isFinite(lat) || !Number.isFinite(lon)) return undefined;
 
     const zoom = zoomForSpeed(speedKmh, { maneuverWithinM: distanceToManeuverM });
@@ -625,6 +631,7 @@ export default function MapView({
   navigationDistanceAlongM = 0,
   navigationDistanceToManeuverM = null,
   navigationNearbyDisruption = null,
+  navigationFollow = true,
   onNavigationFollowChange = null,
 }) {
   const isLight = theme === 'light';
@@ -634,14 +641,8 @@ export default function MapView({
     () => hasActiveRoute(evacuationRoute, navigateSaferRoute, navigateFasterRoute),
     [evacuationRoute, navigateSaferRoute, navigateFasterRoute]
   );
-  const [navFollow, setNavFollow] = useState(true);
-
-  useEffect(() => {
-    if (navigationActive) setNavFollow(true);
-  }, [navigationActive]);
 
   const handleNavFollowChange = (next) => {
-    setNavFollow(next);
     onNavigationFollowChange?.(next);
   };
 
@@ -975,7 +976,7 @@ export default function MapView({
  
   return (
     <div className="relative w-full h-full overflow-hidden">
-      {navigationActive && !navFollow && (
+      {navigationActive && !navigationFollow && (
         <button
           type="button"
           onClick={() => handleNavFollowChange(true)}
@@ -1937,7 +1938,7 @@ export default function MapView({
 
         <NavigationCameraController
           active={navigationActive}
-          follow={navFollow}
+          follow={navigationFollow}
           lat={puckPosition?.[0]}
           lon={puckPosition?.[1]}
           heading={navigationHeading}
