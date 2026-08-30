@@ -536,6 +536,7 @@ export default function MapView({
   navigateFasterRoute = null,
   routeDestination = null,
   selectedNavigateRoute = 'safer',
+  destinationRadiusKm = null,
   suppressMapControls = false,
   isMobile = false,
   mapVisible = true,
@@ -1207,6 +1208,22 @@ export default function MapView({
               </div>
             </Popup>
           </Marker>
+        )}
+
+        {/* Destination disruption-zone lookup radius — Navigate flow only */}
+        {(navigateSaferRoute || navigateFasterRoute) && routePinDestination && Number.isFinite(destinationRadiusKm) && (
+          <Circle
+            center={[routePinDestination.lat, routePinDestination.lon]}
+            radius={destinationRadiusKm * 1000}
+            interactive={false}
+            pathOptions={{
+              color: '#6366f1',
+              fillColor: '#6366f1',
+              fillOpacity: 0.05,
+              weight: 1,
+              dashArray: '4, 6',
+            }}
+          />
         )}
 
         {/* Render geofenced zones */}

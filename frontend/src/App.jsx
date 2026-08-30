@@ -18,6 +18,7 @@ import BmkgEarthquakeList from './components/BmkgEarthquakeList';
 import AreaSearchInput from './components/AreaSearchInput';
 import LocationOffChip from './components/LocationOffChip';
 import NavigatePanel, { NavigateRouteBar } from './components/NavigatePanel';
+import DestinationRadiusSlider from './components/DestinationRadiusSlider';
 import PersonaPicker from './components/PersonaPicker';
 import PersonaApplyConfirmModal from './components/PersonaApplyConfirmModal';
 import {
@@ -31,6 +32,7 @@ import { getPersona, savePersona } from './utils/personaPreferences';
 import { isOnboardingTourDone, markOnboardingTourDone } from './utils/onboardingPreferences';
 import { calculateDistanceKm } from './utils/haversine';
 import { normalizeEarthquake } from './utils/formatEarthquake';
+import { getPredictionZoneCenter, filterPredictionsNearPoint } from './utils/filterPredictionsNearPoint';
 import {
   getExistingPushSubscription,
   registerServiceWorker,
@@ -102,24 +104,18 @@ function readPersistedRadiusKm(defaultKm = 5) {
   }
 }
 
-function getPredictionZoneCenter(prediction) {
-  const zone = prediction?.zone ?? {};
-  if (typeof zone.latitude === 'number' && typeof zone.longitude === 'number') {
-    return { lat: zone.latitude, lon: zone.longitude };
-  }
+const DESTINATION_RADIUS_KEY = 'disruptureDestinationRadiusKm';
+const DEFAULT_DESTINATION_RADIUS_KM = 2;
 
-  const geometry = zone?.geometry;
-  const coordinates = geometry?.coordinates;
-  if (Array.isArray(coordinates) && coordinates.length > 0) {
-    const firstRing = Array.isArray(coordinates[0]) ? coordinates[0] : coordinates;
-    const firstPoint = Array.isArray(firstRing[0]) ? firstRing[0] : null;
-    if (Array.isArray(firstPoint) && firstPoint.length >= 2) {
-      const [lon, lat] = firstPoint;
-      return { lat, lon };
-    }
+function readPersistedDestinationRadiusKm(defaultKm = DEFAULT_DESTINATION_RADIUS_KM) {
+  try {
+    const raw = window.localStorage.getItem(DESTINATION_RADIUS_KEY);
+    if (!raw) return defaultKm;
+    const km = Number(raw);
+    return Number.isFinite(km) && km > 0 ? km : defaultKm;
+  } catch {
+    return defaultKm;
   }
-
-  return null;
 }
 
 function formatDisruptionType(type) {
@@ -194,6 +190,7 @@ export default function App() {
   const [navigateRoutes, setNavigateRoutes] = useState(null); // { destination, safer, faster, saferError }
   const [selectedNavigateRoute, setSelectedNavigateRoute] = useState('safer');
   const [showDesktopNavigate, setShowDesktopNavigate] = useState(false);
+  const [destinationRadiusKm, setDestinationRadiusKm] = useState(() => readPersistedDestinationRadiusKm());
   const [allZones, setAllZones] = useState([]); // all zone_status for LOW tier
   const [showDashboard, setShowDashboard] = useState(false);
   const [safePois, setSafePois] = useState([]);
@@ -240,6 +237,20 @@ export default function App() {
       return distance <= nearMeRadius;
     });
   }, [predictions, nearMeFilterActive, nearMeRadius, userLocation]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DESTINATION_RADIUS_KEY, String(destinationRadiusKm));
+    } catch {
+      // ignore persistence failures (e.g. private browsing)
+    }
+  }, [destinationRadiusKm]);
+
+  const destinationNearbyPredictions = useMemo(() => {
+    if (!navigateRoutes?.destination) return [];
+    const { lat, lon } = navigateRoutes.destination;
+    return filterPredictionsNearPoint(predictions, lat, lon, destinationRadiusKm);
+  }, [predictions, navigateRoutes, destinationRadiusKm]);
 
   const filteredPredictions = nearbyPredictions;
 
@@ -1780,6 +1791,7 @@ export default function App() {
                     navigateSaferRoute={navigateRoutes?.safer?.geometry}
                     navigateFasterRoute={navigateRoutes?.faster?.geometry}
                     selectedNavigateRoute={selectedNavigateRoute}
+                    destinationRadiusKm={destinationRadiusKm}
                     suppressMapControls={showNotificationPreferences}
                     isMobile={isMobile}
                     mapVisible={mobileTab === 'map'}
@@ -1798,6 +1810,10 @@ export default function App() {
                     onSelect={setSelectedNavigateRoute}
                     onClear={() => setNavigateRoutes(null)}
                     theme={theme}
+                    nearbyPredictions={destinationNearbyPredictions}
+                    radiusKm={destinationRadiusKm}
+                    selectedPrediction={selectedPrediction}
+                    onSelectPrediction={(pred) => handleSelectZone(pred, { expanded: false })}
                   />
                 </div>
               )}
@@ -2119,6 +2135,19 @@ export default function App() {
                 </button>
               </div>
 
+              <div className={`rounded-xl p-4 space-y-3 border ${
+                theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900/40 border-slate-800/80'
+              }`}>
+                <h3 className={`text-xs uppercase font-extrabold tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Navigate
+                </h3>
+                <DestinationRadiusSlider
+                  radiusKm={destinationRadiusKm}
+                  onChange={setDestinationRadiusKm}
+                  theme={theme}
+                />
+              </div>
+
               <NotificationPreferences
                 preferences={notificationPreferences}
                 onToggleEnabled={handleNotificationToggle}
@@ -2279,6 +2308,8 @@ export default function App() {
                   theme={theme}
                   onRoutesReady={handleNavigateRoutesReady}
                   onClose={() => setShowDesktopNavigate(false)}
+                  destinationRadiusKm={destinationRadiusKm}
+                  onDestinationRadiusChange={setDestinationRadiusKm}
                 />
               </div>
             )}
@@ -2292,6 +2323,10 @@ export default function App() {
                   onSelect={setSelectedNavigateRoute}
                   onClear={() => setNavigateRoutes(null)}
                   theme={theme}
+                  nearbyPredictions={destinationNearbyPredictions}
+                  radiusKm={destinationRadiusKm}
+                  selectedPrediction={selectedPrediction}
+                  onSelectPrediction={(pred) => handleSelectZone(pred, { expanded: false })}
                 />
               </div>
             )}
@@ -2325,6 +2360,7 @@ export default function App() {
                   navigateSaferRoute={navigateRoutes?.safer?.geometry}
                   navigateFasterRoute={navigateRoutes?.faster?.geometry}
                   selectedNavigateRoute={selectedNavigateRoute}
+                  destinationRadiusKm={destinationRadiusKm}
                   suppressMapControls={showNotificationPreferences}
                   isMobile={false}
                   layerPreset={mapLayerPreset}
@@ -2393,7 +2429,7 @@ export default function App() {
             onClick={() => setShowAboutModal(false)}
           >
             <div
-              className={`w-full max-w-5xl max-h-[85vh] overflow-y-auto rounded-2xl border shadow-2xl ${
+              className={`w-full max-w-5xl max-h-[85vh] flex flex-col rounded-2xl border shadow-2xl ${
                 theme === 'light'
                   ? 'border-slate-200 bg-white text-slate-900'
                   : 'border-slate-700 bg-brand-elevated text-slate-100'
@@ -2417,7 +2453,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className={`p-8 space-y-8 ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}>
+              <div className={`flex-1 overflow-y-auto p-8 space-y-8 ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}>
 
                 <p>
                   DIS-RUPTURE is a real-time disruption intelligence platform
@@ -2485,6 +2521,12 @@ export default function App() {
                 </div>
 
               </div>
+
+              <p className={`shrink-0 px-6 pb-4 text-[11px] leading-none ${
+                theme === 'light' ? 'text-slate-400' : 'text-slate-500'
+              }`}>
+                v{import.meta.env.VITE_APP_VERSION} · Build {import.meta.env.VITE_APP_BUILD_DATE}
+              </p>
             </div>
           </div>
         )}
