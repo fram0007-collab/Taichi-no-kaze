@@ -4,7 +4,7 @@
  * Filters active disruption predictions to those within a given radius of a
  * point (e.g. a navigate destination), sorted nearest-first.
  */
-import { calculateDistanceKm } from './haversine';
+import { calculateDistanceKm } from './haversine.js';
 
 export function getPredictionZoneCenter(prediction) {
   const zone = prediction?.zone ?? {};
