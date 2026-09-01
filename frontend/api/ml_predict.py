@@ -96,6 +96,7 @@ class handler(BaseHTTPRequestHandler):
                 features = build_zone_features(cur, zone_id)
                 result = predict_zone(features)
                 result["zone_id"] = zone_id
+                result["_source"] = "vercel_fallback"
                 set_cached(cur, conn, cache_key, result)
             finally:
                 cur.close(); conn.close()
@@ -137,6 +138,7 @@ class handler(BaseHTTPRequestHandler):
                 result["estimated_resolution_at"] = (
                     now + timedelta(hours=result["hours_remaining_median"])
                 ).isoformat()
+                result["_source"] = "vercel_fallback"
                 set_cached(cur, conn, cache_key, result)
             finally:
                 cur.close(); conn.close()
@@ -180,6 +182,7 @@ class handler(BaseHTTPRequestHandler):
                     features = build_zone_features(cur, zone_id)
                     result = predict_zone(features)
                     result["zone_id"] = zone_id
+                    result["_source"] = "vercel_fallback"
                     set_cached(cur, conn, cache_key, result)
                     zones_result[str(zone_id)] = result
                 except Exception as e:
@@ -201,6 +204,7 @@ class handler(BaseHTTPRequestHandler):
                     result["estimated_resolution_at"] = (
                         now + timedelta(hours=result["hours_remaining_median"])
                     ).isoformat()
+                    result["_source"] = "vercel_fallback"
                     set_cached(cur, conn, cache_key, result)
                     resolutions_result[str(alert_id)] = result
                 except Exception as e:
