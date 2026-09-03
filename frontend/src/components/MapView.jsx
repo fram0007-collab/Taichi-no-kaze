@@ -832,7 +832,7 @@ export default function MapView({
           ];
         });
       });
-  }, [predictions]); // Refetch when predictions sweep updates (ensures sync)
+  }, []); // once per map mount — not tied to the predictions poll
  
   // Fetch ALL zone statuses (not just alerts) to show every zone on the map
   useEffect(() => {

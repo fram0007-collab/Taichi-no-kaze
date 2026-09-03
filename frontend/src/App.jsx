@@ -516,7 +516,7 @@ export default function App() {
 
   useEffect(() => {
     fetchEarthquakes();
-    const interval = setInterval(fetchEarthquakes, 30000);
+    const interval = setInterval(fetchEarthquakes, 120000);
     return () => clearInterval(interval);
   }, []);
 
